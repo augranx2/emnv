@@ -14,18 +14,24 @@
  * dihasilkan (diakhiri /exec) untuk dipakai di public/config.js website
  * (domain rencana: emnv.vercel.app).
  *
- * TAB YANG DIBUTUHKAN (sudah ada di spreadsheet Anda):
+ * TAB YANG DIBUTUHKAN (sudah ada di spreadsheet Anda, DITAMBAH 1 tab baru):
  *   User_Roles         : Nama | Role | Departemen | Username | PasswordBaru | PasswordHash | Salt
  *   Sessions           : Token | Username | Nama | Role | Departemen | LoginAt | ExpiresAt
  *   Audit_Log          : Waktu | Username | Nama | Role | Departemen | Aksi | Fasilitas | Bulan | Detail
  *   Limit_Persyaratan  : PersyaratanKey | Suhu(SyaratL/U,AlertL/U,ActionL/U) | RH(...) | DPG(...)  (19 kolom)
- *   Report_FormQA      : Bulan | Gedung | Nama Ruang | Kriteria Penerimaan | (+ kolom approval, lihat §REPORT_FORMQA)
+ *   Approval_Harian    : *** TAB BARU, buat manual dulu *** — Bulan | Tanggal | Fasilitas |
+ *                        ApprovedNama | ApprovedUsername | ApprovedAt |
+ *                        BackfillReason | BackfillByNama | BackfillByUsername | BackfillAt | UpdatedAt
  *   Laporan_Narasi     : Fasilitas | Bulan | Pendahuluan | PerParameterJSON | KesimpulanUmum |
  *                        DinilaiNama | DinilaiJabatan | DinilaiTanggal |
  *                        DiperiksaNama | DiperiksaJabatan | DiperiksaTanggal | UpdatedAt
  *   {Facility}         : Nomor Ruangan | Nama Ruangan | Persyaratan Key   (tab master, 1 per fasilitas)
  *   {Facility}_Data    : Bulan | Tanggal | Jam (08:00/13:00) | Nama Ruangan | PersyaratanKey |
  *                        Suhu | RH | DPG | OPR | SPV                      (tab data, 1 per fasilitas)
+ *
+ * (Tab lama "Report_FormQA" — approve per ruangan per bulan — TIDAK dipakai lagi
+ * di versi ini, digantikan "Approval_Harian" di bawah. Boleh dibiarkan saja di
+ * spreadsheet, tidak akan diganggu kode ini.)
  *
  * PENTING — Tab Master & merged cells: kolom "Persyaratan Key" di tab master
  * biasanya diisi pakai merged cell (cuma terisi di baris paling atas suatu
@@ -38,27 +44,32 @@
  *
  * DEPARTEMEN & PENANGGUNG JAWAB PER FASILITAS (lihat FACILITIES di bawah):
  * Tiap fasilitas dipetakan ke satu Departemen utama (yang mengisi & approve
- * Formulir harian). Sebagian fasilitas (GBJ, GBK, ketiga GBB) juga bisa
+ * data harian). Sebagian fasilitas (GBJ, GBK, ketiga GBB) juga bisa
  * di-approve oleh Departemen "PPIC" (Manager PPIC), selain oleh SPV/Manager
  * departemen fasilitas itu sendiri.
  *
- * ALUR KERJA & PENGUNCIAN DATA:
- * 1. Formulir harian (FM.QA.024, tab Report_FormQA) diisi oleh Staff/Operator
- *    departemen fasilitas itu sendiri, dan di-APPROVE oleh SPV/Manager
- *    departemen itu (atau Manager PPIC untuk GBJ/GBK/GBB). Cukup SATU tanda
- *    tangan (Kepala Bagian) — TIDAK ada tanda tangan Manager QA di level
- *    formulir harian ini (beda dari form fisik FM.QA.024/R11 yang px punya
- *    2 slot; disederhanakan atas persetujuan user 2026-08).
- * 2. QA (Supervisor/Manager QA) menyusun Pengkajian bulanan (Laporan_Narasi)
- *    PER FASILITAS, dan baru boleh mulai untuk suatu fasilitas+bulan setelah
- *    SEMUA ruangan fasilitas itu yang punya data bulan itu sudah final
- *    di-approve Kepala Bagian di Report_FormQA.
- * 3. Begitu Formulir suatu ruangan+bulan sudah di-approve Kepala Bagian,
- *    data mentah ruangan itu (bulan tsb) TERKUNCI dari edit/hapus untuk
- *    SIAPA PUN kecuali Administrator — kecuali Kepala Bagian yang sama
- *    "membuka kembali" (unapprove) dulu.
- * 4. Begitu Pengkajian EM Non Viable suatu fasilitas+bulan sudah di-approve
- *    FINAL ("Mengetahui" oleh Manager QA), data mentah & Formulir fasilitas
+ * ALUR KERJA & PENGUNCIAN DATA (approval HARIAN, bukan per ruangan/bulan):
+ * 1. Operator/Staff HANYA bisa input data untuk tanggal HARI INI (server-side
+ *    enforced), boleh banyak ruangan sekaligus dalam satu hari itu. Kolom OPR
+ *    diisi OTOMATIS dari nama akun yang login — tidak diketik manual.
+ * 2. SPV/Manager departemen fasilitas itu (atau Manager PPIC untuk fasilitas
+ *    gudang terkait) meng-approve SEMUA entri hari itu sekaligus (1 aksi =
+ *    1 tanggal, seluruh ruangan). Kolom SPV di SEMUA baris tanggal itu otomatis
+ *    terisi nama SPV yang approve. Begitu di-approve, tanggal itu (fasilitas
+ *    itu) TERKUNCI dari edit/hapus untuk siapa pun kecuali Administrator,
+ *    kecuali SPV yang sama membuka kembali (unapprove).
+ * 3. QR verifikasi otomatis "muncul" (bisa dihasilkan) begitu suatu tanggal
+ *    sudah ke-ACC — link ke halaman /verify yang membaca live dari sistem.
+ * 4. BACKFILL (lupa isi hari sebelumnya): operator TIDAK bisa langsung isi
+ *    tanggal yang sudah lewat. SPV/Manager harus "buka akses" dulu untuk
+ *    tanggal itu (dengan alasan tertulis, dicatat di Audit_Log) — baru
+ *    operator bisa mengisi tanggal tsb, sampai SPV meng-approve-nya (yang
+ *    otomatis menutup lagi jendela backfill itu).
+ * 5. QA (Supervisor/Manager QA) menyusun Pengkajian bulanan (Laporan_Narasi)
+ *    PER FASILITAS, dan baru boleh MULAI untuk suatu fasilitas+bulan setelah
+ *    SEMUA tanggal yang punya data bulan itu sudah di-approve SPV/Manager.
+ * 6. Begitu Pengkajian suatu fasilitas+bulan sudah di-approve FINAL
+ *    ("Mengetahui" oleh Manager QA), seluruh data & approval harian fasilitas
  *    itu bulan itu terkunci total (termasuk dari unapprove) kecuali oleh
  *    Administrator. Narasi Pengkajian sendiri juga ikut terkunci.
  */
@@ -92,8 +103,7 @@ const PARAMS = ["suhu", "rh", "dpg"];
 const USER_ROLES_SHEET = "User_Roles";
 const SESSIONS_SHEET = "Sessions";
 const AUDIT_LOG_SHEET = "Audit_Log";
-const REPORT_FORMQA_SHEET = "Report_FormQA";
-const FORM_QA_NO = "FM.QA.024/R11";
+const APPROVAL_HARIAN_SHEET = "Approval_Harian";
 const SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8 jam
 // Sengaja TIDAK ada role level 0 (Tamu mulai dari 1) — lihat catatan sama di
 // EM Viable: menghindari bug `!ROLE_LEVEL[role]` salah anggap role valid
@@ -126,14 +136,17 @@ function doGet(e) {
       case "activityLog":
         result = getActivityLog_(e.parameter.token, e.parameter.month, e.parameter.facility);
         break;
-      case "formQA":
-        result = getFormQAForViewer_(e.parameter.facility, e.parameter.bulan, e.parameter.namaRuang, e.parameter.token);
+      case "dayStatus":
+        result = getDayStatusForViewer_(e.parameter.facility, e.parameter.tanggal, e.parameter.token);
+        break;
+      case "openInputDates":
+        result = getOpenInputDates_(e.parameter.facility, e.parameter.token);
         break;
       case "verify":
         // Halaman /verify (scan QR) tetap publik — cuma info tanda tangan.
-        result = e.parameter.type === "formQA"
-          ? getVerifySignoffFormQA_(e.parameter.facility, e.parameter.bulan, e.parameter.namaRuang)
-          : getVerifySignoffPengkajian_(e.parameter.facility, e.parameter.month);
+        result = e.parameter.type === "pengkajian"
+          ? getVerifySignoffPengkajian_(e.parameter.facility, e.parameter.month)
+          : getVerifySignoffHarian_(e.parameter.facility, e.parameter.tanggal);
         break;
       default:
         result = { error: "Aksi tidak dikenal: " + action };
@@ -175,14 +188,19 @@ function doPost(e) {
           return approveMengetahuiAuthed_(session, body.facility, body.month);
         });
         break;
-      case "approveFormQA":
+      case "approveDay":
         result = withAuth_(body.token, function (session) {
-          return approveFormQAAuthed_(session, body.facility, body.bulan, body.namaRuang);
+          return approveDayAuthed_(session, body.facility, body.tanggal);
         });
         break;
-      case "unapproveFormQA":
+      case "unapproveDay":
         result = withAuth_(body.token, function (session) {
-          return unapproveFormQAAuthed_(session, body.facility, body.bulan, body.namaRuang);
+          return unapproveDayAuthed_(session, body.facility, body.tanggal);
+        });
+        break;
+      case "openBackfill":
+        result = withAuth_(body.token, function (session) {
+          return openBackfillAuthed_(session, body.facility, body.tanggal, body.alasan);
         });
         break;
       case "changePassword":
@@ -562,6 +580,10 @@ function saveEntries_(facilityKey, month, entries) {
   return { ok: true, saved: newRows.length };
 }
 
+function todayStr_() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+}
+
 function saveEntriesAuthed_(session, facilityKey, month, entries) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
@@ -578,23 +600,47 @@ function saveEntriesAuthed_(session, facilityKey, month, entries) {
     return { error: "Staff tidak bisa menghapus data yang sudah tersimpan. Hubungi Supervisor/Manager." };
   }
 
+  // Baris BARU/BERUBAH (id belum ada di "before", atau isinya beda dari
+  // "before") wajib tanggalnya = hari ini, ATAU tanggal itu sedang dibuka
+  // backfill oleh SPV/Manager (dan belum di-approve). Baris yang TIDAK
+  // berubah dari "before" dibiarkan lolos apa adanya (supaya save dari
+  // ruangan lain tidak ikut kena validasi tanggal ruangan yang tidak diedit).
+  const beforeById = {};
+  before.forEach(function (e) { beforeById[e.id] = e; });
+  const today = todayStr_();
+
   if (session.role !== "Administrator") {
+    const touchedDates = new Set();
+    entries.forEach(function (e) {
+      const prev = beforeById[e.id];
+      const isNewOrChanged = !prev || prev.suhu !== e.suhu || prev.rh !== e.rh || prev.dpg !== e.dpg;
+      if (isNewOrChanged && e.tanggal) touchedDates.add(e.tanggal);
+    });
+    touchedDates.forEach(function (tgl) {
+      const allowedByBackfill = isBackfillOpen_(cfg.label, tgl);
+      if (tgl !== today && !allowedByBackfill) {
+        throw new Error("Tanggal " + tgl + " bukan hari ini dan belum dibuka untuk backfill oleh SPV/Manager. Minta SPV/Manager membuka akses backfill dulu kalau perlu mengisi tanggal ini.");
+      }
+      if (isDayApproved_(cfg.label, tgl)) {
+        throw new Error("Tanggal " + tgl + " sudah di-approve SPV/Manager — data terkunci. Minta SPV/Manager membuka kembali (unapprove) dulu kalau perlu koreksi.");
+      }
+    });
     // Kunci total kalau Pengkajian fasilitas+bulan ini sudah final.
     if (isPengkajianFinalApproved_(facilityKey, month)) {
       return { error: "Pengkajian EM Non Viable fasilitas ini bulan ini sudah di-approve final oleh Manager QA — data mentah terkunci. Hubungi Administrator kalau perlu perubahan." };
     }
-    // Kunci per-ruangan: kalau Formulir ruangan itu bulan ini sudah di-approve
-    // Kepala Bagian, tidak bisa lagi diubah/dihapus siapa pun kecuali Admin
-    // (harus di-"unapprove" dulu oleh Kepala Bagian).
-    const roomsTouched = Array.from(new Set(entries.concat(before).map(function (e) { return e.roomName; }).filter(Boolean)));
-    for (let i = 0; i < roomsTouched.length; i++) {
-      if (isFormQAApproved_(cfg.label, month, roomsTouched[i])) {
-        return { error: "Formulir ruangan '" + roomsTouched[i] + "' bulan ini sudah di-approve Kepala Bagian — data terkunci. Minta Kepala Bagian buka kembali (unapprove) dulu kalau perlu koreksi." };
-      }
-    }
   }
 
-  const result = saveEntries_(facilityKey, month, entries);
+  // OPR selalu diisi otomatis dari akun yang login untuk baris baru/berubah —
+  // tidak diambil dari input client. Baris yang tidak berubah mempertahankan
+  // OPR aslinya (bisa jadi diisi operator lain di sesi sebelumnya).
+  const finalEntries = entries.map(function (e) {
+    const prev = beforeById[e.id];
+    const isNewOrChanged = !prev || prev.suhu !== e.suhu || prev.rh !== e.rh || prev.dpg !== e.dpg;
+    return Object.assign({}, e, { opr: isNewOrChanged ? session.nama : (prev ? prev.opr : session.nama), spv: prev ? prev.spv : "" });
+  });
+
+  const result = saveEntries_(facilityKey, month, finalEntries);
   writeAuditLog_({
     username: session.username, nama: session.nama, role: session.role, departemen: session.departemen,
     aksi: deletedRows.length > 0 ? "Hapus/Ubah Data" : "Simpan Data", fasilitas: cfg.label, bulan: month,
@@ -604,125 +650,194 @@ function saveEntriesAuthed_(session, facilityKey, month, entries) {
 }
 
 // ---------------------------------------------------------------------------
-// REPORT_FORMQA  (digitalisasi FM.QA.024 — per Fasilitas + Bulan + Nama Ruang)
-// Kolom: A Bulan | B Gedung | C Nama Ruang | D Kriteria Penerimaan |
-//        E KepalaBagianNama | F KepalaBagianUsername | G KepalaBagianTanggal | H UpdatedAt
-// CATATAN: kalau header E-H belum ada di sheet Anda, tambahkan judul kolom
-// itu secara manual di baris 1 (Apps Script tetap bisa menulis datanya
-// walau header belum ada, tapi enak dibaca kalau headernya lengkap).
+// APPROVAL_HARIAN  (approve SEKALIGUS semua entri satu Fasilitas + Tanggal,
+// bukan per ruangan/bulan) — tab "Approval_Harian". Kolom:
+// A Bulan | B Tanggal | C Fasilitas | D ApprovedNama | E ApprovedUsername |
+// F ApprovedAt | G BackfillReason | H BackfillByNama | I BackfillByUsername |
+// J BackfillAt | K UpdatedAt
 // ---------------------------------------------------------------------------
-function getFormQASheet_() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(REPORT_FORMQA_SHEET);
-  if (!sheet) throw new Error("Tab '" + REPORT_FORMQA_SHEET + "' tidak ditemukan.");
+function getApprovalHarianSheet_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(APPROVAL_HARIAN_SHEET);
+  if (!sheet) throw new Error("Tab '" + APPROVAL_HARIAN_SHEET + "' tidak ditemukan. Buat dulu tab ini (lihat komentar di atas file).");
   return sheet;
 }
 
-function findFormQARow_(facilityLabel, bulan, namaRuang) {
-  const sheet = getFormQASheet_();
+function findApprovalHarianRow_(facilityLabel, tanggal) {
+  const sheet = getApprovalHarianSheet_();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return { sheet: sheet, rowIndex: -1, row: null };
-  const values = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+  const values = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
   for (let i = 0; i < values.length; i++) {
-    if (values[i][1] === facilityLabel && formatMonth_(values[i][0]) === bulan && String(values[i][2] || "").trim() === String(namaRuang || "").trim()) {
+    if (values[i][2] === facilityLabel && formatDate_(values[i][1]) === tanggal) {
       return { sheet: sheet, rowIndex: i + 2, row: values[i] };
     }
   }
   return { sheet: sheet, rowIndex: -1, row: null };
 }
 
-function getFormQA_(facilityKey, bulan, namaRuang) {
+function getDayStatus_(facilityKey, tanggal) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
-  const found = findFormQARow_(cfg.label, bulan, namaRuang);
-  if (found.rowIndex === -1) return { found: false, formNo: FORM_QA_NO };
+  const found = findApprovalHarianRow_(cfg.label, tanggal);
+  if (found.rowIndex === -1) {
+    return { tanggal: tanggal, approved: false, backfill: null };
+  }
   const row = found.row;
   return {
-    found: true, formNo: FORM_QA_NO, kriteriaPenerimaan: row[3] || "",
-    kepalaBagian: { nama: row[4] || "", username: row[5] || "", tanggal: formatDate_(row[6]) },
-    updatedAt: row[7],
+    tanggal: tanggal,
+    approved: !!row[3],
+    approvedBy: row[3] ? { nama: row[3], username: row[4], at: row[5] } : null,
+    backfill: row[6] ? { alasan: row[6], byNama: row[7], byUsername: row[8], at: row[9] } : null,
   };
 }
 
-function isFormQAApproved_(facilityLabel, bulan, namaRuang) {
-  const found = findFormQARow_(facilityLabel, bulan, namaRuang);
-  return !!(found.rowIndex !== -1 && found.row[4]); // kolom E KepalaBagianNama
+function getDayStatusForViewer_(facilityKey, tanggal, token) {
+  // Status hari (approved/backfill) tidak sensitif — boleh dilihat siapa saja
+  // yang sedang memakai app (tetap butuh login supaya bukan endpoint publik
+  // liar, tapi tidak perlu departemen yang cocok).
+  const session = token ? validateSession_(token) : null;
+  if (!session) return { error: "Sesi tidak valid atau sudah habis, silakan login ulang." };
+  return getDayStatus_(facilityKey, tanggal);
 }
 
-function upsertFormQARow_(cfg, bulan, namaRuang, kriteriaPenerimaan, kepalaBagian) {
-  const found = findFormQARow_(cfg.label, bulan, namaRuang);
-  const now = new Date();
+function isDayApproved_(facilityLabel, tanggal) {
+  const found = findApprovalHarianRow_(facilityLabel, tanggal);
+  return !!(found.rowIndex !== -1 && found.row[3]);
+}
+
+// Backfill dianggap "terbuka" kalau ada baris dengan BackfillReason terisi
+// DAN belum di-approve (approve otomatis "menutup" jendela backfill itu).
+function isBackfillOpen_(facilityLabel, tanggal) {
+  const found = findApprovalHarianRow_(facilityLabel, tanggal);
+  if (found.rowIndex === -1) return false;
+  return !!(found.row[6] && !found.row[3]);
+}
+
+function upsertApprovalHarianRow_(cfg, tanggal, patch) {
+  const found = findApprovalHarianRow_(cfg.label, tanggal);
+  const bulan = tanggal.slice(0, 7);
+  const prev = found.row || ["", tanggal, cfg.label, "", "", "", "", "", "", "", ""];
   const rowValues = [
-    bulan, cfg.label, namaRuang,
-    kriteriaPenerimaan !== undefined ? kriteriaPenerimaan : (found.row ? found.row[3] : ""),
-    kepalaBagian ? kepalaBagian.nama : (found.row ? found.row[4] : ""),
-    kepalaBagian ? kepalaBagian.username : (found.row ? found.row[5] : ""),
-    kepalaBagian ? kepalaBagian.tanggal : (found.row ? found.row[6] : ""),
-    now,
+    bulan, tanggal, cfg.label,
+    "approvedNama" in patch ? patch.approvedNama : prev[3],
+    "approvedUsername" in patch ? patch.approvedUsername : prev[4],
+    "approvedAt" in patch ? patch.approvedAt : prev[5],
+    "backfillReason" in patch ? patch.backfillReason : prev[6],
+    "backfillByNama" in patch ? patch.backfillByNama : prev[7],
+    "backfillByUsername" in patch ? patch.backfillByUsername : prev[8],
+    "backfillAt" in patch ? patch.backfillAt : prev[9],
+    new Date(),
   ];
-  if (found.rowIndex === -1) {
-    found.sheet.appendRow(rowValues);
-  } else {
-    found.sheet.getRange(found.rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
-  }
+  if (found.rowIndex === -1) found.sheet.appendRow(rowValues);
+  else found.sheet.getRange(found.rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
 }
 
-function approveFormQAAuthed_(session, facilityKey, bulan, namaRuang) {
+// Menulis nama SPV ke SEMUA baris data hari itu (kolom J, index 9) sekaligus
+// — supaya data mentah tetap "self-contained" (kebaca lengkap tanpa join)
+// kalau di-export/print langsung dari {Facility}_Data.
+function stampSpvOnDataRows_(cfg, month, tanggal, spvNama) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(cfg.dataSheet);
+  if (!sheet) return;
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  const values = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+  let changed = false;
+  for (let i = 0; i < values.length; i++) {
+    if (formatMonth_(values[i][0]) === month && formatDate_(values[i][1]) === tanggal) {
+      values[i][9] = spvNama;
+      changed = true;
+    }
+  }
+  if (changed) sheet.getRange(2, 1, values.length, 10).setValues(values);
+}
+
+function approveDayAuthed_(session, facilityKey, tanggal) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
   if (!requireRoleForFacility_(session, "Supervisor", cfg)) {
-    return { error: "Hanya Supervisor/Manager departemen " + cfg.department + " (atau Manager PPIC untuk fasilitas gudang terkait) yang boleh approve Formulir ini." };
+    return { error: "Hanya Supervisor/Manager departemen " + cfg.department + " (atau Manager PPIC untuk fasilitas gudang terkait) yang boleh approve data harian ini." };
   }
-  if (session.role !== "Administrator" && isPengkajianFinalApproved_(facilityKey, bulan)) {
-    return { error: "Pengkajian EM Non Viable fasilitas ini bulan ini sudah final — Formulir terkunci." };
+  const month = tanggal.slice(0, 7);
+  if (session.role !== "Administrator" && isPengkajianFinalApproved_(facilityKey, month)) {
+    return { error: "Pengkajian EM Non Viable fasilitas ini bulan ini sudah final — tidak bisa approve/ubah data lagi." };
   }
-  upsertFormQARow_(cfg, bulan, namaRuang, undefined, { nama: session.nama, username: session.username, tanggal: formatDate_(new Date()) });
-  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Formulir QA", fasilitas: cfg.label, bulan: bulan, detail: "Ruang: " + namaRuang });
-  return getFormQA_(facilityKey, bulan, namaRuang);
+  const entriesThatDay = (getEntries_(facilityKey, month).entries || []).filter(function (e) { return e.tanggal === tanggal; });
+  if (entriesThatDay.length === 0) return { error: "Belum ada data yang diisi operator untuk tanggal ini." };
+
+  const nowStr = formatDate_(new Date());
+  upsertApprovalHarianRow_(cfg, tanggal, { approvedNama: session.nama, approvedUsername: session.username, approvedAt: nowStr });
+  stampSpvOnDataRows_(cfg, month, tanggal, session.nama);
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Data Harian", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal + " (" + entriesThatDay.length + " baris)" });
+  return getDayStatus_(facilityKey, tanggal);
 }
 
-function unapproveFormQAAuthed_(session, facilityKey, bulan, namaRuang) {
+function unapproveDayAuthed_(session, facilityKey, tanggal) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
   if (!requireRoleForFacility_(session, "Supervisor", cfg)) {
-    return { error: "Hanya Supervisor/Manager departemen " + cfg.department + " yang boleh membuka kembali (unapprove) Formulir ini." };
+    return { error: "Hanya Supervisor/Manager departemen " + cfg.department + " yang boleh membuka kembali (unapprove) data harian ini." };
   }
-  if (session.role !== "Administrator" && isPengkajianFinalApproved_(facilityKey, bulan)) {
-    return { error: "Pengkajian EM Non Viable fasilitas ini bulan ini sudah final — Formulir tidak bisa dibuka kembali. Hubungi Administrator." };
+  const month = tanggal.slice(0, 7);
+  if (session.role !== "Administrator" && isPengkajianFinalApproved_(facilityKey, month)) {
+    return { error: "Pengkajian EM Non Viable fasilitas ini bulan ini sudah final — tidak bisa dibuka kembali. Hubungi Administrator." };
   }
-  upsertFormQARow_(cfg, bulan, namaRuang, undefined, { nama: "", username: "", tanggal: "" });
-  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Unapprove Formulir QA", fasilitas: cfg.label, bulan: bulan, detail: "Ruang: " + namaRuang });
-  return getFormQA_(facilityKey, bulan, namaRuang);
+  upsertApprovalHarianRow_(cfg, tanggal, { approvedNama: "", approvedUsername: "", approvedAt: "" });
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Unapprove Data Harian", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal });
+  return getDayStatus_(facilityKey, tanggal);
 }
 
-// Hanya akun departemen fasilitas itu (atau PPIC/QA/Administrator) yang
-// login yang boleh melihat Formulir — publik & Tamu tidak bisa.
-function getFormQAForViewer_(facilityKey, bulan, namaRuang, token) {
+function openBackfillAuthed_(session, facilityKey, tanggal, alasan) {
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
+  if (!requireRoleForFacility_(session, "Supervisor", cfg)) {
+    return { error: "Hanya Supervisor/Manager departemen " + cfg.department + " (atau Manager PPIC) yang boleh membuka akses backfill." };
+  }
+  if (!alasan || !String(alasan).trim()) return { error: "Alasan backfill wajib diisi." };
+  if (tanggal >= todayStr_()) return { error: "Backfill hanya untuk tanggal yang sudah lewat." };
+  if (isDayApproved_(cfg.label, tanggal)) return { error: "Tanggal ini sudah pernah di-approve — tidak perlu backfill." };
+  upsertApprovalHarianRow_(cfg, tanggal, { backfillReason: String(alasan).trim(), backfillByNama: session.nama, backfillByUsername: session.username, backfillAt: formatDate_(new Date()) });
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Buka Akses Backfill", fasilitas: cfg.label, bulan: tanggal.slice(0, 7), detail: "Tanggal: " + tanggal + " — Alasan: " + alasan });
+  return getDayStatus_(facilityKey, tanggal);
+}
+
+// Untuk halaman input operator: tanggal hari ini + semua tanggal backfill
+// yang masih terbuka (belum di-approve) untuk fasilitas ini.
+function getOpenInputDates_(facilityKey, token) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
   const session = token ? validateSession_(token) : null;
-  const canView = session && (session.role === "Administrator" || session.departemen === cfg.department || session.departemen === cfg.altDepartment || session.departemen === "QA");
-  if (!canView) return { error: "Formulir QA hanya bisa dilihat oleh akun departemen terkait atau QA yang sudah login." };
-  return getFormQA_(facilityKey, bulan, namaRuang);
+  if (!session) return { error: "Sesi tidak valid atau sudah habis, silakan login ulang." };
+  const today = todayStr_();
+  const sheet = getApprovalHarianSheet_();
+  const lastRow = sheet.getLastRow();
+  const backfillDates = [];
+  if (lastRow >= 2) {
+    const values = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
+    values.forEach(function (row) {
+      if (row[2] === cfg.label && row[6] && !row[3]) {
+        backfillDates.push({ tanggal: formatDate_(row[1]), alasan: row[6], byNama: row[7] });
+      }
+    });
+  }
+  return { today: today, backfillDates: backfillDates };
 }
 
-function getVerifySignoffFormQA_(facilityKey, bulan, namaRuang) {
-  const full = getFormQA_(facilityKey, bulan, namaRuang);
-  if (full.error) return full;
-  if (!full.found) return { found: false };
-  return { found: true, kepalaBagian: full.kepalaBagian, updatedAt: full.updatedAt };
+function getVerifySignoffHarian_(facilityKey, tanggal) {
+  const status = getDayStatus_(facilityKey, tanggal);
+  if (status.error) return status;
+  if (!status.approved) return { found: false };
+  return { found: true, approvedBy: status.approvedBy };
 }
 
-// Formulir suatu fasilitas+bulan dianggap "selesai" kalau SETIAP ruangan yang
-// punya data pengujian bulan itu sudah punya baris Report_FormQA yang
-// KepalaBagian-nya terisi. Kalau belum ada data sama sekali, dianggap
-// belum selesai.
-function isFormulirFacilityCompleteForMonth_(facilityKey, month) {
+// Fasilitas+bulan dianggap "selesai" untuk keperluan Pengkajian kalau SETIAP
+// tanggal yang punya data bulan itu sudah di-approve SPV/Manager.
+function isFacilityMonthFullyApproved_(facilityKey, month) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return false;
   const entriesRes = getEntries_(facilityKey, month);
-  const rooms = Array.from(new Set((entriesRes.entries || []).map(function (e) { return e.roomName; }).filter(Boolean)));
-  if (rooms.length === 0) return false;
-  return rooms.every(function (r) { return isFormQAApproved_(cfg.label, month, r); });
+  const dates = Array.from(new Set((entriesRes.entries || []).map(function (e) { return e.tanggal; }).filter(Boolean)));
+  if (dates.length === 0) return false;
+  return dates.every(function (d) { return isDayApproved_(cfg.label, d); });
 }
 
 // ---------------------------------------------------------------------------
@@ -809,8 +924,8 @@ function saveReportAuthed_(session, facilityKey, month, narrative) {
     if (existing.found && existing.signoff && existing.signoff.diperiksa && existing.signoff.diperiksa.nama) {
       return { error: "Pengkajian fasilitas ini bulan ini sudah di-approve final (Mengetahui) oleh Manager QA — narasi terkunci." };
     }
-    if (!existing.found && !isFormulirFacilityCompleteForMonth_(facilityKey, month)) {
-      return { error: "Formulir QA (FM.QA.024) fasilitas ini bulan ini belum lengkap/final di-approve Kepala Bagian. Pengkajian baru bisa dibuat setelah semua Formulir ruangan selesai." };
+    if (!existing.found && !isFacilityMonthFullyApproved_(facilityKey, month)) {
+      return { error: "Belum semua tanggal fasilitas ini bulan ini di-approve SPV/Manager. Pengkajian baru bisa dibuat setelah semua data harian selesai di-approve." };
     }
   }
   const signoff = (existing && existing.signoff) || emptySignoffServer_();

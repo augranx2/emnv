@@ -65,19 +65,25 @@ export function fetchActivityLog(token, { month, facility } = {}) {
   return apiGet(params).then((d) => d.logs || []);
 }
 
-// --- FORMULIR QA (FM.QA.024) ---
-export function fetchFormQA(facility, bulan, namaRuang, token) {
-  const params = { action: "formQA", facility, bulan, namaRuang };
-  if (token) params.token = token;
-  return apiGet(params);
+// --- APPROVAL HARIAN (per Fasilitas + Tanggal) ---
+export function fetchDayStatus(facility, tanggal, token) {
+  return apiGet({ action: "dayStatus", facility, tanggal, token });
 }
 
-export function approveFormQA(facility, bulan, namaRuang, token) {
-  return apiPost({ action: "approveFormQA", facility, bulan, namaRuang, token });
+export function fetchOpenInputDates(facility, token) {
+  return apiGet({ action: "openInputDates", facility, token });
 }
 
-export function unapproveFormQA(facility, bulan, namaRuang, token) {
-  return apiPost({ action: "unapproveFormQA", facility, bulan, namaRuang, token });
+export function approveDay(facility, tanggal, token) {
+  return apiPost({ action: "approveDay", facility, tanggal, token });
+}
+
+export function unapproveDay(facility, tanggal, token) {
+  return apiPost({ action: "unapproveDay", facility, tanggal, token });
+}
+
+export function openBackfill(facility, tanggal, alasan, token) {
+  return apiPost({ action: "openBackfill", facility, tanggal, alasan, token });
 }
 
 // --- AUTH ---
@@ -99,9 +105,9 @@ export function changePassword(token, oldPassword, newPassword) {
 
 // Dipakai khusus halaman publik /verify (scan QR) — tetap bisa diakses tanpa
 // login, tapi cuma mengembalikan info tanda tangan.
-export function fetchVerify(type, facility, period, namaRuang) {
-  const params = type === "formQA"
-    ? { action: "verify", type, facility, bulan: period, namaRuang }
-    : { action: "verify", type, facility, month: period };
+export function fetchVerify(type, facility, period) {
+  const params = type === "pengkajian"
+    ? { action: "verify", type, facility, month: period }
+    : { action: "verify", type: "harian", facility, tanggal: period };
   return apiGet(params);
 }

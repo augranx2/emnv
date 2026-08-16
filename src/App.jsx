@@ -7,8 +7,9 @@ import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
   fetchReport, saveReport as apiSaveReport, fetchStatusIndex,
   approveDikaji as apiApproveDikaji, approveMengetahui as apiApproveMengetahui,
-  fetchActivityLog, fetchFormQA, approveFormQA as apiApproveFormQA,
-  unapproveFormQA as apiUnapproveFormQA, changePassword as apiChangePassword,
+  fetchActivityLog, fetchDayStatus, fetchOpenInputDates,
+  approveDay as apiApproveDay, unapproveDay as apiUnapproveDay,
+  openBackfill as apiOpenBackfill, changePassword as apiChangePassword,
 } from "./api.js";
 import { useAuth, hasAccess, hasFacilityAccess } from "./auth.js";
 
@@ -195,86 +196,141 @@ function Dashboard({ month, setView }) {
   );
 }
 
-/* ========================================================================= ENTRY (per fasilitas + bulan + ruangan) */
+/* ========================================================================= ENTRY HARIAN (per fasilitas + tanggal) */
 
-function EntryPage({ session, facilityKey, month, setView }) {
-  const cfg = FACILITIES.find((f) => f.key === facilityKey);
-  const [rooms, setRooms] = useState([]);
-  const [monthEntries, setMonthEntries] = useState([]); // seluruh entri bulan ini (semua ruangan)
-  const [selectedRoom, setSelectedRoom] = useState(null);
-  const [rows, setRows] = useState([]); // baris tanggal x sesi untuk ruangan terpilih
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [formQA, setFormQA] = useState(null);
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function BackfillForm({ session, facilityKey, onOpened }) {
+  const [tanggal, setTanggal] = useState("");
+  const [alasan, setAlasan] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      await apiOpenBackfill(facilityKey, tanggal, alasan, session.token);
+      setTanggal("");
+      setAlasan("");
+      onOpened();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-white rounded-xl border p-4 space-y-2">
+      <div className="text-sm font-medium text-slate-700">Buka Akses Backfill (tanggal lewat yang belum diisi)</div>
+      <div className="flex flex-wrap gap-2 items-end">
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Tanggal</label>
+          <input type="date" value={tanggal} max={todayStr()} onChange={(e) => setTanggal(e.target.value)} required className="border rounded-lg px-2 py-1.5 text-sm" />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-xs text-slate-500 mb-1">Alasan</label>
+          <input value={alasan} onChange={(e) => setAlasan(e.target.value)} required className="w-full border rounded-lg px-2 py-1.5 text-sm" placeholder="mis. operator lupa input, sistem down, dll." />
+        </div>
+        <button type="submit" disabled={busy} className="text-sm bg-slate-800 text-white rounded-lg px-4 py-1.5 disabled:opacity-60">Buka Akses</button>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </form>
+  );
+}
+
+function EntryPage({ session, facilityKey, setView }) {
+  const cfg = FACILITIES.find((f) => f.key === facilityKey);
   const canInput = hasFacilityAccess(session, "Staff", cfg);
   const canApprove = hasFacilityAccess(session, "Supervisor", cfg);
+
+  const [openDates, setOpenDates] = useState({ today: todayStr(), backfillDates: [] });
+  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [rooms, setRooms] = useState([]);
+  const [monthEntries, setMonthEntries] = useState([]);
+  const [dayStatus, setDayStatus] = useState(null);
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const [values, setValues] = useState({}); // { "08:00": {suhu,rh,dpg}, "13:00": {...} }
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [error, setError] = useState("");
+
+  const month = selectedDate.slice(0, 7);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [roomList, entries] = await Promise.all([fetchMaster(facilityKey), fetchEntries(facilityKey, month)]);
+      const [dates, roomList] = await Promise.all([fetchOpenInputDates(facilityKey, session.token), fetchMaster(facilityKey)]);
+      setOpenDates(dates);
       setRooms(roomList);
-      setMonthEntries(entries);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [facilityKey, month]);
+  }, [facilityKey, session.token]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  useEffect(() => {
-    if (!selectedRoom) { setRows([]); setFormQA(null); return; }
-    const n = daysInMonth(month);
-    const byKey = {};
-    monthEntries.filter((e) => e.roomName === selectedRoom.name).forEach((e) => { byKey[`${e.tanggal}|${e.jam}`] = e; });
-    const built = [];
-    for (let d = 1; d <= n; d++) {
-      const tanggal = `${month}-${String(d).padStart(2, "0")}`;
-      SESI.forEach((jam) => {
-        const existing = byKey[`${tanggal}|${jam}`];
-        built.push({
-          tanggal, jam,
-          suhu: existing?.suhu ?? "", rh: existing?.rh ?? "", dpg: existing?.dpg ?? "",
-          opr: existing?.opr ?? "", spv: existing?.spv ?? "",
-          level: existing?.level || { suhu: null, rh: null, dpg: null },
-        });
-      });
+  const loadDate = useCallback(async () => {
+    setError("");
+    try {
+      const [entries, status] = await Promise.all([fetchEntries(facilityKey, month), fetchDayStatus(facilityKey, selectedDate, session.token)]);
+      setMonthEntries(entries);
+      setDayStatus(status);
+    } catch (err) {
+      setError(err.message);
     }
-    setRows(built);
-    fetchFormQA(facilityKey, month, selectedRoom.name, session.token).then(setFormQA).catch(() => setFormQA(null));
-  }, [selectedRoom, monthEntries, month, facilityKey, session.token]);
+  }, [facilityKey, month, selectedDate, session.token]);
 
-  function updateCell(idx, field, value) {
-    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+  useEffect(() => { loadDate(); }, [loadDate]);
+
+  useEffect(() => {
+    if (!selectedRoom) { setValues({}); return; }
+    const byJam = { "08:00": null, "13:00": null };
+    monthEntries.filter((e) => e.roomName === selectedRoom.name && e.tanggal === selectedDate).forEach((e) => { byJam[e.jam] = e; });
+    const init = {};
+    SESI.forEach((jam) => {
+      const e = byJam[jam];
+      init[jam] = { suhu: e?.suhu ?? "", rh: e?.rh ?? "", dpg: e?.dpg ?? "", opr: e?.opr ?? "", level: e?.level || { suhu: null, rh: null, dpg: null } };
+    });
+    setValues(init);
+  }, [selectedRoom, monthEntries, selectedDate]);
+
+  function updateField(jam, field, val) {
+    setValues((prev) => ({ ...prev, [jam]: { ...prev[jam], [field]: val } }));
   }
 
-  async function handleSave() {
+  const isApproved = !!dayStatus?.approved;
+  const rowsLocked = isApproved && session.role !== "Administrator";
+  const dateOptions = [{ tanggal: openDates.today, label: "Hari ini", isBackfill: false }]
+    .concat((openDates.backfillDates || []).map((b) => ({ tanggal: b.tanggal, label: b.tanggal, isBackfill: true, alasan: b.alasan })));
+
+  async function handleSaveRoom() {
     if (!selectedRoom) return;
     setSaving(true);
     setError("");
     try {
-      // Hanya baris yang punya minimal satu nilai terisi yang disimpan.
-      const editedRows = rows
-        .filter((r) => r.suhu !== "" || r.rh !== "" || r.dpg !== "" || r.opr !== "" || r.spv !== "")
-        .map((r) => ({
-          tanggal: r.tanggal, jam: r.jam, roomName: selectedRoom.name, persyaratanKey: selectedRoom.persyaratanKey,
-          suhu: r.suhu === "" ? null : r.suhu, rh: r.rh === "" ? null : r.rh, dpg: r.dpg === "" ? null : r.dpg,
-          opr: r.opr, spv: r.spv,
-        }));
-      // Gabungkan dengan entri ruangan LAIN bulan ini (supaya tidak tertimpa —
-      // backend mengganti SELURUH data bulan itu dengan array yang dikirim).
-      const others = monthEntries.filter((e) => e.roomName !== selectedRoom.name).map((e) => ({
-        tanggal: e.tanggal, jam: e.jam, roomName: e.roomName, persyaratanKey: e.persyaratanKey,
-        suhu: e.suhu, rh: e.rh, dpg: e.dpg, opr: e.opr, spv: e.spv, id: e.id,
+      const editedRows = SESI.filter((jam) => values[jam].suhu !== "" || values[jam].rh !== "" || values[jam].dpg !== "").map((jam) => ({
+        tanggal: selectedDate, jam, roomName: selectedRoom.name, persyaratanKey: selectedRoom.persyaratanKey,
+        suhu: values[jam].suhu === "" ? null : values[jam].suhu,
+        rh: values[jam].rh === "" ? null : values[jam].rh,
+        dpg: values[jam].dpg === "" ? null : values[jam].dpg,
+        opr: "", spv: "",
       }));
-      const merged = others.concat(editedRows.map((r, i) => ({ ...r, id: `new-${i}` })));
+      const others = monthEntries
+        .filter((e) => !(e.roomName === selectedRoom.name && e.tanggal === selectedDate))
+        .map((e) => ({ tanggal: e.tanggal, jam: e.jam, roomName: e.roomName, persyaratanKey: e.persyaratanKey, suhu: e.suhu, rh: e.rh, dpg: e.dpg, opr: e.opr, spv: e.spv, id: e.id }));
+      const merged = others.concat(editedRows.map((r, i) => ({ ...r, id: `new-${selectedDate}-${i}` })));
       await apiSaveEntries(facilityKey, month, merged, session.token);
-      await loadAll();
+      await loadDate();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -282,26 +338,34 @@ function EntryPage({ session, facilityKey, month, setView }) {
     }
   }
 
-  async function handleApproveFormQA() {
+  async function handleApproveDay() {
+    setApproving(true);
     setError("");
     try {
-      await apiApproveFormQA(facilityKey, month, selectedRoom.name, session.token);
-      const updated = await fetchFormQA(facilityKey, month, selectedRoom.name, session.token);
-      setFormQA(updated);
-    } catch (err) { setError(err.message); }
+      await apiApproveDay(facilityKey, selectedDate, session.token);
+      await loadDate();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setApproving(false);
+    }
   }
 
-  async function handleUnapproveFormQA() {
+  async function handleUnapproveDay() {
+    setApproving(true);
     setError("");
     try {
-      await apiUnapproveFormQA(facilityKey, month, selectedRoom.name, session.token);
-      const updated = await fetchFormQA(facilityKey, month, selectedRoom.name, session.token);
-      setFormQA(updated);
-    } catch (err) { setError(err.message); }
+      await apiUnapproveDay(facilityKey, selectedDate, session.token);
+      await loadDate();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setApproving(false);
+    }
   }
 
-  const isApproved = !!formQA?.kepalaBagian?.nama;
-  const rowsLocked = isApproved && session.role !== "Administrator";
+  const todaysEntries = monthEntries.filter((e) => e.tanggal === selectedDate);
+  const roomsFilledToday = new Set(todaysEntries.map((e) => e.roomName));
 
   if (loading) return <div className="max-w-6xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>;
 
@@ -310,121 +374,126 @@ function EntryPage({ session, facilityKey, month, setView }) {
       <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1 mb-4">
         <ChevronLeft className="w-4 h-4" /> Kembali
       </button>
-      <h2 className="text-base font-semibold text-slate-800 mb-1">{cfg?.label} — {month}</h2>
+      <h2 className="text-base font-semibold text-slate-800 mb-1">{cfg?.label}</h2>
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
 
       <div className="flex flex-wrap gap-2 mb-4">
+        {dateOptions.map((d) => (
+          <button key={d.tanggal} onClick={() => { setSelectedDate(d.tanggal); setSelectedRoom(null); }}
+            className={`text-xs rounded-full px-3 py-1.5 border flex items-center gap-1 ${selectedDate === d.tanggal ? "bg-slate-800 text-white border-slate-800" : "border-slate-300 text-slate-600"}`}>
+            {d.isBackfill && <ClipboardList className="w-3 h-3" />} {d.label}
+          </button>
+        ))}
+        {canApprove && !openDates.backfillDates?.length && (
+          <span className="text-xs text-slate-400 self-center">Operator hanya bisa isi hari ini kecuali dibuka backfill di bawah.</span>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl border p-4 mb-4">
+        <div className="text-sm">
+          <span className="text-slate-500">Tanggal terpilih: </span>
+          <span className="font-medium text-slate-800">{selectedDate}</span>
+          {dayStatus?.approved ? (
+            <span className="ml-2 text-xs inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Disetujui {dayStatus.approvedBy?.nama} ({dayStatus.approvedBy?.at})
+            </span>
+          ) : (
+            <span className="ml-2 text-xs inline-flex items-center gap-1 text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
+              <XOctagon className="w-3.5 h-3.5" /> Belum di-ACC{todaysEntries.length > 0 ? ` — ${roomsFilledToday.size} ruangan terisi` : ""}
+            </span>
+          )}
+        </div>
+        {canApprove && (
+          <div>
+            {!dayStatus?.approved ? (
+              <button onClick={handleApproveDay} disabled={approving || todaysEntries.length === 0} className="text-sm bg-emerald-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 disabled:opacity-60">
+                {approving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck2 className="w-4 h-4" />} Approve Semua ({roomsFilledToday.size} ruangan)
+              </button>
+            ) : (
+              <button onClick={handleUnapproveDay} disabled={approving} className="text-sm bg-slate-200 text-slate-700 rounded-lg px-4 py-2">Buka Kembali</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
         {rooms.map((r) => {
-          const roomEntries = monthEntries.filter((e) => e.roomName === r.name);
-          const lvl = facilityOverallLevel(roomEntries);
-          const style = levelStyle(roomEntries.length ? lvl : null);
+          const filled = roomsFilledToday.has(r.name);
+          const entriesForRoom = todaysEntries.filter((e) => e.roomName === r.name);
+          const lvl = facilityOverallLevel(entriesForRoom);
+          const style = filled ? levelStyle(lvl) : { color: "#94a3b8", bg: "#f1f5f9" };
           const selected = selectedRoom?.name === r.name;
           return (
             <button key={r.code + r.name} onClick={() => setSelectedRoom(r)}
               className={`text-xs rounded-full px-3 py-1 border ${selected ? "border-slate-800" : "border-transparent"}`}
               style={{ color: style.color, background: style.bg }}>
-              {r.name}
+              {r.name}{filled && " ✓"}
             </button>
           );
         })}
       </div>
 
       {!selectedRoom ? (
-        <p className="text-sm text-slate-500">Pilih ruangan di atas untuk mulai input/lihat data.</p>
+        <p className="text-sm text-slate-500">Pilih ruangan di atas untuk isi/lihat data tanggal {selectedDate}.</p>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b bg-slate-50">
-            <div>
-              <div className="font-medium text-slate-800 text-sm">{selectedRoom.name} <span className="text-slate-400 font-normal">({selectedRoom.code})</span></div>
-              <div className="text-xs text-slate-500">{selectedRoom.persyaratanKey}</div>
-            </div>
-            <div className="flex items-center gap-2">
-              {isApproved ? (
-                <span className="text-xs inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 rounded-full px-2 py-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Disetujui {formQA.kepalaBagian.nama} ({formQA.kepalaBagian.tanggal})
-                </span>
-              ) : (
-                <span className="text-xs inline-flex items-center gap-1 text-slate-500 bg-slate-100 rounded-full px-2 py-1">
-                  <XOctagon className="w-3.5 h-3.5" /> Belum disetujui
-                </span>
-              )}
-              {canApprove && !isApproved && (
-                <button onClick={handleApproveFormQA} className="text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 flex items-center gap-1">
-                  <FileCheck2 className="w-3.5 h-3.5" /> Approve Formulir
-                </button>
-              )}
-              {canApprove && isApproved && (
-                <button onClick={handleUnapproveFormQA} className="text-xs bg-slate-200 text-slate-700 rounded-lg px-3 py-1.5">
-                  Buka Kembali
-                </button>
-              )}
-            </div>
+        <div className="bg-white rounded-xl border overflow-hidden mb-4">
+          <div className="px-4 py-3 border-b bg-slate-50">
+            <div className="font-medium text-slate-800 text-sm">{selectedRoom.name} <span className="text-slate-400 font-normal">({selectedRoom.code})</span></div>
+            <div className="text-xs text-slate-500">{selectedRoom.persyaratanKey}</div>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500">
-                  <th className="px-2 py-2 text-left">Tanggal</th>
-                  <th className="px-2 py-2 text-left">Jam</th>
-                  {PARAM_DEFS.map((p) => (
-                    <th key={p.key} className="px-2 py-2 text-center">{p.label} ({p.unit})</th>
-                  ))}
-                  <th className="px-2 py-2 text-center">OPR</th>
-                  <th className="px-2 py-2 text-center">SPV</th>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-slate-50 text-slate-500">
+                <th className="px-2 py-2 text-left">Jam</th>
+                {PARAM_DEFS.map((p) => <th key={p.key} className="px-2 py-2 text-center">{p.label} ({p.unit})</th>)}
+                <th className="px-2 py-2 text-center">OPR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SESI.map((jam) => (
+                <tr key={jam} className="border-t">
+                  <td className="px-2 py-2 text-slate-500">{jam}</td>
+                  {PARAM_DEFS.map((p) => {
+                    const v = values[jam]?.[p.key] ?? "";
+                    const style = levelStyle(values[jam]?.level?.[p.key]);
+                    return (
+                      <td key={p.key} className="px-1 py-1 text-center">
+                        <input
+                          value={v}
+                          disabled={!canInput || rowsLocked}
+                          onChange={(e) => updateField(jam, p.key, e.target.value)}
+                          className="w-16 text-center rounded px-1 py-1 border disabled:bg-slate-50"
+                          style={{ background: v !== "" ? style.bg : undefined, color: v !== "" ? style.color : undefined }}
+                        />
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-1 text-center text-slate-500">
+                    {values[jam]?.opr || <span className="italic text-slate-400">{session.nama} (otomatis saat disimpan)</span>}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, idx) => (
-                  <tr key={r.tanggal + r.jam} className="border-t">
-                    {r.jam === "08:00" && (
-                      <td className="px-2 py-1 align-top" rowSpan={2}>{r.tanggal.slice(-2)}</td>
-                    )}
-                    <td className="px-2 py-1 text-slate-500">{r.jam}</td>
-                    {PARAM_DEFS.map((p) => {
-                      const style = levelStyle(r.level?.[p.key]);
-                      return (
-                        <td key={p.key} className="px-1 py-1">
-                          <input
-                            value={r[p.key]}
-                            disabled={!canInput || rowsLocked}
-                            onChange={(e) => updateCell(idx, p.key, e.target.value)}
-                            className="w-16 text-center rounded px-1 py-1 border disabled:bg-slate-50"
-                            style={{ background: r[p.key] !== "" ? style.bg : undefined, color: r[p.key] !== "" ? style.color : undefined }}
-                          />
-                        </td>
-                      );
-                    })}
-                    <td className="px-1 py-1">
-                      <input value={r.opr} disabled={!canInput || rowsLocked} onChange={(e) => updateCell(idx, "opr", e.target.value)} className="w-20 text-center rounded px-1 py-1 border disabled:bg-slate-50" />
-                    </td>
-                    <td className="px-1 py-1">
-                      <input value={r.spv} disabled={!canInput || rowsLocked} onChange={(e) => updateCell(idx, "spv", e.target.value)} className="w-20 text-center rounded px-1 py-1 border disabled:bg-slate-50" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
+              ))}
+            </tbody>
+          </table>
           {canInput && !rowsLocked && (
             <div className="px-4 py-3 border-t bg-slate-50 flex justify-end">
-              <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 bg-slate-800 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Simpan
+              <button onClick={handleSaveRoom} disabled={saving} className="flex items-center gap-2 bg-slate-800 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Simpan Ruangan Ini
               </button>
             </div>
           )}
           {rowsLocked && (
             <div className="px-4 py-3 border-t bg-amber-50 text-amber-700 text-xs flex items-center gap-2">
-              <Lock className="w-3.5 h-3.5" /> Data terkunci — Formulir ruangan ini sudah disetujui Kepala Bagian.
+              <Lock className="w-3.5 h-3.5" /> Tanggal ini sudah di-ACC — terkunci.
             </div>
           )}
         </div>
       )}
+
+      {canApprove && <BackfillForm session={session} facilityKey={facilityKey} onOpened={loadAll} />}
     </div>
   );
 }
-
 /* ========================================================================= PENGKAJIAN (QA) */
 
 function PengkajianPage({ session, month, setView }) {
@@ -598,7 +667,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-50">
       <Header session={session} onLogout={logout} view={view} setView={setView} month={month} setMonth={setMonth} />
       {view.page === "dashboard" && <Dashboard month={month} setView={setView} />}
-      {view.page === "entry" && <EntryPage session={session} facilityKey={view.facility} month={month} setView={setView} />}
+      {view.page === "entry" && <EntryPage session={session} facilityKey={view.facility} setView={setView} />}
       {view.page === "pengkajian" && <PengkajianPage session={session} month={month} setView={setView} />}
       {view.page === "activity" && <ActivityPage session={session} month={month} setView={setView} />}
     </div>
