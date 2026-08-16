@@ -478,6 +478,14 @@ function isParamRequired_(limit) {
   return [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU].some(function (x) { return x !== null; });
 }
 
+// Menerima angka yang diketik pakai koma ATAU titik sebagai desimal (mis.
+// "25,5" atau "25.5") — dipakai di semua tempat yang mem-parsing nilai Suhu/
+// RH/DPG hasil input, supaya konsisten dengan konvensi angka Indonesia.
+function toNumberSafe_(v) {
+  if (v === null || v === undefined || v === "") return NaN;
+  return Number(String(v).trim().replace(",", "."));
+}
+
 // Level: null = parameter ini tidak dipersyaratkan untuk ruangan ini (NA di
 // Limit_Persyaratan). 0 = dipersyaratkan tapi belum ada data. 1 = Baik
 // (dalam Alert). 2 = di luar Alert, masih dalam Action. 3 = di luar Action,
@@ -485,7 +493,7 @@ function isParamRequired_(limit) {
 function levelForTwoSided_(rawValue, limit) {
   if (!isParamRequired_(limit)) return null;
   if (rawValue === null || rawValue === undefined || rawValue === "") return 0;
-  const v = Number(rawValue);
+  const v = toNumberSafe_(rawValue);
   if (isNaN(v)) return 0;
   if (inRange_(v, limit.alertL, limit.alertU)) return 1;
   if (inRange_(v, limit.actionL, limit.actionU)) return 2;
@@ -519,13 +527,18 @@ function getMaster_(facilityKey) {
       persyaratanKey = lastKey;
     }
     if (!persyaratanKey) continue; // tidak ada kategori sama sekali -> dikecualikan
-    // "required" dihitung dari Limit_Persyaratan LANGSUNG (bukan dari data
-    // entri yang sudah tersimpan) — supaya frontend tahu parameter mana yang
-    // wajib diisi SEJAK PERTAMA KALI ruangan itu mau diisi, sebelum ada satu
-    // baris data pun tersimpan untuknya.
+    // "required" & "limits" dihitung dari Limit_Persyaratan LANGSUNG (bukan
+    // dari data entri yang sudah tersimpan) — supaya frontend tahu sejak
+    // ruangan dipilih (sebelum ada data tersimpan) parameter mana yang wajib
+    // diisi DAN berapa syarat/alert/action-nya, untuk ditampilkan ke operator.
     const required = {};
-    PARAMS.forEach(function (p) { required[p] = isParamRequired_(getLimitFor_(limitMap, persyaratanKey, p)); });
-    rooms.push({ code: String(code || "").trim(), name: String(name || "").trim(), persyaratanKey: persyaratanKey, required: required });
+    const limits = {};
+    PARAMS.forEach(function (p) {
+      const lim = getLimitFor_(limitMap, persyaratanKey, p);
+      required[p] = isParamRequired_(lim);
+      limits[p] = lim;
+    });
+    rooms.push({ code: String(code || "").trim(), name: String(name || "").trim(), persyaratanKey: persyaratanKey, required: required, limits: limits });
   }
   return { facility: facilityKey, rooms: rooms };
 }
@@ -923,7 +936,7 @@ function getVerifySignoffHarian_(facilityKey, tanggal) {
   const status = getDayStatus_(facilityKey, tanggal);
   if (status.error) return status;
   if (!status.approved) return { found: false };
-  return { found: true, approvedBy: status.approvedBy };
+  return { found: true, approvedBy: status.approvedBy, backfill: status.backfill || null };
 }
 
 // Fasilitas+bulan dianggap "selesai" untuk keperluan Pengkajian kalau SETIAP

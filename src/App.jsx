@@ -63,6 +63,20 @@ function facilityOverallLevel(entries) {
   return max;
 }
 
+function formatNum(n) {
+  if (n === null || n === undefined) return null;
+  return String(n).replace(".", ",");
+}
+
+function formatRange(lower, upper, unit) {
+  const lo = formatNum(lower);
+  const hi = formatNum(upper);
+  if (lo === null && hi === null) return "N/A";
+  if (lo === null) return `≤ ${hi} ${unit}`;
+  if (hi === null) return `≥ ${lo} ${unit}`;
+  return `${lo} – ${hi} ${unit}`;
+}
+
 function daysInMonth(monthStr) {
   if (!monthStr) return 31;
   const [y, m] = monthStr.split("-").map(Number);
@@ -259,6 +273,7 @@ function EntryPage({ session, facilityKey, setView }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [approvingDate, setApprovingDate] = useState(null);
+  const [dateStatusMap, setDateStatusMap] = useState({});
   const [error, setError] = useState("");
 
   const month = selectedDate.slice(0, 7);
@@ -305,7 +320,10 @@ function EntryPage({ session, facilityKey, setView }) {
   }, [selectedRoom, monthEntries, selectedDate]);
 
   function updateField(jam, field, val) {
-    setValues((prev) => ({ ...prev, [jam]: { ...prev[jam], [field]: val } }));
+    // Angka Indonesia pakai koma sebagai desimal — kalau operator ngetik
+    // titik, otomatis dijadikan koma juga (tetap konsisten tampilannya).
+    const normalized = (field === "suhu" || field === "rh" || field === "dpg") ? val.replace(/\./g, ",") : val;
+    setValues((prev) => ({ ...prev, [jam]: { ...prev[jam], [field]: normalized } }));
   }
 
   const isApproved = !!dayStatus?.approved;
@@ -391,20 +409,48 @@ function EntryPage({ session, facilityKey, setView }) {
   const todaysEntries = monthEntries.filter((e) => e.tanggal === selectedDate);
   const roomsFilledToday = new Set(todaysEntries.map((e) => e.roomName));
 
-  // Riwayat bulan ini, dikelompokkan per tanggal (terbaru dulu).
+  // Riwayat bulan ini KHUSUS ruangan yang sedang dipilih (tidak semua
+  // ruangan) — dikelompokkan per tanggal, terbaru dulu.
+  const roomDates = useMemo(() => {
+    if (!selectedRoom) return [];
+    return Array.from(new Set(monthEntries.filter((e) => e.roomName === selectedRoom.name).map((e) => e.tanggal)));
+  }, [monthEntries, selectedRoom]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const toFetch = roomDates.filter((d) => d !== selectedDate && !(d in dateStatusMap));
+    if (toFetch.length === 0) return;
+    Promise.all(toFetch.map((d) => fetchDayStatus(facilityKey, d, session.token).then((s) => [d, s]).catch(() => [d, null])))
+      .then((pairs) => {
+        if (cancelled) return;
+        setDateStatusMap((prev) => {
+          const next = { ...prev };
+          pairs.forEach(([d, s]) => { next[d] = s; });
+          return next;
+        });
+      });
+    return () => { cancelled = true; };
+  }, [roomDates, selectedDate, facilityKey, session.token, dateStatusMap]);
+
   const historyByDate = useMemo(() => {
+    if (!selectedRoom) return [];
+    const roomEntries = monthEntries.filter((e) => e.roomName === selectedRoom.name);
     const groups = {};
-    monthEntries.forEach((e) => {
+    roomEntries.forEach((e) => {
       if (!groups[e.tanggal]) groups[e.tanggal] = [];
       groups[e.tanggal].push(e);
     });
-    return Object.keys(groups).sort().reverse().map((tanggal) => ({
-      tanggal,
-      entries: groups[tanggal].sort((a, b) => (a.jam + a.roomName).localeCompare(b.jam + b.roomName)),
-      approved: tanggal === selectedDate ? isApproved : groups[tanggal].every((e) => !!e.spv),
-      approvedBy: groups[tanggal].find((e) => e.spv)?.spv || null,
-    }));
-  }, [monthEntries, selectedDate, isApproved]);
+    return Object.keys(groups).sort().reverse().map((tanggal) => {
+      const status = tanggal === selectedDate ? dayStatus : dateStatusMap[tanggal];
+      return {
+        tanggal,
+        entries: groups[tanggal].sort((a, b) => (a.jam + a.roomName).localeCompare(b.jam + b.roomName)),
+        approved: tanggal === selectedDate ? isApproved : groups[tanggal].every((e) => !!e.spv),
+        approvedBy: groups[tanggal].find((e) => e.spv)?.spv || null,
+        backfillNote: status?.backfill || null,
+      };
+    });
+  }, [monthEntries, selectedRoom, selectedDate, isApproved, dayStatus, dateStatusMap]);
 
   if (loading) return <div className="max-w-6xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>;
 
@@ -478,7 +524,21 @@ function EntryPage({ session, facilityKey, setView }) {
         <div className="bg-white rounded-xl border overflow-hidden mb-6">
           <div className="px-4 py-3 border-b bg-slate-50">
             <div className="font-medium text-slate-800 text-sm">{selectedRoom.name} <span className="text-slate-400 font-normal">({selectedRoom.code})</span></div>
-            <div className="text-xs text-slate-500">{selectedRoom.persyaratanKey}</div>
+            <div className="text-xs text-slate-500 mb-2">{selectedRoom.persyaratanKey}</div>
+            <div className="flex flex-wrap gap-3">
+              {PARAM_DEFS.map((p) => {
+                const lim = selectedRoom.limits?.[p.key];
+                if (!selectedRoom.required?.[p.key] || !lim) return null;
+                return (
+                  <div key={p.key} className="text-xs bg-white border rounded-lg px-2.5 py-1.5">
+                    <span className="font-medium text-slate-600">{p.label}: </span>
+                    <span className="text-slate-700">{formatRange(lim.syaratL, lim.syaratU, p.unit)}</span>
+                    <span className="text-slate-400"> · Alert {formatRange(lim.alertL, lim.alertU, p.unit)}</span>
+                    <span className="text-slate-400"> · Action {formatRange(lim.actionL, lim.actionU, p.unit)}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
           <table className="w-full text-xs">
             <thead>
@@ -537,75 +597,80 @@ function EntryPage({ session, facilityKey, setView }) {
 
       {canApprove && <BackfillForm session={session} facilityKey={facilityKey} onOpened={loadAll} />}
 
-      <div className="mt-6">
-        <h3 className="text-sm font-semibold text-slate-700 mb-2">Riwayat Bulan Ini ({month})</h3>
-        {historyByDate.length === 0 ? (
-          <p className="text-sm text-slate-500">Belum ada data bulan ini.</p>
-        ) : (
-          <div className="space-y-3">
-            {historyByDate.map((g) => (
-              <div key={g.tanggal} className="bg-white rounded-xl border overflow-hidden">
-                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b">
-                  <div className="text-sm font-medium text-slate-700">{g.tanggal} <span className="text-slate-400 font-normal">({new Set(g.entries.map((e) => e.roomName)).size} ruangan)</span></div>
-                  <div className="flex items-center gap-2">
-                    {g.approved ? (
-                      <span className="text-xs inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Disetujui {g.approvedBy}
-                      </span>
-                    ) : (
-                      <span className="text-xs inline-flex items-center gap-1 text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
-                        <XOctagon className="w-3.5 h-3.5" /> Belum di-ACC
-                      </span>
-                    )}
-                    {canApprove && !g.approved && (
-                      <button onClick={() => handleApproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 flex items-center gap-1 disabled:opacity-60">
-                        {approvingDate === g.tanggal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />} Approve
-                      </button>
-                    )}
-                    {canApprove && g.approved && session.role === "Administrator" && (
-                      <button onClick={() => handleUnapproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="text-xs bg-slate-200 text-slate-700 rounded-lg px-3 py-1.5">Buka Kembali</button>
-                    )}
+      {selectedRoom && (
+        <div className="mt-6">
+          <h3 className="text-sm font-semibold text-slate-700 mb-2">Riwayat {selectedRoom.name} — Bulan Ini ({month})</h3>
+          {historyByDate.length === 0 ? (
+            <p className="text-sm text-slate-500">Belum ada data ruangan ini bulan ini.</p>
+          ) : (
+            <div className="space-y-3">
+              {historyByDate.map((g) => (
+                <div key={g.tanggal} className="bg-white rounded-xl border overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b">
+                    <div className="text-sm font-medium text-slate-700">{g.tanggal}</div>
+                    <div className="flex items-center gap-2">
+                      {g.approved ? (
+                        <span className="text-xs inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Disetujui {g.approvedBy}
+                        </span>
+                      ) : (
+                        <span className="text-xs inline-flex items-center gap-1 text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
+                          <XOctagon className="w-3.5 h-3.5" /> Belum di-ACC
+                        </span>
+                      )}
+                      {canApprove && !g.approved && (
+                        <button onClick={() => handleApproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 flex items-center gap-1 disabled:opacity-60">
+                          {approvingDate === g.tanggal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />} Approve
+                        </button>
+                      )}
+                      {canApprove && g.approved && session.role === "Administrator" && (
+                        <button onClick={() => handleUnapproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="text-xs bg-slate-200 text-slate-700 rounded-lg px-3 py-1.5">Buka Kembali</button>
+                      )}
+                    </div>
+                  </div>
+                  {g.backfillNote && (
+                    <div className="px-4 py-2 text-xs bg-amber-50 text-amber-700 border-b flex items-center gap-1.5">
+                      <ClipboardList className="w-3.5 h-3.5 flex-shrink-0" /> Data via backfill — dibuka {g.backfillNote.byNama}: "{g.backfillNote.alasan}"
+                    </div>
+                  )}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-slate-400">
+                          <th className="px-3 py-1.5 text-left">Jam</th>
+                          {PARAM_DEFS.map((p) => <th key={p.key} className="px-2 py-1.5 text-center">{p.label}</th>)}
+                          <th className="px-3 py-1.5 text-center">OPR</th>
+                          <th className="px-3 py-1.5 text-center">SPV</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {g.entries.map((e) => (
+                          <tr key={e.id} className="border-t">
+                            <td className="px-3 py-1 text-slate-500">{e.jam}</td>
+                            {PARAM_DEFS.map((p) => {
+                              const style = levelStyle(e.level?.[p.key]);
+                              const val = e[p.key];
+                              return (
+                                <td key={p.key} className="px-2 py-1 text-center">
+                                  {val === null || val === undefined || val === "" ? <span className="text-slate-300">—</span> : (
+                                    <span className="inline-block rounded px-1.5 py-0.5" style={{ background: style.bg, color: style.color }}>{val}</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-1 text-center text-slate-500">{e.opr || "—"}</td>
+                            <td className="px-3 py-1 text-center text-slate-500">{e.spv || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-slate-400">
-                        <th className="px-3 py-1.5 text-left">Jam</th>
-                        <th className="px-3 py-1.5 text-left">Ruangan</th>
-                        {PARAM_DEFS.map((p) => <th key={p.key} className="px-2 py-1.5 text-center">{p.label}</th>)}
-                        <th className="px-3 py-1.5 text-center">OPR</th>
-                        <th className="px-3 py-1.5 text-center">SPV</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {g.entries.map((e) => (
-                        <tr key={e.id} className="border-t">
-                          <td className="px-3 py-1 text-slate-500">{e.jam}</td>
-                          <td className="px-3 py-1 text-slate-700">{e.roomName}</td>
-                          {PARAM_DEFS.map((p) => {
-                            const style = levelStyle(e.level?.[p.key]);
-                            const val = e[p.key];
-                            return (
-                              <td key={p.key} className="px-2 py-1 text-center">
-                                {val === null || val === undefined || val === "" ? <span className="text-slate-300">—</span> : (
-                                  <span className="inline-block rounded px-1.5 py-0.5" style={{ background: style.bg, color: style.color }}>{val}</span>
-                                )}
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-1 text-center text-slate-500">{e.opr || "—"}</td>
-                          <td className="px-3 py-1 text-center text-slate-500">{e.spv || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
