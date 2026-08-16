@@ -96,6 +96,7 @@ const FACILITIES = {
 const NARRATIVE_SHEET = "Laporan_Narasi";
 const LIMIT_SHEET = "Limit_Persyaratan";
 const PARAMS = ["suhu", "rh", "dpg"];
+const SESI_SERVER = ["08:00", "13:00"];
 
 // ---------------------------------------------------------------------------
 // KONFIGURASI: AUTH / ROLE / AUDIT  (identik EM Viable)
@@ -469,14 +470,20 @@ function inRange_(v, lower, upper) {
   return true;
 }
 
+// Parameter dianggap "wajib diisi" untuk suatu ruangan kalau Limit_Persyaratan
+// punya minimal satu batas (Syarat/Alert/Action) terisi untuk parameter itu.
+// Kalau semuanya NA/kosong, parameter itu tidak dipersyaratkan sama sekali.
+function isParamRequired_(limit) {
+  if (!limit) return false;
+  return [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU].some(function (x) { return x !== null; });
+}
+
 // Level: null = parameter ini tidak dipersyaratkan untuk ruangan ini (NA di
 // Limit_Persyaratan). 0 = dipersyaratkan tapi belum ada data. 1 = Baik
 // (dalam Alert). 2 = di luar Alert, masih dalam Action. 3 = di luar Action,
 // masih dalam Syarat. 4 = di luar Syarat (deviasi).
 function levelForTwoSided_(rawValue, limit) {
-  if (!limit) return null;
-  const allNull = [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU].every(function (x) { return x === null; });
-  if (allNull) return null;
+  if (!isParamRequired_(limit)) return null;
   if (rawValue === null || rawValue === undefined || rawValue === "") return 0;
   const v = Number(rawValue);
   if (isNaN(v)) return 0;
@@ -496,6 +503,7 @@ function getMaster_(facilityKey) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(cfg.masterSheet);
   if (!sheet) return { error: "Tab master tidak ditemukan: " + cfg.masterSheet };
 
+  const limitMap = loadLimitMap_();
   const values = sheet.getDataRange().getValues();
   const rooms = [];
   let lastKey = "";
@@ -511,7 +519,13 @@ function getMaster_(facilityKey) {
       persyaratanKey = lastKey;
     }
     if (!persyaratanKey) continue; // tidak ada kategori sama sekali -> dikecualikan
-    rooms.push({ code: String(code || "").trim(), name: String(name || "").trim(), persyaratanKey: persyaratanKey });
+    // "required" dihitung dari Limit_Persyaratan LANGSUNG (bukan dari data
+    // entri yang sudah tersimpan) — supaya frontend tahu parameter mana yang
+    // wajib diisi SEJAK PERTAMA KALI ruangan itu mau diisi, sebelum ada satu
+    // baris data pun tersimpan untuknya.
+    const required = {};
+    PARAMS.forEach(function (p) { required[p] = isParamRequired_(getLimitFor_(limitMap, persyaratanKey, p)); });
+    rooms.push({ code: String(code || "").trim(), name: String(name || "").trim(), persyaratanKey: persyaratanKey, required: required });
   }
   return { facility: facilityKey, rooms: rooms };
 }
@@ -540,7 +554,7 @@ function getEntries_(facilityKey, month) {
     entries.push({
       id: "row-" + i,
       tanggal: formatDate_(row[1]),
-      jam: row[2],
+      jam: formatTime_(row[2]),
       roomName: row[3],
       persyaratanKey: persyaratanKey,
       suhu: suhu, rh: rh, dpg: dpg,
@@ -575,13 +589,43 @@ function saveEntries_(facilityKey, month, entries) {
     e.opr || "", e.spv || "",
   ]);
   const finalRows = kept.concat(newRows);
+  // Kolom C (Jam) dipaksa format teks biasa DULU, sebelum ditulis — kalau
+  // tidak, Google Sheets otomatis mengubah string "08:00"/"13:00" jadi nilai
+  // waktu internal (lalu terbaca aneh seperti "1899-12-30T...") begitu
+  // dibaca lagi lewat getValues(). Ini juga otomatis merapikan baris LAMA
+  // yang sudah kadung ke-convert, karena seluruh kolom ditulis ulang di sini.
+  sheet.getRange(2, 3, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat("@");
   sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 10).clearContent();
   if (finalRows.length > 0) sheet.getRange(2, 1, finalRows.length, 10).setValues(finalRows);
   return { ok: true, saved: newRows.length };
 }
 
+function formatTime_(value) {
+  if (value instanceof Date) return Utilities.formatDate(value, Session.getScriptTimeZone(), "HH:mm");
+  return String(value || "").trim();
+}
+
 function todayStr_() {
   return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+}
+
+// Ruangan+tanggal dianggap "lengkap" (boleh dikunci saat tanggal itu
+// di-approve) HANYA kalau KEDUA sesi (08:00 & 13:00) sudah ada barisnya DAN
+// semua parameter wajib di tiap sesi itu terisi. Kalau salah satu sesi belum
+// diisi sama sekali, atau isinya masih sebagian, dianggap BELUM lengkap —
+// jadi tetap boleh diedit walau tanggalnya sudah di-ACC untuk ruangan lain.
+function isRoomComplete_(entries, tanggal, roomName, limitMap) {
+  const rows = entries.filter(function (e) { return e.tanggal === tanggal && e.roomName === roomName; });
+  if (rows.length === 0) return false;
+  return SESI_SERVER.every(function (jam) {
+    const e = rows.find(function (r) { return r.jam === jam; });
+    if (!e) return false;
+    return PARAMS.every(function (p) {
+      const required = isParamRequired_(getLimitFor_(limitMap, e.persyaratanKey, p));
+      if (!required) return true;
+      return e[p] !== null && e[p] !== undefined && e[p] !== "";
+    });
+  });
 }
 
 function saveEntriesAuthed_(session, facilityKey, month, entries) {
@@ -608,21 +652,60 @@ function saveEntriesAuthed_(session, facilityKey, month, entries) {
   const beforeById = {};
   before.forEach(function (e) { beforeById[e.id] = e; });
   const today = todayStr_();
+  const limitMap = loadLimitMap_();
 
+  // Kelengkapan per sesi: kalau SATU parameter di sesi itu terisi, SEMUA
+  // parameter yang wajib (required, per Limit_Persyaratan ruangan itu) juga
+  // harus terisi — tidak boleh simpan sebagian (mis. Suhu+RH tanpa DPG kalau
+  // DPG memang dipersyaratkan untuk ruangan itu).
+  function checkComplete(e) {
+    const anyFilled = e.suhu !== null && e.suhu !== undefined && e.suhu !== "" ||
+      e.rh !== null && e.rh !== undefined && e.rh !== "" ||
+      e.dpg !== null && e.dpg !== undefined && e.dpg !== "";
+    if (!anyFilled) return null;
+    const missing = [];
+    PARAMS.forEach(function (p) {
+      const required = isParamRequired_(getLimitFor_(limitMap, e.persyaratanKey, p));
+      const val = e[p];
+      if (required && (val === null || val === undefined || val === "")) missing.push(p.toUpperCase());
+    });
+    return missing.length > 0 ? missing : null;
+  }
+  entries.forEach(function (e) {
+    const missing = checkComplete(e);
+    if (missing) {
+      throw new Error("Ruangan '" + e.roomName + "' tanggal " + e.tanggal + " jam " + e.jam + ": data belum lengkap, masih kosong: " + missing.join(", ") + ".");
+    }
+  });
+
+  // Baris BARU/BERUBAH (id belum ada di "before", atau isinya beda dari
+  // "before") wajib tanggalnya = hari ini, ATAU tanggal itu sedang dibuka
+  // backfill oleh SPV/Manager (dan belum di-approve). Baris yang TIDAK
+  // berubah dari "before" dibiarkan lolos apa adanya (supaya save dari
+  // ruangan lain tidak ikut kena validasi tanggal ruangan yang tidak diedit).
   if (session.role !== "Administrator") {
-    const touchedDates = new Set();
+    const touchedByDateRoom = {}; // "tanggal|room" -> true, untuk baris baru/berubah
     entries.forEach(function (e) {
       const prev = beforeById[e.id];
       const isNewOrChanged = !prev || prev.suhu !== e.suhu || prev.rh !== e.rh || prev.dpg !== e.dpg;
-      if (isNewOrChanged && e.tanggal) touchedDates.add(e.tanggal);
-    });
-    touchedDates.forEach(function (tgl) {
-      const allowedByBackfill = isBackfillOpen_(cfg.label, tgl);
-      if (tgl !== today && !allowedByBackfill) {
-        throw new Error("Tanggal " + tgl + " bukan hari ini dan belum dibuka untuk backfill oleh SPV/Manager. Minta SPV/Manager membuka akses backfill dulu kalau perlu mengisi tanggal ini.");
+      if (isNewOrChanged && e.tanggal) {
+        touchedByDateRoom[e.tanggal + "|" + e.roomName] = true;
+        const allowedByBackfill = isBackfillOpen_(cfg.label, e.tanggal);
+        if (e.tanggal !== today && !allowedByBackfill) {
+          throw new Error("Tanggal " + e.tanggal + " bukan hari ini dan belum dibuka untuk backfill oleh SPV/Manager. Minta SPV/Manager membuka akses backfill dulu kalau perlu mengisi tanggal ini.");
+        }
       }
-      if (isDayApproved_(cfg.label, tgl)) {
-        throw new Error("Tanggal " + tgl + " sudah di-approve SPV/Manager — data terkunci. Minta SPV/Manager membuka kembali (unapprove) dulu kalau perlu koreksi.");
+    });
+    // Kunci HANYA ruangan yang datanya SUDAH LENGKAP saat tanggal itu
+    // di-approve — ruangan yang waktu itu masih kosong/belum lengkap tetap
+    // boleh dilanjutkan diisi meskipun tanggalnya sudah di-ACC untuk
+    // ruangan-ruangan lain.
+    Object.keys(touchedByDateRoom).forEach(function (key) {
+      const idx = key.lastIndexOf("|");
+      const tgl = key.slice(0, idx);
+      const roomName = key.slice(idx + 1);
+      if (isDayApproved_(cfg.label, tgl) && isRoomComplete_(before, tgl, roomName, limitMap)) {
+        throw new Error("Ruangan '" + roomName + "' tanggal " + tgl + " datanya sudah lengkap & di-approve SPV/Manager — terkunci. Minta SPV/Manager membuka kembali dulu kalau perlu koreksi.");
       }
     });
     // Kunci total kalau Pengkajian fasilitas+bulan ini sudah final.
@@ -793,10 +876,23 @@ function openBackfillAuthed_(session, facilityKey, tanggal, alasan) {
     return { error: "Hanya Supervisor/Manager departemen " + cfg.department + " (atau Manager PPIC) yang boleh membuka akses backfill." };
   }
   if (!alasan || !String(alasan).trim()) return { error: "Alasan backfill wajib diisi." };
-  if (tanggal >= todayStr_()) return { error: "Backfill hanya untuk tanggal yang sudah lewat." };
-  if (isDayApproved_(cfg.label, tanggal)) return { error: "Tanggal ini sudah pernah di-approve — tidak perlu backfill." };
-  upsertApprovalHarianRow_(cfg, tanggal, { backfillReason: String(alasan).trim(), backfillByNama: session.nama, backfillByUsername: session.username, backfillAt: formatDate_(new Date()) });
-  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Buka Akses Backfill", fasilitas: cfg.label, bulan: tanggal.slice(0, 7), detail: "Tanggal: " + tanggal + " — Alasan: " + alasan });
+  if (tanggal > todayStr_()) return { error: "Backfill tidak bisa untuk tanggal yang belum terjadi." };
+  const month = tanggal.slice(0, 7);
+  if (session.role !== "Administrator" && isPengkajianFinalApproved_(facilityKey, month)) {
+    return { error: "Pengkajian EM Non Viable fasilitas ini bulan ini sudah final — tidak bisa membuka backfill lagi." };
+  }
+  const wasApproved = isDayApproved_(cfg.label, tanggal);
+  const patch = { backfillReason: String(alasan).trim(), backfillByNama: session.nama, backfillByUsername: session.username, backfillAt: formatDate_(new Date()) };
+  if (wasApproved) {
+    // Tanggal ini (termasuk hari ini) sudah di-ACC sebelumnya — backfill di
+    // sini SEKALIGUS membuka kembali (unapprove) supaya operator bisa
+    // menambah/koreksi data, dengan alasan tercatat di Audit_Log.
+    patch.approvedNama = "";
+    patch.approvedUsername = "";
+    patch.approvedAt = "";
+  }
+  upsertApprovalHarianRow_(cfg, tanggal, patch);
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: wasApproved ? "Buka Kembali via Backfill" : "Buka Akses Backfill", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal + " — Alasan: " + alasan });
   return getDayStatus_(facilityKey, tanggal);
 }
 
@@ -814,8 +910,9 @@ function getOpenInputDates_(facilityKey, token) {
   if (lastRow >= 2) {
     const values = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
     values.forEach(function (row) {
-      if (row[2] === cfg.label && row[6] && !row[3]) {
-        backfillDates.push({ tanggal: formatDate_(row[1]), alasan: row[6], byNama: row[7] });
+      const tglRow = formatDate_(row[1]);
+      if (row[2] === cfg.label && row[6] && !row[3] && tglRow !== today) {
+        backfillDates.push({ tanggal: tglRow, alasan: row[6], byNama: row[7] });
       }
     });
   }

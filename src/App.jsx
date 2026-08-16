@@ -227,7 +227,7 @@ function BackfillForm({ session, facilityKey, onOpened }) {
 
   return (
     <form onSubmit={submit} className="bg-white rounded-xl border p-4 space-y-2">
-      <div className="text-sm font-medium text-slate-700">Buka Akses Backfill (tanggal lewat yang belum diisi)</div>
+      <div className="text-sm font-medium text-slate-700">Buka Akses Backfill (tanggal lewat, atau buka kembali hari ini kalau sudah ke-ACC)</div>
       <div className="flex flex-wrap gap-2 items-end">
         <div>
           <label className="block text-xs text-slate-500 mb-1">Tanggal</label>
@@ -313,19 +313,20 @@ function EntryPage({ session, facilityKey, setView }) {
   const dateOptions = [{ tanggal: openDates.today, label: "Hari ini", isBackfill: false }]
     .concat((openDates.backfillDates || []).map((b) => ({ tanggal: b.tanggal, label: b.tanggal, isBackfill: true, alasan: b.alasan })));
 
-  // Validasi kelengkapan: parameter yang PUNYA persyaratan (level bukan null,
-  // artinya wajib diisi untuk ruangan ini) tidak boleh kosong kalau sesi itu
-  // sudah mulai diisi (minimal satu parameter terisi).
+  // Validasi kelengkapan: parameter yang WAJIB (selectedRoom.required, dari
+  // Limit_Persyaratan — sudah diketahui sejak awal, TIDAK bergantung ada/
+  // tidaknya data tersimpan) tidak boleh kosong kalau sesi itu sudah mulai
+  // diisi (minimal satu parameter terisi).
   function validateRoom() {
     const missing = [];
+    const req = selectedRoom?.required || {};
     SESI.forEach((jam) => {
       const v = values[jam];
       if (!v) return;
       const anyFilled = v.suhu !== "" || v.rh !== "" || v.dpg !== "";
       if (!anyFilled) return;
       PARAM_DEFS.forEach((p) => {
-        const required = v.level?.[p.key] !== null && v.level?.[p.key] !== undefined;
-        if (required && v[p.key] === "") missing.push(`${jam} — ${p.label}`);
+        if (req[p.key] && v[p.key] === "") missing.push(`${jam} — ${p.label}`);
       });
     });
     return missing;
@@ -495,7 +496,7 @@ function EntryPage({ session, facilityKey, setView }) {
                   {PARAM_DEFS.map((p) => {
                     const v = values[jam]?.[p.key] ?? "";
                     const style = levelStyle(values[jam]?.level?.[p.key]);
-                    const required = values[jam]?.level?.[p.key] !== null && values[jam]?.level?.[p.key] !== undefined;
+                    const required = !!selectedRoom?.required?.[p.key];
                     return (
                       <td key={p.key} className="px-1 py-1 text-center">
                         <input
