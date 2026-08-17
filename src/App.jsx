@@ -263,6 +263,11 @@ function EntryPage({ session, facilityKey, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey);
   const canInput = hasFacilityAccess(session, "Staff", cfg);
   const canApprove = hasFacilityAccess(session, "Supervisor", cfg);
+  // Tombol "Approve (OPR)" HANYA untuk role Staff (operator) atau
+  // Administrator — SPV/Manager tidak boleh approve sebagai OPR sendiri
+  // (menjaga pemisahan tugas OPR vs SPV), meskipun secara hierarki role
+  // mereka bisa saja input data (canInput tetap true untuk mereka).
+  const isOperatorRole = session.role === "Staff" || session.role === "Administrator";
 
   const [openDates, setOpenDates] = useState({ today: todayStr(), backfillDates: [] });
   const [selectedDate, setSelectedDate] = useState(todayStr());
@@ -358,18 +363,25 @@ function EntryPage({ session, facilityKey, setView }) {
     return missing;
   }
 
-  async function handleSaveRoom() {
-    if (!selectedRoom) return;
+  // Menyimpan nilai ruangan yang sedang dipilih. Dipakai langsung oleh
+  // tombol "Simpan Ruangan Ini", TAPI juga dipanggil otomatis oleh tombol
+  // Approve (OPR)/Approve (SPV) — supaya operator tidak perlu klik Simpan
+  // dulu sebelum bisa approve; klik Approve = simpan + approve sekaligus.
+  async function saveCurrentRoom() {
+    if (!selectedRoom) return false;
     const missing = validateRoom();
     if (missing.length > 0) {
       setError("Data belum lengkap, mohon isi dulu: " + missing.join(", "));
-      return;
+      return false;
     }
-    setSaving(true);
     setError("");
     try {
       const req = selectedRoom.required || {};
       const editedRows = SESI.filter((jam) => PARAM_DEFS.some((p) => req[p.key] && values[jam][p.key] !== "")).map((jam) => ({
+        // ID STABIL berbasis konten (ruangan|tanggal|jam) — bukan index baris
+        // — supaya baris lain yang tidak disentuh tidak salah kedeteksi
+        // "terhapus" gara-gara posisi baris di sheet berubah tiap simpan.
+        id: `${selectedRoom.name}|${selectedDate}|${jam}`,
         tanggal: selectedDate, jam, roomName: selectedRoom.name, persyaratanKey: selectedRoom.persyaratanKey,
         suhu: values[jam].suhu === "" ? null : values[jam].suhu,
         rh: values[jam].rh === "" ? null : values[jam].rh,
@@ -379,21 +391,28 @@ function EntryPage({ session, facilityKey, setView }) {
       const others = monthEntries
         .filter((e) => !(e.roomName === selectedRoom.name && e.tanggal === selectedDate))
         .map((e) => ({ tanggal: e.tanggal, jam: e.jam, roomName: e.roomName, persyaratanKey: e.persyaratanKey, suhu: e.suhu, rh: e.rh, dpg: e.dpg, opr: e.opr, spv: e.spv, id: e.id }));
-      const merged = others.concat(editedRows.map((r, i) => ({ ...r, id: `new-${selectedDate}-${i}` })));
+      const merged = others.concat(editedRows);
       await apiSaveEntries(facilityKey, month, merged, session.token);
-      await loadDate();
+      return true;
     } catch (err) {
       setError(err.message);
-    } finally {
-      setSaving(false);
+      return false;
     }
+  }
+
+  async function handleSaveRoom() {
+    setSaving(true);
+    const ok = await saveCurrentRoom();
+    if (ok) await loadDate();
+    setSaving(false);
   }
 
   async function handleApproveOpr() {
     if (!selectedRoom) return;
     setSaving(true);
-    setError("");
     try {
+      const ok = await saveCurrentRoom();
+      if (!ok) return;
       await apiApproveOpr(facilityKey, selectedDate, selectedRoom.name, session.token);
       await loadDate();
     } catch (err) {
@@ -406,8 +425,9 @@ function EntryPage({ session, facilityKey, setView }) {
   async function handleApproveSpv() {
     if (!selectedRoom) return;
     setSaving(true);
-    setError("");
     try {
+      const ok = await saveCurrentRoom();
+      if (!ok) return;
       await apiApproveSpv(facilityKey, selectedDate, selectedRoom.name, session.token);
       await loadDate();
     } catch (err) {
@@ -445,6 +465,14 @@ function EntryPage({ session, facilityKey, setView }) {
 
   const todaysEntries = monthEntries.filter((e) => e.tanggal === selectedDate);
   const roomsFilledToday = new Set(todaysEntries.map((e) => e.roomName));
+  // Ruangan yang SUDAH di-approve SPV hari ini (semua baris ruangan itu
+  // punya SPV terisi) vs yang masih pending — dipakai untuk badge & tombol
+  // "Approve Semua", supaya angkanya turun begitu satu ruangan di-approve,
+  // bukan cuma menghitung total ruangan yang ada datanya.
+  const pendingRoomsToday = Array.from(roomsFilledToday).filter((r) => {
+    const rows = todaysEntries.filter((e) => e.roomName === r);
+    return !rows.every((e) => !!e.spv);
+  });
   // Status "sudah di-ACC" untuk tanggal terpilih — dihitung dari data (semua
   // baris tanggal itu sudah punya SPV), bukan dari flag terpisah, supaya
   // konsisten dengan approve per-ruangan yang sekarang tersedia.
@@ -525,15 +553,15 @@ function EntryPage({ session, facilityKey, setView }) {
             </span>
           ) : (
             <span className="ml-2 text-xs inline-flex items-center gap-1 text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
-              <XOctagon className="w-3.5 h-3.5" /> Belum di-ACC{todaysEntries.length > 0 ? ` — ${roomsFilledToday.size} ruangan terisi` : ""}
+              <XOctagon className="w-3.5 h-3.5" /> Belum di-ACC{todaysEntries.length > 0 ? ` — ${pendingRoomsToday.length} ruangan perlu di-approve (${roomsFilledToday.size} terisi)` : ""}
             </span>
           )}
         </div>
         {canApprove && (
           <div>
             {!isApproved ? (
-              <button onClick={() => handleApproveDate(selectedDate)} disabled={approvingDate === selectedDate || todaysEntries.length === 0} className="text-sm bg-emerald-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 disabled:opacity-60">
-                {approvingDate === selectedDate ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck2 className="w-4 h-4" />} Approve Semua ({roomsFilledToday.size} ruangan)
+              <button onClick={() => handleApproveDate(selectedDate)} disabled={approvingDate === selectedDate || pendingRoomsToday.length === 0} className="text-sm bg-emerald-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 disabled:opacity-60">
+                {approvingDate === selectedDate ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck2 className="w-4 h-4" />} Approve Semua ({pendingRoomsToday.length} ruangan)
               </button>
             ) : (
               <button onClick={() => handleUnapproveDate(selectedDate)} disabled={approvingDate === selectedDate} className="text-sm bg-slate-200 text-slate-700 rounded-lg px-4 py-2">Buka Kembali</button>
@@ -628,7 +656,7 @@ function EntryPage({ session, facilityKey, setView }) {
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Simpan Ruangan Ini
                 </button>
               )}
-              {canInput && (
+              {isOperatorRole && (
                 <button onClick={handleApproveOpr} disabled={saving || !SESI.every((jam) => PARAM_DEFS.every((p) => !selectedRoom.required?.[p.key] || values[jam]?.[p.key] !== ""))} className="flex items-center gap-2 bg-emerald-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
                   <FileCheck2 className="w-4 h-4" /> Approve (OPR)
                 </button>

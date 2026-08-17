@@ -574,11 +574,20 @@ function getEntries_(facilityKey, month) {
     const suhu = emptyToNull_(row[5]);
     const rh = emptyToNull_(row[6]);
     const dpg = emptyToNull_(row[7]);
+    const tanggal = formatDate_(row[1]);
+    const jam = formatTime_(row[2]);
+    const roomName = row[3];
     entries.push({
-      id: "row-" + i,
-      tanggal: formatDate_(row[1]),
-      jam: formatTime_(row[2]),
-      roomName: row[3],
+      // ID STABIL berbasis konten (bukan posisi baris) — WAJIB, karena
+      // saveEntries_ menulis ulang SELURUH baris (clear+rewrite) setiap kali
+      // simpan, jadi urutan/posisi baris di sheet bisa berubah. Kalau id
+      // masih berbasis index baris ("row-N"), id lama yang dipegang
+      // frontend akan salah sasaran setelah rewrite berikutnya — bisa bikin
+      // baris lain kesalahan-deteksi "terhapus" padahal cuma pindah posisi.
+      id: roomName + "|" + tanggal + "|" + jam,
+      tanggal: tanggal,
+      jam: jam,
+      roomName: roomName,
       persyaratanKey: persyaratanKey,
       suhu: suhu, rh: rh, dpg: dpg,
       opr: row[8] || "", spv: row[9] || "",
@@ -881,14 +890,38 @@ function approveDayAuthed_(session, facilityKey, tanggal) {
   if (session.role !== "Administrator" && isPengkajianFinalApproved_(facilityKey, month)) {
     return { error: "Pengkajian EM Non Viable fasilitas ini bulan ini sudah final — tidak bisa approve/ubah data lagi." };
   }
-  const entriesThatDay = (getEntries_(facilityKey, month).entries || []).filter(function (e) { return e.tanggal === tanggal; });
+  const entries = getEntries_(facilityKey, month).entries || [];
+  const entriesThatDay = entries.filter(function (e) { return e.tanggal === tanggal; });
   if (entriesThatDay.length === 0) return { error: "Belum ada data yang diisi operator untuk tanggal ini." };
 
-  const nowStr = formatDate_(new Date());
-  upsertApprovalHarianRow_(cfg, tanggal, { approvedNama: session.nama, approvedUsername: session.username, approvedAt: nowStr });
-  stampFieldOnDataRows_(cfg, month, tanggal, null, 9, session.nama);
-  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Data Harian (Semua Ruangan)", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal + " (" + entriesThatDay.length + " baris)" });
-  return getDayStatus_(facilityKey, tanggal);
+  // "Approve Semua" HANYA meng-approve ruangan yang datanya SUDAH LENGKAP
+  // (kedua sesi, semua parameter wajib terisi) dan BELUM di-approve SPV.
+  // Ruangan yang belum lengkap/belum diisi dilewati saja — TIDAK ikut
+  // ter-lock, operator tetap bisa melanjutkan mengisi ruangan itu.
+  const limitMap = loadLimitMap_();
+  const roomsThatDay = Array.from(new Set(entriesThatDay.map(function (e) { return e.roomName; })));
+  const roomsToApprove = roomsThatDay.filter(function (r) {
+    return !isRoomSpvLocked_(entries, tanggal, r) && isRoomComplete_(entries, tanggal, r, limitMap);
+  });
+  if (roomsToApprove.length === 0) {
+    return { error: "Tidak ada ruangan yang datanya lengkap & siap di-approve untuk tanggal ini." };
+  }
+  let totalRowsChanged = 0;
+  roomsToApprove.forEach(function (r) { totalRowsChanged += stampFieldOnDataRows_(cfg, month, tanggal, r, 9, session.nama); });
+
+  // Flag ringkasan Approval_Harian cuma ditandai "approved" kalau SEMUA
+  // ruangan hari itu ikut ter-approve (tidak ada yang dilewati karena belum
+  // lengkap) — supaya badge di panel atas tidak menyesatkan.
+  const allApproved = roomsThatDay.every(function (r) { return roomsToApprove.indexOf(r) !== -1; });
+  if (allApproved) {
+    const nowStr = formatDate_(new Date());
+    upsertApprovalHarianRow_(cfg, tanggal, { approvedNama: session.nama, approvedUsername: session.username, approvedAt: nowStr });
+  }
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Data Harian (Semua Ruangan)", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal + " — " + roomsToApprove.length + " ruangan di-approve (" + totalRowsChanged + " baris), " + (roomsThatDay.length - roomsToApprove.length) + " ruangan dilewati (belum lengkap)" });
+  const status = getDayStatus_(facilityKey, tanggal);
+  status.approvedRooms = roomsToApprove.length;
+  status.skippedRooms = roomsThatDay.length - roomsToApprove.length;
+  return status;
 }
 
 function unapproveDayAuthed_(session, facilityKey, tanggal) {
