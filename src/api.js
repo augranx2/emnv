@@ -78,6 +78,14 @@ export function approveDay(facility, tanggal, token) {
   return apiPost({ action: "approveDay", facility, tanggal, token });
 }
 
+export function approveOpr(facility, tanggal, roomName, token) {
+  return apiPost({ action: "approveOpr", facility, tanggal, roomName, token });
+}
+
+export function approveSpv(facility, tanggal, roomName, token) {
+  return apiPost({ action: "approveSpv", facility, tanggal, roomName, token });
+}
+
 export function unapproveDay(facility, tanggal, token) {
   return apiPost({ action: "unapproveDay", facility, tanggal, token });
 }

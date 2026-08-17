@@ -9,6 +9,7 @@ import {
   approveDikaji as apiApproveDikaji, approveMengetahui as apiApproveMengetahui,
   fetchActivityLog, fetchDayStatus, fetchOpenInputDates,
   approveDay as apiApproveDay, unapproveDay as apiUnapproveDay,
+  approveOpr as apiApproveOpr, approveSpv as apiApproveSpv,
   openBackfill as apiOpenBackfill, changePassword as apiChangePassword,
 } from "./api.js";
 import { useAuth, hasAccess, hasFacilityAccess } from "./auth.js";
@@ -311,10 +312,12 @@ function EntryPage({ session, facilityKey, setView }) {
     if (!selectedRoom) { setValues({}); return; }
     const byJam = { "08:00": null, "13:00": null };
     monthEntries.filter((e) => e.roomName === selectedRoom.name && e.tanggal === selectedDate).forEach((e) => { byJam[e.jam] = e; });
+    const req = selectedRoom.required || {};
     const init = {};
     SESI.forEach((jam) => {
       const e = byJam[jam];
-      init[jam] = { suhu: e?.suhu ?? "", rh: e?.rh ?? "", dpg: e?.dpg ?? "", opr: e?.opr ?? "", spv: e?.spv ?? "", level: e?.level || { suhu: null, rh: null, dpg: null } };
+      const dash = (key) => (e ? (e[key] ?? "") : (req[key] ? "" : "-"));
+      init[jam] = { suhu: dash("suhu"), rh: dash("rh"), dpg: dash("dpg"), opr: e?.opr ?? "", spv: e?.spv ?? "", level: e?.level || { suhu: null, rh: null, dpg: null } };
     });
     setValues(init);
   }, [selectedRoom, monthEntries, selectedDate]);
@@ -322,26 +325,31 @@ function EntryPage({ session, facilityKey, setView }) {
   function updateField(jam, field, val) {
     // Angka Indonesia pakai koma sebagai desimal — kalau operator ngetik
     // titik, otomatis dijadikan koma juga (tetap konsisten tampilannya).
+    // "-" tetap boleh diketik apa adanya — dipakai kalau parameter itu
+    // wajib tapi alat pemantaunya memang tidak tersedia di ruangan itu.
     const normalized = (field === "suhu" || field === "rh" || field === "dpg") ? val.replace(/\./g, ",") : val;
     setValues((prev) => ({ ...prev, [jam]: { ...prev[jam], [field]: normalized } }));
   }
 
-  const isApproved = !!dayStatus?.approved;
-  const rowsLocked = isApproved && session.role !== "Administrator";
+  // Ruangan+tanggal ini terkunci HANYA kalau SPV sudah approve (kolom SPV
+  // terisi di salah satu sesi) — approve OPR TIDAK mengunci, operator masih
+  // boleh mengubah nilai & approve ulang selama SPV belum approve.
+  const roomLocked = !!selectedRoom && session.role !== "Administrator" && SESI.some((jam) => !!values[jam]?.spv);
   const dateOptions = [{ tanggal: openDates.today, label: "Hari ini", isBackfill: false }]
     .concat((openDates.backfillDates || []).map((b) => ({ tanggal: b.tanggal, label: b.tanggal, isBackfill: true, alasan: b.alasan })));
 
   // Validasi kelengkapan: parameter yang WAJIB (selectedRoom.required, dari
   // Limit_Persyaratan — sudah diketahui sejak awal, TIDAK bergantung ada/
   // tidaknya data tersimpan) tidak boleh kosong kalau sesi itu sudah mulai
-  // diisi (minimal satu parameter terisi).
+  // diisi. Nilai "-" dihitung SUDAH terisi (dipakai kalau alat pemantau
+  // untuk parameter itu memang tidak tersedia).
   function validateRoom() {
     const missing = [];
     const req = selectedRoom?.required || {};
     SESI.forEach((jam) => {
       const v = values[jam];
       if (!v) return;
-      const anyFilled = v.suhu !== "" || v.rh !== "" || v.dpg !== "";
+      const anyFilled = PARAM_DEFS.some((p) => req[p.key] && v[p.key] !== "");
       if (!anyFilled) return;
       PARAM_DEFS.forEach((p) => {
         if (req[p.key] && v[p.key] === "") missing.push(`${jam} — ${p.label}`);
@@ -360,7 +368,8 @@ function EntryPage({ session, facilityKey, setView }) {
     setSaving(true);
     setError("");
     try {
-      const editedRows = SESI.filter((jam) => values[jam].suhu !== "" || values[jam].rh !== "" || values[jam].dpg !== "").map((jam) => ({
+      const req = selectedRoom.required || {};
+      const editedRows = SESI.filter((jam) => PARAM_DEFS.some((p) => req[p.key] && values[jam][p.key] !== "")).map((jam) => ({
         tanggal: selectedDate, jam, roomName: selectedRoom.name, persyaratanKey: selectedRoom.persyaratanKey,
         suhu: values[jam].suhu === "" ? null : values[jam].suhu,
         rh: values[jam].rh === "" ? null : values[jam].rh,
@@ -372,6 +381,34 @@ function EntryPage({ session, facilityKey, setView }) {
         .map((e) => ({ tanggal: e.tanggal, jam: e.jam, roomName: e.roomName, persyaratanKey: e.persyaratanKey, suhu: e.suhu, rh: e.rh, dpg: e.dpg, opr: e.opr, spv: e.spv, id: e.id }));
       const merged = others.concat(editedRows.map((r, i) => ({ ...r, id: `new-${selectedDate}-${i}` })));
       await apiSaveEntries(facilityKey, month, merged, session.token);
+      await loadDate();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleApproveOpr() {
+    if (!selectedRoom) return;
+    setSaving(true);
+    setError("");
+    try {
+      await apiApproveOpr(facilityKey, selectedDate, selectedRoom.name, session.token);
+      await loadDate();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleApproveSpv() {
+    if (!selectedRoom) return;
+    setSaving(true);
+    setError("");
+    try {
+      await apiApproveSpv(facilityKey, selectedDate, selectedRoom.name, session.token);
       await loadDate();
     } catch (err) {
       setError(err.message);
@@ -408,6 +445,10 @@ function EntryPage({ session, facilityKey, setView }) {
 
   const todaysEntries = monthEntries.filter((e) => e.tanggal === selectedDate);
   const roomsFilledToday = new Set(todaysEntries.map((e) => e.roomName));
+  // Status "sudah di-ACC" untuk tanggal terpilih — dihitung dari data (semua
+  // baris tanggal itu sudah punya SPV), bukan dari flag terpisah, supaya
+  // konsisten dengan approve per-ruangan yang sekarang tersedia.
+  const isApproved = todaysEntries.length > 0 && todaysEntries.every((e) => !!e.spv);
 
   // Riwayat bulan ini KHUSUS ruangan yang sedang dipilih (tidak semua
   // ruangan) — dikelompokkan per tanggal, terbaru dulu.
@@ -480,7 +521,7 @@ function EntryPage({ session, facilityKey, setView }) {
           <span className="font-medium text-slate-800">{selectedDate}</span>
           {isApproved ? (
             <span className="ml-2 text-xs inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Disetujui {dayStatus.approvedBy?.nama} ({dayStatus.approvedBy?.at})
+              <CheckCircle2 className="w-3.5 h-3.5" /> Disetujui {todaysEntries.find((e) => e.spv)?.spv}
             </span>
           ) : (
             <span className="ml-2 text-xs inline-flex items-center gap-1 text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
@@ -561,7 +602,7 @@ function EntryPage({ session, facilityKey, setView }) {
                       <td key={p.key} className="px-1 py-1 text-center">
                         <input
                           value={v}
-                          disabled={!canInput || rowsLocked || !required}
+                          disabled={!canInput || roomLocked || !required}
                           placeholder={required ? "" : "N/A"}
                           onChange={(e) => updateField(jam, p.key, e.target.value)}
                           className="w-16 text-center rounded px-1 py-1 border disabled:bg-slate-50 disabled:text-slate-300"
@@ -571,25 +612,37 @@ function EntryPage({ session, facilityKey, setView }) {
                     );
                   })}
                   <td className="px-2 py-1 text-center text-slate-500">
-                    {values[jam]?.opr || <span className="italic text-slate-400">otomatis</span>}
+                    {values[jam]?.opr || <span className="italic text-slate-400">belum di-ACC</span>}
                   </td>
                   <td className="px-2 py-1 text-center text-slate-500">
-                    {values[jam]?.spv || <span className="italic text-slate-400">—</span>}
+                    {values[jam]?.spv || <span className="italic text-slate-400">belum di-ACC</span>}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {canInput && !rowsLocked && (
-            <div className="px-4 py-3 border-t bg-slate-50 flex justify-end">
-              <button onClick={handleSaveRoom} disabled={saving} className="flex items-center gap-2 bg-slate-800 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Simpan Ruangan Ini
-              </button>
+          {(canInput || canApprove) && !roomLocked && (
+            <div className="px-4 py-3 border-t bg-slate-50 flex flex-wrap justify-end gap-2">
+              {canInput && (
+                <button onClick={handleSaveRoom} disabled={saving} className="flex items-center gap-2 bg-slate-800 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Simpan Ruangan Ini
+                </button>
+              )}
+              {canInput && (
+                <button onClick={handleApproveOpr} disabled={saving || !SESI.every((jam) => PARAM_DEFS.every((p) => !selectedRoom.required?.[p.key] || values[jam]?.[p.key] !== ""))} className="flex items-center gap-2 bg-emerald-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
+                  <FileCheck2 className="w-4 h-4" /> Approve (OPR)
+                </button>
+              )}
+              {canApprove && (
+                <button onClick={handleApproveSpv} disabled={saving || !SESI.every((jam) => !!values[jam]?.opr)} className="flex items-center gap-2 bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
+                  <FileCheck2 className="w-4 h-4" /> Approve (SPV)
+                </button>
+              )}
             </div>
           )}
-          {rowsLocked && (
+          {roomLocked && (
             <div className="px-4 py-3 border-t bg-amber-50 text-amber-700 text-xs flex items-center gap-2">
-              <Lock className="w-3.5 h-3.5" /> Tanggal ini sudah di-ACC — terkunci.
+              <Lock className="w-3.5 h-3.5" /> Ruangan ini tanggal {selectedDate} sudah di-approve SPV/Manager — terkunci.
             </div>
           )}
         </div>
@@ -618,12 +671,12 @@ function EntryPage({ session, facilityKey, setView }) {
                           <XOctagon className="w-3.5 h-3.5" /> Belum di-ACC
                         </span>
                       )}
-                      {canApprove && !g.approved && (
+                      {canApprove && !g.approved && g.tanggal !== selectedDate && (
                         <button onClick={() => handleApproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 flex items-center gap-1 disabled:opacity-60">
-                          {approvingDate === g.tanggal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />} Approve
+                          {approvingDate === g.tanggal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />} Approve (tanggal terlewat)
                         </button>
                       )}
-                      {canApprove && g.approved && session.role === "Administrator" && (
+                      {canApprove && g.approved && g.tanggal !== selectedDate && session.role === "Administrator" && (
                         <button onClick={() => handleUnapproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="text-xs bg-slate-200 text-slate-700 rounded-lg px-3 py-1.5">Buka Kembali</button>
                       )}
                     </div>
