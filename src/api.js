@@ -119,3 +119,15 @@ export function fetchVerify(type, facility, period) {
     : { action: "verify", type: "harian", facility, tanggal: period };
   return apiGet(params);
 }
+
+// --- NARASI AI (Gemini, lewat serverless function Vercel — bukan Apps Script) ---
+export async function generateNarrative({ facilityLabel, monthLabel, stats, prevSummary }) {
+  const res = await fetch("/api/generate-narrative", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ facilityLabel, monthLabel, stats, prevSummary }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Gagal generate narasi (HTTP ${res.status})`);
+  return data;
+}

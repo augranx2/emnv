@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import {
+  ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ReferenceLine, ReferenceArea, ResponsiveContainer,
+} from "recharts";
 import {
   LogIn, LogOut, User, Loader2, Building2, LayoutGrid, ChevronLeft,
   Lock, CheckCircle2, XOctagon, History, Save, FileCheck2, ClipboardList,
+  Printer, Sparkles, AlertTriangle, TrendingUp,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
@@ -11,8 +17,10 @@ import {
   approveDay as apiApproveDay, unapproveDay as apiUnapproveDay,
   approveOpr as apiApproveOpr, approveSpv as apiApproveSpv,
   openBackfill as apiOpenBackfill, changePassword as apiChangePassword,
+  fetchVerify, generateNarrative,
 } from "./api.js";
 import { useAuth, hasAccess, hasFacilityAccess } from "./auth.js";
+import { buildFacilityStats, generateLocalNarrative, fullDateID, monthLabelID } from "./narrativeGenerator.js";
 
 /* ========================================================================= */
 
@@ -37,6 +45,27 @@ const PARAM_DEFS = [
   { key: "rh", label: "RH", unit: "%" },
   { key: "dpg", label: "DPG", unit: "Pa" },
 ];
+
+/* ========================================================================= QR VERIFIKASI TANDA TANGAN
+   Sama seperti EM Viable: tiap approval (Approve Harian, Dikaji Oleh,
+   Mengetahui Pengkajian) bisa di-scan untuk membuka halaman /verify yang
+   mengambil data LANGSUNG dari sistem (live) — bukan dari gambar PDF-nya —
+   supaya PDF yang sudah dicetak tidak bisa dipalsukan datanya. */
+function buildVerifyUrl(params) {
+  const qs = new URLSearchParams(params).toString();
+  return `${window.location.origin}/verify?${qs}`;
+}
+
+function VerifyQR({ type, facility, period, size = 84 }) {
+  const params = type === "pengkajian" ? { type, facility, month: period } : { type: "harian", facility, tanggal: period };
+  const url = buildVerifyUrl(params);
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <QRCodeSVG value={url} size={size} level="M" bgColor="#ffffff" fgColor="#0f172a" />
+      <span className="text-center text-[9px] leading-tight text-slate-400">Scan untuk verifikasi</span>
+    </div>
+  );
+}
 
 const SESI = ["08:00", "13:00"];
 
@@ -87,6 +116,108 @@ function daysInMonth(monthStr) {
 function currentMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/* ========================================================================= GRAFIK TREN (dua sisi — beda dari EM Viable yang cuma "makin tinggi makin
+   buruk": nilai Suhu/RH/DPG bisa terlalu RENDAH atau terlalu TINGGI, jadi
+   pita Alert/Action digambar di ATAS & BAWAH garis Syarat, bukan cuma satu
+   ambang batas seperti EM Viable. */
+function chartDotColor(level) {
+  return levelStyle(level).color;
+}
+
+function ChartDot({ cx, cy, payload }) {
+  if (cx == null || cy == null) return null;
+  return <circle cx={cx} cy={cy} r={4} fill={chartDotColor(payload.level)} stroke="#fff" strokeWidth={1.5} />;
+}
+
+function ChartTooltip({ active, payload, unit }) {
+  if (!active || !payload || !payload.length) return null;
+  const p = payload[0].payload;
+  const style = levelStyle(p.level);
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
+      <p className="mb-1 max-w-[160px] font-semibold text-slate-600">{p.label}</p>
+      <p className="text-sm font-bold" style={{ color: style.color }}>{p.value} {unit}</p>
+      <p className="font-medium" style={{ color: style.color }}>{style.label}</p>
+    </div>
+  );
+}
+
+function LegendChip({ color, label }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+      {label}
+    </span>
+  );
+}
+
+function ParamTrendChart({ entries, paramKey, paramLabel, unit, limit }) {
+  if (!limit) return null;
+  const dateCounts = {};
+  entries.forEach((e) => { dateCounts[e.jam] = (dateCounts[e.jam] || 0) + 1; });
+  const data = entries
+    .map((e) => {
+      const raw = e[paramKey];
+      if (raw === null || raw === undefined || raw === "" || raw === "-") return null;
+      const v = Number(String(raw).replace(",", "."));
+      if (Number.isNaN(v)) return null;
+      return { label: `${e.tanggal.slice(-2)}/${e.jam}`, value: v, level: e.level?.[paramKey] ?? 0 };
+    })
+    .filter(Boolean);
+  if (data.length === 0) return null;
+
+  const allVals = data.map((d) => d.value);
+  const boundsForRange = [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU, ...allVals].filter((v) => v !== null && v !== undefined);
+  const yMin = Math.min(...boundsForRange) - (Math.max(...boundsForRange) - Math.min(...boundsForRange)) * 0.1 || 0;
+  const yMax = Math.max(...boundsForRange) + (Math.max(...boundsForRange) - Math.min(...boundsForRange)) * 0.1 || 1;
+  const peak = data.reduce((a, b) => (b.level > a.level ? b : a), data[0]);
+  const peakStyle = levelStyle(peak.level);
+  const gradId = `nvGrad-${paramKey}`;
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print-card avoid-break">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-b border-slate-100 px-4 py-2.5">
+        <div>
+          <p className="text-xs font-semibold text-slate-600">{paramLabel} — Tren Bulan Ini</p>
+          <p className="text-[11px] text-slate-400">
+            Status terburuk: <span className="font-semibold" style={{ color: peakStyle.color }}>{peak.value} {unit}</span> ({peakStyle.label})
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <LegendChip color="#15803d" label="Baik" />
+          <LegendChip color="#b45309" label="Alert" />
+          <LegendChip color="#c2410c" label="Action" />
+          <LegendChip color="#b91c1c" label="Deviasi" />
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={240}>
+        <ComposedChart data={data} margin={{ top: 10, right: 15, left: 10, bottom: 30 }}>
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#16a34a" stopOpacity={0.2} />
+              <stop offset="100%" stopColor="#16a34a" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+          {limit.syaratL !== null && <ReferenceArea y1={yMin} y2={limit.syaratL} fill="#ef4444" fillOpacity={0.06} ifOverflow="hidden" />}
+          {limit.syaratU !== null && <ReferenceArea y1={limit.syaratU} y2={yMax} fill="#ef4444" fillOpacity={0.06} ifOverflow="hidden" />}
+          {limit.actionL !== null && limit.syaratL !== null && <ReferenceArea y1={limit.syaratL} y2={limit.actionL} fill="#f97316" fillOpacity={0.07} ifOverflow="hidden" />}
+          {limit.actionU !== null && limit.syaratU !== null && <ReferenceArea y1={limit.actionU} y2={limit.syaratU} fill="#f97316" fillOpacity={0.07} ifOverflow="hidden" />}
+          {limit.alertL !== null && limit.actionL !== null && <ReferenceArea y1={limit.actionL} y2={limit.alertL} fill="#f59e0b" fillOpacity={0.06} ifOverflow="hidden" />}
+          {limit.alertU !== null && limit.actionU !== null && <ReferenceArea y1={limit.alertU} y2={limit.actionU} fill="#f59e0b" fillOpacity={0.06} ifOverflow="hidden" />}
+          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} angle={-35} textAnchor="end" interval={0} height={40} axisLine={{ stroke: "#e2e8f0" }} tickLine={false} />
+          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 11, fill: "#64748b" }} width={38} axisLine={false} tickLine={false} />
+          <Tooltip content={<ChartTooltip unit={unit} />} />
+          {limit.syaratL !== null && <ReferenceLine y={limit.syaratL} stroke="#dc2626" strokeWidth={1.25} strokeDasharray="4 3" />}
+          {limit.syaratU !== null && <ReferenceLine y={limit.syaratU} stroke="#dc2626" strokeWidth={1.25} strokeDasharray="4 3" />}
+          <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
+          <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }
 
 /* ========================================================================= LOGIN */
@@ -524,14 +655,21 @@ function EntryPage({ session, facilityKey, setView }) {
   if (loading) return <div className="max-w-6xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
-      <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1 mb-4">
-        <ChevronLeft className="w-4 h-4" /> Kembali
-      </button>
+    <div className="max-w-6xl mx-auto px-4 py-6 print:max-w-none">
+      <div className="no-print flex items-center justify-between mb-4">
+        <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
+          <ChevronLeft className="w-4 h-4" /> Kembali
+        </button>
+        {selectedRoom && (
+          <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <Printer className="w-4 h-4" /> Cetak
+          </button>
+        )}
+      </div>
       <h2 className="text-base font-semibold text-slate-800 mb-1">{cfg?.label}</h2>
-      {error && <p className="text-sm text-red-600 mb-3 whitespace-pre-line">{error}</p>}
+      {error && <p className="no-print text-sm text-red-600 mb-3 whitespace-pre-line">{error}</p>}
 
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="no-print flex flex-wrap gap-2 mb-4">
         {dateOptions.map((d) => (
           <button key={d.tanggal} onClick={() => { setSelectedDate(d.tanggal); setSelectedRoom(null); }}
             className={`text-xs rounded-full px-3 py-1.5 border flex items-center gap-1 ${selectedDate === d.tanggal ? "bg-slate-800 text-white border-slate-800" : "border-slate-300 text-slate-600"}`}>
@@ -543,7 +681,7 @@ function EntryPage({ session, facilityKey, setView }) {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl border p-4 mb-4">
+      <div className="print-card avoid-break flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl border p-4 mb-4">
         <div className="text-sm">
           <span className="text-slate-500">Tanggal terpilih: </span>
           <span className="font-medium text-slate-800">{selectedDate}</span>
@@ -556,9 +694,12 @@ function EntryPage({ session, facilityKey, setView }) {
               <XOctagon className="w-3.5 h-3.5" /> Belum di-ACC{todaysEntries.length > 0 ? ` — ${pendingRoomsToday.length} ruangan perlu di-approve (${roomsFilledToday.size} terisi)` : ""}
             </span>
           )}
+          {isApproved && (
+            <span className="inline-block align-middle ml-3"><VerifyQR type="harian" facility={facilityKey} period={selectedDate} size={48} /></span>
+          )}
         </div>
         {canApprove && (
-          <div>
+          <div className="no-print">
             {!isApproved ? (
               <button onClick={() => handleApproveDate(selectedDate)} disabled={approvingDate === selectedDate || pendingRoomsToday.length === 0} className="text-sm bg-emerald-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 disabled:opacity-60">
                 {approvingDate === selectedDate ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck2 className="w-4 h-4" />} Approve Semua ({pendingRoomsToday.length} ruangan)
@@ -570,7 +711,7 @@ function EntryPage({ session, facilityKey, setView }) {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="no-print flex flex-wrap gap-2 mb-4">
         {rooms.map((r) => {
           const filled = roomsFilledToday.has(r.name);
           const entriesForRoom = todaysEntries.filter((e) => e.roomName === r.name);
@@ -588,9 +729,9 @@ function EntryPage({ session, facilityKey, setView }) {
       </div>
 
       {!selectedRoom ? (
-        <p className="text-sm text-slate-500">Pilih ruangan di atas untuk isi/lihat data tanggal {selectedDate}.</p>
+        <p className="no-print text-sm text-slate-500">Pilih ruangan di atas untuk isi/lihat data tanggal {selectedDate}.</p>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden mb-6">
+        <div className="print-card avoid-break bg-white rounded-xl border overflow-hidden mb-6">
           <div className="px-4 py-3 border-b bg-slate-50">
             <div className="font-medium text-slate-800 text-sm">{selectedRoom.name} <span className="text-slate-400 font-normal">({selectedRoom.code})</span></div>
             <div className="text-xs text-slate-500 mb-2">{selectedRoom.persyaratanKey}</div>
@@ -676,7 +817,22 @@ function EntryPage({ session, facilityKey, setView }) {
         </div>
       )}
 
-      {canApprove && <BackfillForm session={session} facilityKey={facilityKey} onOpened={loadAll} />}
+      {selectedRoom && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+          {PARAM_DEFS.filter((p) => selectedRoom.required?.[p.key]).map((p) => (
+            <ParamTrendChart
+              key={p.key}
+              entries={monthEntries.filter((e) => e.roomName === selectedRoom.name)}
+              paramKey={p.key}
+              paramLabel={p.label}
+              unit={p.unit}
+              limit={selectedRoom.limits?.[p.key]}
+            />
+          ))}
+        </div>
+      )}
+
+      {canApprove && <div className="no-print"><BackfillForm session={session} facilityKey={facilityKey} onOpened={loadAll} /></div>}
 
       {selectedRoom && (
         <div className="mt-6">
@@ -686,7 +842,7 @@ function EntryPage({ session, facilityKey, setView }) {
           ) : (
             <div className="space-y-3">
               {historyByDate.map((g) => (
-                <div key={g.tanggal} className="bg-white rounded-xl border overflow-hidden">
+                <div key={g.tanggal} className="print-card avoid-break bg-white rounded-xl border overflow-hidden">
                   <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b">
                     <div className="text-sm font-medium text-slate-700">{g.tanggal}</div>
                     <div className="flex items-center gap-2">
@@ -700,7 +856,7 @@ function EntryPage({ session, facilityKey, setView }) {
                         </span>
                       )}
                       {canApprove && !g.approved && g.tanggal !== selectedDate && (
-                        <button onClick={() => handleApproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 flex items-center gap-1 disabled:opacity-60">
+                        <button onClick={() => handleApproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="no-print text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 flex items-center gap-1 disabled:opacity-60">
                           {approvingDate === g.tanggal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />} Approve (tanggal terlewat)
                         </button>
                       )}
@@ -757,6 +913,15 @@ function EntryPage({ session, facilityKey, setView }) {
 }
 /* ========================================================================= PENGKAJIAN (QA) */
 
+function PrintableTextarea({ value, onChange, disabled, rows = 3 }) {
+  return (
+    <>
+      <textarea value={value} disabled={disabled} onChange={onChange} rows={rows} className="no-print w-full border rounded-lg px-3 py-2 text-sm disabled:bg-slate-50" />
+      <p className="only-print whitespace-pre-wrap text-sm text-slate-800 leading-relaxed">{value || "-"}</p>
+    </>
+  );
+}
+
 function PengkajianPage({ session, month, setView }) {
   const [facilityKey, setFacilityKey] = useState(FACILITIES[0].key);
   const [report, setReport] = useState(null);
@@ -765,6 +930,7 @@ function PengkajianPage({ session, month, setView }) {
   const [perParameter, setPerParameter] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [generating, setGenerating] = useState(false);
   const cfg = FACILITIES.find((f) => f.key === facilityKey);
 
   const load = useCallback(async () => {
@@ -805,14 +971,50 @@ function PengkajianPage({ session, month, setView }) {
     try { await apiApproveMengetahui(facilityKey, month, session.token); await load(); } catch (err) { setError(err.message); }
   }
 
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1 mb-4">
-        <ChevronLeft className="w-4 h-4" /> Kembali
-      </button>
-      <h2 className="text-base font-semibold text-slate-800 mb-4">Pengkajian EM Non Viable — {month}</h2>
+  // Generate narasi otomatis: susun statistik dari data mentah (master +
+  // entries fasilitas ini bulan ini), lalu minta Gemini menyusun narasinya.
+  // Kalau Gemini gagal (mis. API key belum diset), pakai narasi lokal
+  // sederhana sebagai cadangan supaya tetap ada draf untuk diedit.
+  async function handleGenerateAI() {
+    setGenerating(true);
+    setError("");
+    try {
+      const [rooms, entries] = await Promise.all([fetchMaster(facilityKey), fetchEntries(facilityKey, month)]);
+      const facilityStats = buildFacilityStats({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), entries: entries.entries || entries, rooms: rooms.rooms || rooms });
+      let narrative;
+      try {
+        narrative = await generateNarrative({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), stats: facilityStats.stats });
+      } catch (aiErr) {
+        narrative = generateLocalNarrative({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), entries: entries.entries || entries, rooms: rooms.rooms || rooms });
+        setError("Narasi AI gagal (" + aiErr.message + ") — dipakai narasi lokal sebagai draf awal, silakan disunting.");
+      }
+      setPendahuluan(narrative.pendahuluan || "");
+      setPerParameter(narrative.perParameter || {});
+      setKesimpulan(narrative.kesimpulanUmum || "");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGenerating(false);
+    }
+  }
 
-      <div className="flex flex-wrap gap-2 mb-4">
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-6 print:max-w-none print:p-0">
+      <div className="no-print flex items-center justify-between mb-4">
+        <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
+          <ChevronLeft className="w-4 h-4" /> Kembali
+        </button>
+        <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+          <Printer className="w-4 h-4" /> Cetak
+        </button>
+      </div>
+
+      <div className="print-card mb-4 rounded-xl border border-slate-200 bg-white p-5">
+        <p className="text-xs text-slate-400">PT. Rama Emerald Multi Sukses</p>
+        <h2 className="text-base font-semibold text-slate-800">Pengkajian EM Non Viable — {cfg?.label} — {monthLabelID(month)}</h2>
+      </div>
+
+      <div className="no-print flex flex-wrap gap-2 mb-4">
         {FACILITIES.map((f) => (
           <button key={f.key} onClick={() => setFacilityKey(f.key)}
             className={`text-xs rounded-full px-3 py-1 border ${facilityKey === f.key ? "bg-slate-800 text-white border-slate-800" : "border-slate-300 text-slate-600"}`}>
@@ -821,33 +1023,43 @@ function PengkajianPage({ session, month, setView }) {
         ))}
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && <p className="no-print text-sm text-red-600 mb-3">{error}</p>}
 
       {loading ? (
-        <div className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>
+        <div className="no-print text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>
       ) : (
-        <div className="bg-white rounded-xl border p-5 space-y-4">
+        <div className="print-card bg-white rounded-xl border p-5 space-y-4">
+          {canDraft && !isFinal && (
+            <div className="no-print flex justify-end">
+              <button onClick={handleGenerateAI} disabled={generating} className="text-sm bg-indigo-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 disabled:opacity-60">
+                {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Generate Narasi AI
+              </button>
+            </div>
+          )}
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Pendahuluan</label>
-            <textarea value={pendahuluan} disabled={!canDraft || isFinal} onChange={(e) => setPendahuluan(e.target.value)} rows={3} className="w-full border rounded-lg px-3 py-2 text-sm disabled:bg-slate-50" />
+            <label className="no-print block text-xs font-medium text-slate-500 mb-1">Pendahuluan</label>
+            <p className="only-print font-semibold text-sm text-slate-700 mb-1">Pendahuluan</p>
+            <PrintableTextarea value={pendahuluan} disabled={!canDraft || isFinal} onChange={(e) => setPendahuluan(e.target.value)} rows={3} />
           </div>
           {PARAM_DEFS.map((p) => (
             <div key={p.key}>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Pembahasan {p.label}</label>
-              <textarea
+              <label className="no-print block text-xs font-medium text-slate-500 mb-1">Pembahasan {p.label}</label>
+              <p className="only-print font-semibold text-sm text-slate-700 mb-1">Pembahasan {p.label}</p>
+              <PrintableTextarea
                 value={perParameter[p.key] || ""}
                 disabled={!canDraft || isFinal}
                 onChange={(e) => setPerParameter((prev) => ({ ...prev, [p.key]: e.target.value }))}
-                rows={3} className="w-full border rounded-lg px-3 py-2 text-sm disabled:bg-slate-50"
+                rows={3}
               />
             </div>
           ))}
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Kesimpulan Umum</label>
-            <textarea value={kesimpulan} disabled={!canDraft || isFinal} onChange={(e) => setKesimpulan(e.target.value)} rows={3} className="w-full border rounded-lg px-3 py-2 text-sm disabled:bg-slate-50" />
+            <label className="no-print block text-xs font-medium text-slate-500 mb-1">Kesimpulan Umum</label>
+            <p className="only-print font-semibold text-sm text-slate-700 mb-1">Kesimpulan Umum</p>
+            <PrintableTextarea value={kesimpulan} disabled={!canDraft || isFinal} onChange={(e) => setKesimpulan(e.target.value)} rows={3} />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
+          <div className="no-print flex flex-wrap items-center gap-2 pt-2 border-t">
             {canDraft && !isFinal && (
               <button onClick={handleSave} className="text-sm bg-slate-800 text-white rounded-lg px-4 py-2 flex items-center gap-2"><Save className="w-4 h-4" /> Simpan Draf</button>
             )}
@@ -857,12 +1069,31 @@ function PengkajianPage({ session, month, setView }) {
             {canFinal && report?.signoff?.dinilai?.nama && !isFinal && (
               <button onClick={handleMengetahui} className="text-sm bg-emerald-600 text-white rounded-lg px-4 py-2">Approve Final "Mengetahui"</button>
             )}
-            {isFinal && (
-              <span className="text-xs text-emerald-700 flex items-center gap-1"><Lock className="w-3.5 h-3.5" /> Sudah final — Mengetahui oleh {report.signoff.diperiksa.nama} ({report.signoff.diperiksa.tanggal})</span>
-            )}
           </div>
-          {report?.signoff?.dinilai?.nama && (
-            <p className="text-xs text-slate-500">Dikaji oleh: {report.signoff.dinilai.nama} ({report.signoff.dinilai.tanggal})</p>
+
+          {(report?.signoff?.dinilai?.nama || report?.signoff?.diperiksa?.nama) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t avoid-break">
+              <div className="text-center">
+                <p className="text-xs text-slate-500 mb-2">Dikaji Oleh</p>
+                {report.signoff.dinilai?.nama ? (
+                  <>
+                    <div className="flex justify-center mb-2 print:h-24"><VerifyQR type="pengkajian" facility={facilityKey} period={month} size={64} /></div>
+                    <p className="text-sm font-medium text-slate-800">{report.signoff.dinilai.nama}</p>
+                    <p className="text-xs text-slate-400">{report.signoff.dinilai.jabatan} — {report.signoff.dinilai.tanggal}</p>
+                  </>
+                ) : <p className="text-xs text-slate-400 italic">Belum di-ACC</p>}
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-slate-500 mb-2">Mengetahui (Final)</p>
+                {report.signoff.diperiksa?.nama ? (
+                  <>
+                    <div className="flex justify-center mb-2 print:h-24"><VerifyQR type="pengkajian" facility={facilityKey} period={month} size={64} /></div>
+                    <p className="text-sm font-medium text-slate-800">{report.signoff.diperiksa.nama}</p>
+                    <p className="text-xs text-slate-400">{report.signoff.diperiksa.jabatan} — {report.signoff.diperiksa.tanggal}</p>
+                  </>
+                ) : <p className="text-xs text-slate-400 italic">Belum di-ACC</p>}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -910,9 +1141,116 @@ function ActivityPage({ session, month, setView }) {
   );
 }
 
+/* ========================================================================= VERIFIKASI PUBLIK (/verify) */
+
+function VerifyPage() {
+  const params = useMemo(() => new URLSearchParams(window.location.search), []);
+  const type = params.get("type"); // "harian" | "pengkajian"
+  const facilityKey = params.get("facility");
+  const period = type === "pengkajian" ? params.get("month") : params.get("tanggal");
+  const facility = FACILITIES.find((f) => f.key === facilityKey);
+
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!type || !facilityKey || !period || !facility) {
+        setErrorMsg("Kode QR tidak lengkap atau tidak dikenali.");
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetchVerify(type, facilityKey, period);
+        if (!cancelled) setData(res);
+      } catch (err) {
+        if (!cancelled) setErrorMsg(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  let docLabel = "";
+  let periodLabel = "";
+  let signerRows = [];
+  if (data && !data.error) {
+    if (type === "harian") {
+      docLabel = "Data Pemantauan Harian EM Non Viable (FM.QA.024)";
+      periodLabel = "Tanggal: " + fullDateID(period);
+      if (data.found) signerRows = [{ label: "Disetujui SPV/Manager", nama: data.approvedBy?.nama, tanggal: data.approvedBy?.at }];
+      if (data.backfill) signerRows.push({ label: "Dibuka via Backfill oleh", nama: data.backfill.byNama, tanggal: data.backfill.at, note: data.backfill.alasan });
+    } else {
+      docLabel = "Pengkajian EM Non Viable";
+      periodLabel = "Periode: " + monthLabelID(period);
+      if (data.found) {
+        signerRows = [
+          { label: "Dikaji Oleh", nama: data.signoff?.dinilai?.nama, tanggal: data.signoff?.dinilai?.tanggal },
+          { label: "Mengetahui (Final)", nama: data.signoff?.diperiksa?.nama, tanggal: data.signoff?.diperiksa?.tanggal },
+        ];
+      }
+    }
+  }
+  const isValid = data?.found && signerRows.some((s) => s.nama);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+      <div className="w-full max-w-sm">
+        <div className="mb-4 flex flex-col items-center gap-1.5">
+          <h1 className="text-center text-base font-bold text-slate-800">Verifikasi Dokumen EM Non Viable</h1>
+          <p className="text-center text-xs text-slate-500">PT. Rama Emerald Multi Sukses</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          {loading ? (
+            <p className="py-4 text-center text-sm text-slate-400">Memeriksa data…</p>
+          ) : errorMsg || !facility || data?.error ? (
+            <div className="flex flex-col items-center gap-2 py-2 text-center">
+              <AlertTriangle className="text-red-500" size={28} />
+              <p className="text-sm font-semibold text-red-600">Kode tidak valid</p>
+              <p className="text-xs text-slate-500">{errorMsg || data?.error || "Dokumen tidak ditemukan di sistem."}</p>
+            </div>
+          ) : !isValid ? (
+            <div className="flex flex-col items-center gap-2 py-2 text-center">
+              <AlertTriangle className="text-amber-500" size={28} />
+              <p className="text-sm font-semibold text-amber-600">Belum ditandatangani</p>
+              <p className="text-xs text-slate-500">Dokumen ini belum di-approve di sistem.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-1 text-center">
+              <CheckCircle2 className="text-emerald-600" size={32} />
+              <p className="text-sm font-semibold text-emerald-700">Dokumen tercatat sah dalam sistem</p>
+              <div className="w-full space-y-1.5 rounded-lg bg-slate-50 p-3 text-left text-sm">
+                <p><span className="text-slate-400">Dokumen: </span><span className="font-medium">{docLabel}</span></p>
+                <p><span className="text-slate-400">Fasilitas: </span><span className="font-medium">{facility.label}</span></p>
+                <p><span className="text-slate-400">{periodLabel.split(": ")[0]}: </span><span className="font-medium">{periodLabel.split(": ")[1]}</span></p>
+                {signerRows.filter((s) => s.nama).map((s) => (
+                  <p key={s.label}><span className="text-slate-400">{s.label}: </span><span className="font-medium">{s.nama}</span>{s.tanggal ? <span className="text-slate-400"> ({s.tanggal})</span> : null}{s.note ? <span className="block text-xs text-slate-500 italic">"{s.note}"</span> : null}</p>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <p className="mx-auto mt-4 max-w-xs text-center text-[11px] text-slate-400">
+          Halaman ini menampilkan data langsung dari sistem EM Non Viable secara real-time, bukan dari isi file PDF yang di-scan.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ========================================================================= APP ROOT */
 
 export default function App() {
+  if (typeof window !== "undefined" && window.location.pathname === "/verify") {
+    return <VerifyPage />;
+  }
   const { session, checking, login, logout } = useAuth();
   const [view, setView] = useState({ page: "dashboard" });
   const [month, setMonth] = useState(currentMonth());
@@ -926,6 +1264,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <style>{`
+        .only-print { display: none; }
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        @media print {
+          .no-print { display: none !important; }
+          .only-print { display: block !important; }
+          .print-card { box-shadow: none !important; border: 1px solid #cbd5e1 !important; page-break-inside: avoid; break-inside: avoid; }
+          .avoid-break { page-break-inside: avoid; break-inside: avoid; }
+        }
+        @page {
+          margin: 1.5cm 1.5cm 2cm 1.5cm;
+        }
+      `}</style>
       <Header session={session} onLogout={logout} view={view} setView={setView} month={month} setMonth={setMonth} />
       {view.page === "dashboard" && <Dashboard month={month} setView={setView} />}
       {view.page === "entry" && <EntryPage session={session} facilityKey={view.facility} setView={setView} />}
