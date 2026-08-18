@@ -93,6 +93,55 @@ function facilityOverallLevel(entries) {
   return max;
 }
 
+// Sama seperti levelForTwoSided_ di Code.gs — dihitung ulang di klien supaya
+// badge status bisa langsung berubah SAAT MENGETIK (tidak perlu simpan dulu
+// baru status ter-update).
+function toNumberSafe(v) {
+  if (v === null || v === undefined || v === "" || v === "-") return NaN;
+  return Number(String(v).replace(",", "."));
+}
+function inRangeClient(v, lower, upper) {
+  if (lower !== null && lower !== undefined && v < lower) return false;
+  if (upper !== null && upper !== undefined && v > upper) return false;
+  return true;
+}
+function liveLevelFor(rawValue, limit) {
+  if (!limit) return null;
+  const allNull = [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU].every((x) => x === null || x === undefined);
+  if (allNull) return null;
+  if (rawValue === "-" ) return 1; // dianggap "diperiksa, alat tidak tersedia" — netral/baik
+  const v = toNumberSafe(rawValue);
+  if (rawValue === "" || rawValue === null || rawValue === undefined || Number.isNaN(v)) return 0;
+  if (inRangeClient(v, limit.alertL, limit.alertU)) return 1;
+  if (inRangeClient(v, limit.actionL, limit.actionU)) return 2;
+  if (inRangeClient(v, limit.syaratL, limit.syaratU)) return 3;
+  return 4;
+}
+// Level tertinggi dari nilai yang SEDANG diketik untuk ruangan terpilih
+// (belum tentu sudah disimpan) — dipakai supaya badge status di header
+// langsung bereaksi begitu operator mengetik.
+function liveRoomLevel(values, room) {
+  if (!room) return 0;
+  let max = 0;
+  SESI.forEach((jam) => {
+    PARAM_DEFS.forEach((p) => {
+      const lvl = liveLevelFor(values[jam]?.[p.key], room.limits?.[p.key]);
+      if (lvl !== null && lvl > max) max = lvl;
+    });
+  });
+  return max;
+}
+
+// Kelompokkan ruangan berdasarkan kategori (teks sebelum " : " di
+// Persyaratan Key, mis. "Nonbetalaktam Nonsteril") — dipakai untuk
+// optgroup di dropdown pemilih ruangan, mirip pengelompokan "Kelas" di EM
+// Viable.
+function roomCategory(room) {
+  const key = room.persyaratanKey || "";
+  const idx = key.indexOf(" : ");
+  return idx === -1 ? key || "Lainnya" : key.slice(0, idx);
+}
+
 function formatNum(n) {
   if (n === null || n === undefined) return null;
   return String(n).replace(".", ",");
@@ -863,19 +912,52 @@ function EntryPage({ session, facilityKey, setView }) {
 
   if (loading) return <div className="max-w-6xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>;
 
+  const liveLevel = selectedRoom ? liveRoomLevel(values, selectedRoom) : facilityOverallLevel(todaysEntries);
+  const liveHasData = selectedRoom ? SESI.some((jam) => PARAM_DEFS.some((p) => values[jam]?.[p.key] && values[jam][p.key] !== "-")) : todaysEntries.length > 0;
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 print:max-w-none">
+    <div className="max-w-5xl mx-auto px-4 py-6 print:max-w-none print:p-0">
       <div className="no-print flex items-center justify-between mb-4">
         <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
-          <ChevronLeft className="w-4 h-4" /> Kembali
+          <ChevronLeft className="w-4 h-4" /> Kembali ke Dashboard
         </button>
-        {selectedRoom && (
-          <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-            <Printer className="w-4 h-4" /> Cetak
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {hasAccess(session, "Supervisor", "QA") && (
+            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              <ClipboardList className="w-4 h-4" /> Pengkajian QA
+            </button>
+          )}
+          {selectedRoom && (
+            <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              <Printer className="w-4 h-4" /> Cetak
+            </button>
+          )}
+        </div>
       </div>
-      <h2 className="text-base font-semibold text-slate-800 mb-1">{cfg?.label}</h2>
+
+      <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card">
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-900 to-blue-900 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-500/20 blur-3xl" />
+          <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+            <div className="flex items-start gap-3">
+              <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert" />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-300">PT. Rama Emerald Multi Sukses — QA</p>
+                <h2 className="text-xl font-bold text-white">Data Pemantauan Suhu, RH &amp; DPG — {cfg?.label}</h2>
+                <p className="text-sm text-blue-100">Tanggal: <span className="font-medium text-white">{selectedDate}</span></p>
+              </div>
+            </div>
+            <div className="text-right text-xs text-blue-200">
+              <p>No. Formulir: FM.QA.024/R11</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between bg-white px-5 py-3">
+          <span className="text-xs text-slate-400">{selectedRoom ? `Status ${selectedRoom.name} (langsung dari input)` : "Status keseluruhan tanggal ini"}</span>
+          <StatusPill level={liveLevel} hasData={liveHasData} />
+        </div>
+      </div>
+
       {error && <p className="no-print text-sm text-red-600 mb-3 whitespace-pre-line">{error}</p>}
 
       <div className="no-print flex flex-wrap gap-2 mb-4">
@@ -920,21 +1002,34 @@ function EntryPage({ session, facilityKey, setView }) {
         )}
       </div>
 
-      <div className="no-print flex flex-wrap gap-2 mb-4">
-        {rooms.map((r) => {
-          const filled = roomsFilledToday.has(r.name);
-          const entriesForRoom = todaysEntries.filter((e) => e.roomName === r.name);
-          const lvl = facilityOverallLevel(entriesForRoom);
-          const style = filled ? levelStyle(lvl) : { color: "#94a3b8", bg: "#f1f5f9" };
-          const selected = selectedRoom?.name === r.name;
-          return (
-            <button key={r.code + r.name} onClick={() => { setSelectedRoom(r); setError(""); }}
-              className={`text-xs rounded-full px-3 py-1 border ${selected ? "border-slate-800" : "border-transparent"}`}
-              style={{ color: style.color, background: style.bg }}>
-              {r.name}{filled && " ✓"}
-            </button>
-          );
-        })}
+      <div className="print-card avoid-break no-print mb-4 rounded-xl border border-slate-200 bg-white p-4">
+        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Pilih Ruangan</label>
+        <select
+          className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none sm:w-auto"
+          value={selectedRoom ? selectedRoom.code + "|" + selectedRoom.name : ""}
+          onChange={(ev) => {
+            const [code, ...rest] = ev.target.value.split("|");
+            const name = rest.join("|");
+            const room = rooms.find((r) => r.code === code && r.name === name);
+            setSelectedRoom(room || null);
+            setError("");
+          }}
+        >
+          <option value="">-- Pilih ruangan --</option>
+          {Array.from(new Set(rooms.map(roomCategory))).map((cat) => (
+            <optgroup key={cat} label={cat}>
+              {rooms.filter((r) => roomCategory(r) === cat).map((r) => {
+                const filled = roomsFilledToday.has(r.name);
+                const rowsApproved = todaysEntries.filter((e) => e.roomName === r.name).some((e) => !!e.spv);
+                return (
+                  <option key={r.code + r.name} value={r.code + "|" + r.name}>
+                    {r.name} ({r.code}){filled ? (rowsApproved ? " ✓ disetujui" : " • terisi") : ""}
+                  </option>
+                );
+              })}
+            </optgroup>
+          ))}
+        </select>
       </div>
 
       {!selectedRoom ? (
@@ -974,7 +1069,7 @@ function EntryPage({ session, facilityKey, setView }) {
                   <td className="px-2 py-2 text-slate-500">{jam}</td>
                   {PARAM_DEFS.map((p) => {
                     const v = values[jam]?.[p.key] ?? "";
-                    const style = levelStyle(values[jam]?.level?.[p.key]);
+                    const style = levelStyle(liveLevelFor(v, selectedRoom.limits?.[p.key]));
                     const required = !!selectedRoom?.required?.[p.key];
                     return (
                       <td key={p.key} className="px-1 py-1 text-center">
@@ -1131,8 +1226,87 @@ function PrintableTextarea({ value, onChange, disabled, rows = 3 }) {
   );
 }
 
-function PengkajianPage({ session, month, setView }) {
-  const [facilityKey, setFacilityKey] = useState(FACILITIES[0].key);
+// Menampilkan hasil parameter tertentu SETIAP HARI sepanjang bulan itu
+// (semua ruangan) — tabel lengkap untuk dibaca QA, plus grafik tren per
+// ruangan (dibatasi beberapa yang paling relevan/terburuk statusnya, supaya
+// halaman tidak kepanjangan kalau ruangannya banyak).
+function ParamBreakdown({ paramDef, entries, rooms }) {
+  const roomByName = useMemo(() => {
+    const m = {};
+    rooms.forEach((r) => { m[r.name] = r; });
+    return m;
+  }, [rooms]);
+
+  const rows = useMemo(() => {
+    return entries
+      .filter((e) => e.level?.[paramDef.key] !== null && e.level?.[paramDef.key] !== undefined)
+      .slice()
+      .sort((a, b) => (a.tanggal + a.jam + a.roomName).localeCompare(b.tanggal + b.jam + b.roomName));
+  }, [entries, paramDef.key]);
+
+  if (rows.length === 0) {
+    return <p className="only-print no-print mt-1 text-xs text-slate-400 italic">Belum ada data {paramDef.label} bulan ini.</p>;
+  }
+
+  const roomsWithData = Array.from(new Set(rows.map((r) => r.roomName)))
+    .map((name) => ({ name, worst: Math.max(0, ...rows.filter((r) => r.roomName === name).map((r) => r.level?.[paramDef.key] || 0)) }))
+    .sort((a, b) => b.worst - a.worst)
+    .slice(0, 4);
+
+  return (
+    <div className="mt-2 space-y-3">
+      <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200 print:max-h-none">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-slate-50 print:static">
+            <tr className="text-slate-400">
+              <th className="px-2 py-1.5 text-left">Tanggal</th>
+              <th className="px-2 py-1.5 text-left">Jam</th>
+              <th className="px-2 py-1.5 text-left">Ruangan</th>
+              <th className="px-2 py-1.5 text-center">Nilai</th>
+              <th className="px-2 py-1.5 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const style = levelStyle(r.level?.[paramDef.key]);
+              const val = r[paramDef.key];
+              return (
+                <tr key={r.id + paramDef.key} className="border-t border-slate-100">
+                  <td className="px-2 py-1 text-slate-600">{r.tanggal}</td>
+                  <td className="px-2 py-1 text-slate-500">{r.jam}</td>
+                  <td className="px-2 py-1 text-slate-600">{r.roomName}</td>
+                  <td className="px-2 py-1 text-center">{val === null || val === undefined || val === "" ? "—" : val}</td>
+                  <td className="px-2 py-1 text-center">
+                    <span className="inline-block rounded-full px-2 py-0.5 font-medium" style={{ background: style.bg, color: style.color }}>{style.label}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {roomsWithData.map(({ name }) => {
+          const room = roomByName[name];
+          if (!room?.limits?.[paramDef.key]) return null;
+          return (
+            <ParamTrendChart
+              key={name}
+              entries={entries.filter((e) => e.roomName === name)}
+              paramKey={paramDef.key}
+              paramLabel={`${paramDef.label} — ${name}`}
+              unit={paramDef.unit}
+              limit={room.limits[paramDef.key]}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PengkajianPage({ session, month, setView, initialFacility }) {
+  const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
   const [report, setReport] = useState(null);
   const [pendahuluan, setPendahuluan] = useState("");
   const [kesimpulan, setKesimpulan] = useState("");
@@ -1140,17 +1314,25 @@ function PengkajianPage({ session, month, setView }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [rooms, setRooms] = useState([]);
+  const [monthEntries, setMonthEntries] = useState([]);
   const cfg = FACILITIES.find((f) => f.key === facilityKey);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const r = await fetchReport(facilityKey, month, session.token);
+      const [r, roomList, entries] = await Promise.all([
+        fetchReport(facilityKey, month, session.token),
+        fetchMaster(facilityKey),
+        fetchEntries(facilityKey, month),
+      ]);
       setReport(r);
       setPendahuluan(r.narrative?.pendahuluan || "");
       setKesimpulan(r.narrative?.kesimpulanUmum || "");
       setPerParameter(r.narrative?.perParameter || {});
+      setRooms(roomList);
+      setMonthEntries(entries);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1208,7 +1390,7 @@ function PengkajianPage({ session, month, setView }) {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 print:max-w-none print:p-0">
+    <div className="max-w-5xl mx-auto px-4 py-6 print:max-w-none print:p-0">
       <div className="no-print flex items-center justify-between mb-4">
         <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
           <ChevronLeft className="w-4 h-4" /> Kembali
@@ -1218,9 +1400,29 @@ function PengkajianPage({ session, month, setView }) {
         </button>
       </div>
 
-      <div className="print-card mb-4 rounded-xl border border-slate-200 bg-white p-5">
-        <p className="text-xs text-slate-400">PT. Rama Emerald Multi Sukses</p>
-        <h2 className="text-base font-semibold text-slate-800">Pengkajian EM Non Viable — {cfg?.label} — {monthLabelID(month)}</h2>
+      <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card">
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-900 to-blue-900 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-500/20 blur-3xl" />
+          <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+            <div className="flex items-start gap-3">
+              <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert" />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-300">PT. Rama Emerald Multi Sukses — QA</p>
+                <h2 className="text-xl font-bold text-white">Pengkajian EM Non Viable</h2>
+                <p className="text-sm text-blue-100">
+                  Fasilitas: <span className="font-medium text-white">{cfg?.label}</span> · Periode: <span className="font-medium text-white">{monthLabelID(month)}</span>
+                </p>
+              </div>
+            </div>
+            <div className="text-right text-xs text-blue-200">
+              <p>Acuan: FM.QA.024/R11</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between bg-white px-5 py-3">
+          <span className="text-xs text-slate-400">Status keseluruhan periode ini</span>
+          <StatusPill level={facilityOverallLevel(monthEntries)} hasData={monthEntries.length > 0} />
+        </div>
       </div>
 
       <div className="no-print flex flex-wrap gap-2 mb-4">
@@ -1260,6 +1462,7 @@ function PengkajianPage({ session, month, setView }) {
                 onChange={(e) => setPerParameter((prev) => ({ ...prev, [p.key]: e.target.value }))}
                 rows={3}
               />
+              <ParamBreakdown paramDef={p} entries={monthEntries} rooms={rooms} />
             </div>
           ))}
           <div>
@@ -1516,7 +1719,7 @@ export default function App() {
         <Dashboard month={month} setMonth={setMonth} setView={setView} session={session} onNeedLogin={() => setShowLogin(true)} />
       )}
       {view.page === "entry" && session && <EntryPage session={session} facilityKey={view.facility} setView={setView} />}
-      {view.page === "pengkajian" && session && <PengkajianPage session={session} month={month} setView={setView} />}
+      {view.page === "pengkajian" && session && <PengkajianPage session={session} month={month} setView={setView} initialFacility={view.facility} />}
       {view.page === "activity" && session && <ActivityPage session={session} month={month} setView={setView} />}
     </div>
   );
