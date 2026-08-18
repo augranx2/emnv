@@ -18,6 +18,10 @@ import {
   approveOpr as apiApproveOpr, approveSpv as apiApproveSpv,
   openBackfill as apiOpenBackfill, changePassword as apiChangePassword,
   fetchVerify, generateNarrative,
+  fetchFormulirBulanan, approveKepalaBagian as apiApproveKepalaBagian,
+  unapproveKepalaBagian as apiUnapproveKepalaBagian,
+  approveManagerQAFormulir as apiApproveManagerQAFormulir,
+  unapproveManagerQAFormulir as apiUnapproveManagerQAFormulir,
 } from "./api.js";
 import { useAuth, hasAccess, hasFacilityAccess } from "./auth.js";
 import { buildFacilityStats, generateLocalNarrative, fullDateID, monthLabelID } from "./narrativeGenerator.js";
@@ -56,13 +60,16 @@ function buildVerifyUrl(params) {
   return `${window.location.origin}/verify?${qs}`;
 }
 
-function VerifyQR({ type, facility, period, size = 84 }) {
-  const params = type === "pengkajian" ? { type, facility, month: period } : { type: "harian", facility, tanggal: period };
+function VerifyQR({ type, facility, period, roomName, size = 84, hideLabel = false }) {
+  const params = { type, facility };
+  if (type === "pengkajian") { params.month = period; if (roomName) params.roomName = roomName; }
+  else if (type === "formulir") { params.bulan = period; params.roomName = roomName; }
+  else { params.type = "harian"; params.tanggal = period; }
   const url = buildVerifyUrl(params);
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="inline-flex flex-col items-center gap-1">
       <QRCodeSVG value={url} size={size} level="M" bgColor="#ffffff" fgColor="#0f172a" />
-      <span className="text-center text-[9px] leading-tight text-slate-400">Scan untuk verifikasi</span>
+      {!hideLabel && <span className="text-center text-[9px] leading-tight text-slate-400">Scan untuk verifikasi</span>}
     </div>
   );
 }
@@ -928,6 +935,11 @@ function EntryPage({ session, facilityKey, setView }) {
             </button>
           )}
           {selectedRoom && (
+            <button onClick={() => setView({ page: "formulir", facility: facilityKey, room: selectedRoom.name, bulan: month })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              <FileCheck2 className="w-4 h-4" /> Formulir Bulanan (FM.QA.024/R11)
+            </button>
+          )}
+          {selectedRoom && (
             <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
               <Printer className="w-4 h-4" /> Cetak
             </button>
@@ -984,9 +996,6 @@ function EntryPage({ session, facilityKey, setView }) {
             <span className="ml-2 text-xs inline-flex items-center gap-1 text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
               <XOctagon className="w-3.5 h-3.5" /> Belum di-ACC{todaysEntries.length > 0 ? ` — ${pendingRoomsToday.length} ruangan perlu di-approve (${roomsFilledToday.size} terisi)` : ""}
             </span>
-          )}
-          {isApproved && (
-            <span className="inline-block align-middle ml-3"><VerifyQR type="harian" facility={facilityKey} period={selectedDate} size={48} /></span>
           )}
         </div>
         {canApprove && (
@@ -1085,10 +1094,20 @@ function EntryPage({ session, facilityKey, setView }) {
                     );
                   })}
                   <td className="px-2 py-1 text-center text-slate-500">
-                    {values[jam]?.opr || <span className="italic text-slate-400">belum di-ACC</span>}
+                    {values[jam]?.opr ? (
+                      <span className="inline-flex items-center gap-1">
+                        {values[jam].opr}
+                        <VerifyQR type="harian" facility={facilityKey} period={selectedDate} size={26} hideLabel />
+                      </span>
+                    ) : <span className="italic text-slate-400">belum di-ACC</span>}
                   </td>
                   <td className="px-2 py-1 text-center text-slate-500">
-                    {values[jam]?.spv || <span className="italic text-slate-400">belum di-ACC</span>}
+                    {values[jam]?.spv ? (
+                      <span className="inline-flex items-center gap-1">
+                        {values[jam].spv}
+                        <VerifyQR type="harian" facility={facilityKey} period={selectedDate} size={26} hideLabel />
+                      </span>
+                    ) : <span className="italic text-slate-400">belum di-ACC</span>}
                   </td>
                 </tr>
               ))}
@@ -1199,8 +1218,12 @@ function EntryPage({ session, facilityKey, setView }) {
                                 </td>
                               );
                             })}
-                            <td className="px-3 py-1 text-center text-slate-500">{e.opr || "—"}</td>
-                            <td className="px-3 py-1 text-center text-slate-500">{e.spv || "—"}</td>
+                            <td className="px-3 py-1 text-center text-slate-500">
+                              {e.opr ? <span className="inline-flex items-center gap-1">{e.opr}<VerifyQR type="harian" facility={facilityKey} period={g.tanggal} size={22} hideLabel /></span> : "—"}
+                            </td>
+                            <td className="px-3 py-1 text-center text-slate-500">
+                              {e.spv ? <span className="inline-flex items-center gap-1">{e.spv}<VerifyQR type="harian" facility={facilityKey} period={g.tanggal} size={22} hideLabel /></span> : "—"}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1305,8 +1328,219 @@ function ParamBreakdown({ paramDef, entries, rooms }) {
   );
 }
 
-function PengkajianPage({ session, month, setView, initialFacility }) {
+/* ========================================================================= FORMULIR BULANAN (FM.QA.024/R11) — cetak per ruangan */
+
+function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }) {
+  const cfg = FACILITIES.find((f) => f.key === facilityKey);
+  const [room, setRoom] = useState(null);
+  const [entries, setEntries] = useState([]);
+  const [formulir, setFormulir] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const canKepalaBagian = cfg ? hasFacilityAccess(session, "Supervisor", cfg) : false;
+  const canManagerQA = hasAccess(session, "Manager", "QA");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [master, entriesRes, formulirRes] = await Promise.all([
+        fetchMaster(facilityKey),
+        fetchEntries(facilityKey, bulan),
+        fetchFormulirBulanan(facilityKey, bulan, roomName, session.token),
+      ]);
+      const rooms = master.rooms || master;
+      setRoom(rooms.find((r) => r.name === roomName) || null);
+      const list = entriesRes.entries || entriesRes;
+      setEntries(list.filter((e) => e.roomName === roomName));
+      setFormulir(formulirRes);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [facilityKey, bulan, roomName, session.token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleApproveKepalaBagian() {
+    setBusy(true); setError("");
+    try { await apiApproveKepalaBagian(facilityKey, bulan, roomName, session.token); await load(); }
+    catch (err) { setError(err.message); } finally { setBusy(false); }
+  }
+  async function handleUnapproveKepalaBagian() {
+    setBusy(true); setError("");
+    try { await apiUnapproveKepalaBagian(facilityKey, bulan, roomName, session.token); await load(); }
+    catch (err) { setError(err.message); } finally { setBusy(false); }
+  }
+  async function handleApproveManagerQA() {
+    setBusy(true); setError("");
+    try { await apiApproveManagerQAFormulir(facilityKey, bulan, session.token); await load(); }
+    catch (err) { setError(err.message); } finally { setBusy(false); }
+  }
+  async function handleUnapproveManagerQA() {
+    setBusy(true); setError("");
+    try { await apiUnapproveManagerQAFormulir(facilityKey, bulan, session.token); await load(); }
+    catch (err) { setError(err.message); } finally { setBusy(false); }
+  }
+
+  if (loading) return <div className="max-w-5xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>;
+
+  const n = daysInMonth(bulan);
+  const byDay = {};
+  entries.forEach((e) => { byDay[e.tanggal + "|" + e.jam] = e; });
+  const kepalaBagianDone = !!formulir?.kepalaBagian?.nama;
+  const managerQADone = !!formulir?.managerQA?.nama;
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-6 print:max-w-none print:p-0">
+      <div className="no-print flex items-center justify-between mb-4">
+        <button onClick={() => setView({ page: "entry", facility: facilityKey })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
+          <ChevronLeft className="w-4 h-4" /> Kembali ke {cfg?.label}
+        </button>
+        <div className="flex items-center gap-2">
+          {hasAccess(session, "Supervisor", "QA") && (
+            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: roomName })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              <ClipboardList className="w-4 h-4" /> Pengkajian Ruangan Ini (Opsional)
+            </button>
+          )}
+          <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <Printer className="w-4 h-4" /> Cetak
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="no-print text-sm text-red-600 mb-3">{error}</p>}
+
+      <div className="print-card avoid-break rounded-xl border-2 border-slate-800 bg-white p-5 text-xs">
+        {/* Header — mengikuti tata letak fisik FM.QA.024/R11 */}
+        <div className="mb-4 flex items-start justify-between gap-4 border-b-2 border-slate-800 pb-3">
+          <div className="flex items-center gap-3">
+            <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 object-contain" />
+            <div>
+              <p className="text-[11px] font-bold text-slate-700">PT. Rama Emerald</p>
+              <p className="text-[11px] font-bold text-slate-700">Multi Sukses</p>
+            </div>
+          </div>
+          <div className="flex-1 text-center">
+            <p className="text-sm font-bold uppercase tracking-wide text-slate-800">Check List Pemantauan Suhu, Kelembaban dan Perbedaan Tekanan</p>
+          </div>
+          <div className="whitespace-nowrap text-right text-[11px] text-slate-600">
+            <p>No. : <span className="font-semibold">FM.QA.024/R11</span></p>
+          </div>
+        </div>
+
+        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <p><span className="font-semibold text-slate-600">Bulan - Tahun</span> : {monthLabelID(bulan)}</p>
+            <p><span className="font-semibold text-slate-600">Gedung</span> : {cfg?.label}</p>
+            <p><span className="font-semibold text-slate-600">Nama Ruang / No. Ruang</span> : {room?.name} ({room?.code})</p>
+          </div>
+          <div className="space-y-1.5">
+            <p className="font-semibold text-slate-600">Kriteria Penerimaan:</p>
+            {PARAM_DEFS.map((p) => {
+              const lim = room?.limits?.[p.key];
+              if (!room?.required?.[p.key] || !lim) return null;
+              return <p key={p.key}>{p.label} : {formatRange(lim.syaratL, lim.syaratU, p.unit)}</p>;
+            })}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[10px]">
+            <thead>
+              <tr>
+                <th rowSpan={2} className="border border-slate-400 bg-slate-100 px-1 py-1">Tanggal</th>
+                <th colSpan={5} className="border border-slate-400 bg-slate-100 px-1 py-1">Jam 08.00</th>
+                <th colSpan={5} className="border border-slate-400 bg-slate-100 px-1 py-1">Jam 13.00</th>
+              </tr>
+              <tr>
+                {["Suhu (°C)", "RH (%)", "DPG (Pa)", "OPR", "SPV", "Suhu (°C)", "RH (%)", "DPG (Pa)", "OPR", "SPV"].map((h, i) => (
+                  <th key={i} className="border border-slate-400 bg-slate-50 px-1 py-1 font-normal">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: n }, (_, i) => i + 1).map((d) => {
+                const tanggal = `${bulan}-${String(d).padStart(2, "0")}`;
+                const am = byDay[tanggal + "|08:00"];
+                const pm = byDay[tanggal + "|13:00"];
+                return (
+                  <tr key={d}>
+                    <td className="border border-slate-300 px-1 py-0.5 text-center font-medium">{d}</td>
+                    {[am, pm].flatMap((e, idx) => [
+                      <td key={idx + "s"} className="border border-slate-300 px-1 py-0.5 text-center">{e?.suhu ?? ""}</td>,
+                      <td key={idx + "r"} className="border border-slate-300 px-1 py-0.5 text-center">{e?.rh ?? ""}</td>,
+                      <td key={idx + "d"} className="border border-slate-300 px-1 py-0.5 text-center">{e?.dpg ?? ""}</td>,
+                      <td key={idx + "o"} className="border border-slate-300 px-1 py-0.5 text-center">{e?.opr || ""}</td>,
+                      <td key={idx + "p"} className="border border-slate-300 px-1 py-0.5 text-center">{e?.spv || ""}</td>,
+                    ])}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-6 flex items-start justify-between gap-4">
+          <p className="text-[11px] text-slate-500">Mengetahui,</p>
+        </div>
+        <div className="mt-2 grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div className="text-center">
+            <p className="mb-2 text-[11px] text-slate-500">(Kepala Bagian)</p>
+            {kepalaBagianDone ? (
+              <>
+                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={roomName} size={56} hideLabel /></div>
+                <p className="text-sm font-semibold text-slate-800">{formulir.kepalaBagian.nama}</p>
+                <p className="text-[11px] text-slate-400">{formulir.kepalaBagian.tanggal}</p>
+                {canKepalaBagian && (
+                  <button onClick={handleUnapproveKepalaBagian} disabled={busy || managerQADone} className="no-print mt-2 rounded-lg border border-slate-300 px-3 py-1 text-[11px] text-slate-600 hover:bg-slate-50 disabled:opacity-50">Buka Kembali</button>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="mb-2 text-[11px] italic text-slate-400">Belum di-ACC</p>
+                {canKepalaBagian && (
+                  <button onClick={handleApproveKepalaBagian} disabled={busy || entries.length === 0} className="no-print inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                    <FileCheck2 size={13} /> Approve (Kepala Bagian)
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+          <div className="text-center">
+            <p className="mb-2 text-[11px] text-slate-500">(Manager QA)</p>
+            {managerQADone ? (
+              <>
+                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={roomName} size={56} hideLabel /></div>
+                <p className="text-sm font-semibold text-slate-800">{formulir.managerQA.nama}</p>
+                <p className="text-[11px] text-slate-400">{formulir.managerQA.tanggal}</p>
+                {session.role === "Administrator" && (
+                  <button onClick={handleUnapproveManagerQA} disabled={busy} className="no-print mt-2 rounded-lg border border-slate-300 px-3 py-1 text-[11px] text-slate-600 hover:bg-slate-50 disabled:opacity-50">Buka Kembali (Semua Ruangan)</button>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="mb-2 text-[11px] italic text-slate-400">{kepalaBagianDone ? "Belum di-ACC" : "Menunggu semua ruangan di-ACC Kepala Bagian"}</p>
+                {canManagerQA && (
+                  <button onClick={handleApproveManagerQA} disabled={busy} className="no-print inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50">
+                    <FileCheck2 size={13} /> Approve (Manager QA) — Semua Ruangan Fasilitas Ini
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
+  const roomName = initialRoom || ""; // diisi = Pengkajian RUANGAN (opsional); kosong = Pengkajian fasilitas (wajib)
   const [report, setReport] = useState(null);
   const [pendahuluan, setPendahuluan] = useState("");
   const [kesimpulan, setKesimpulan] = useState("");
@@ -1323,7 +1557,7 @@ function PengkajianPage({ session, month, setView, initialFacility }) {
     setError("");
     try {
       const [r, roomList, entries] = await Promise.all([
-        fetchReport(facilityKey, month, session.token),
+        fetchReport(facilityKey, month, session.token, roomName),
         fetchMaster(facilityKey),
         fetchEntries(facilityKey, month),
       ]);
@@ -1332,13 +1566,13 @@ function PengkajianPage({ session, month, setView, initialFacility }) {
       setKesimpulan(r.narrative?.kesimpulanUmum || "");
       setPerParameter(r.narrative?.perParameter || {});
       setRooms(roomList);
-      setMonthEntries(entries);
+      setMonthEntries(roomName ? entries.filter((e) => e.roomName === roomName) : entries);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [facilityKey, month, session.token]);
+  }, [facilityKey, month, session.token, roomName]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1349,17 +1583,17 @@ function PengkajianPage({ session, month, setView, initialFacility }) {
   async function handleSave() {
     setError("");
     try {
-      await apiSaveReport(facilityKey, month, { pendahuluan, kesimpulanUmum: kesimpulan, perParameter }, session.token);
+      await apiSaveReport(facilityKey, month, { pendahuluan, kesimpulanUmum: kesimpulan, perParameter }, session.token, roomName);
       await load();
     } catch (err) { setError(err.message); }
   }
   async function handleDikaji() {
     setError("");
-    try { await apiApproveDikaji(facilityKey, month, session.token); await load(); } catch (err) { setError(err.message); }
+    try { await apiApproveDikaji(facilityKey, month, session.token, roomName); await load(); } catch (err) { setError(err.message); }
   }
   async function handleMengetahui() {
     setError("");
-    try { await apiApproveMengetahui(facilityKey, month, session.token); await load(); } catch (err) { setError(err.message); }
+    try { await apiApproveMengetahui(facilityKey, month, session.token, roomName); await load(); } catch (err) { setError(err.message); }
   }
 
   // Generate narasi otomatis: susun statistik dari data mentah (master +
@@ -1371,12 +1605,13 @@ function PengkajianPage({ session, month, setView, initialFacility }) {
     setError("");
     try {
       const [rooms, entries] = await Promise.all([fetchMaster(facilityKey), fetchEntries(facilityKey, month)]);
-      const facilityStats = buildFacilityStats({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), entries: entries.entries || entries, rooms: rooms.rooms || rooms });
+      const scopedEntries = roomName ? (entries.entries || entries).filter((e) => e.roomName === roomName) : (entries.entries || entries);
+      const facilityStats = buildFacilityStats({ facilityLabel: cfg.label + (roomName ? " — " + roomName : ""), monthLabel: monthLabelID(month), entries: scopedEntries, rooms: rooms.rooms || rooms });
       let narrative;
       try {
-        narrative = await generateNarrative({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), stats: facilityStats.stats });
+        narrative = await generateNarrative({ facilityLabel: cfg.label + (roomName ? " — " + roomName : ""), monthLabel: monthLabelID(month), stats: facilityStats.stats });
       } catch (aiErr) {
-        narrative = generateLocalNarrative({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), entries: entries.entries || entries, rooms: rooms.rooms || rooms });
+        narrative = generateLocalNarrative({ facilityLabel: cfg.label + (roomName ? " — " + roomName : ""), monthLabel: monthLabelID(month), entries: scopedEntries, rooms: rooms.rooms || rooms });
         setError("Narasi AI gagal (" + aiErr.message + ") — dipakai narasi lokal sebagai draf awal, silakan disunting.");
       }
       setPendahuluan(narrative.pendahuluan || "");
@@ -1408,9 +1643,11 @@ function PengkajianPage({ session, month, setView, initialFacility }) {
               <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert" />
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-blue-300">PT. Rama Emerald Multi Sukses — QA</p>
-                <h2 className="text-xl font-bold text-white">Pengkajian EM Non Viable</h2>
+                <h2 className="text-xl font-bold text-white">{roomName ? "Pengkajian Ruangan (Opsional)" : "Pengkajian EM Non Viable"}</h2>
                 <p className="text-sm text-blue-100">
-                  Fasilitas: <span className="font-medium text-white">{cfg?.label}</span> · Periode: <span className="font-medium text-white">{monthLabelID(month)}</span>
+                  Fasilitas: <span className="font-medium text-white">{cfg?.label}</span>
+                  {roomName && <> · Ruangan: <span className="font-medium text-white">{roomName}</span></>}
+                  {" "}· Periode: <span className="font-medium text-white">{monthLabelID(month)}</span>
                 </p>
               </div>
             </div>
@@ -1425,14 +1662,16 @@ function PengkajianPage({ session, month, setView, initialFacility }) {
         </div>
       </div>
 
-      <div className="no-print flex flex-wrap gap-2 mb-4">
-        {FACILITIES.map((f) => (
-          <button key={f.key} onClick={() => setFacilityKey(f.key)}
-            className={`text-xs rounded-full px-3 py-1 border ${facilityKey === f.key ? "bg-slate-800 text-white border-slate-800" : "border-slate-300 text-slate-600"}`}>
-            {f.label}
-          </button>
-        ))}
-      </div>
+      {!roomName && (
+        <div className="no-print flex flex-wrap gap-2 mb-4">
+          {FACILITIES.map((f) => (
+            <button key={f.key} onClick={() => setFacilityKey(f.key)}
+              className={`text-xs rounded-full px-3 py-1 border ${facilityKey === f.key ? "bg-slate-800 text-white border-slate-800" : "border-slate-300 text-slate-600"}`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && <p className="no-print text-sm text-red-600 mb-3">{error}</p>}
 
@@ -1489,7 +1728,7 @@ function PengkajianPage({ session, month, setView, initialFacility }) {
                 <p className="text-xs text-slate-500 mb-2">Dikaji Oleh</p>
                 {report.signoff.dinilai?.nama ? (
                   <>
-                    <div className="flex justify-center mb-2 print:h-24"><VerifyQR type="pengkajian" facility={facilityKey} period={month} size={64} /></div>
+                    <div className="flex justify-center mb-2 print:h-24"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={roomName} size={64} /></div>
                     <p className="text-sm font-medium text-slate-800">{report.signoff.dinilai.nama}</p>
                     <p className="text-xs text-slate-400">{report.signoff.dinilai.jabatan} — {report.signoff.dinilai.tanggal}</p>
                   </>
@@ -1499,7 +1738,7 @@ function PengkajianPage({ session, month, setView, initialFacility }) {
                 <p className="text-xs text-slate-500 mb-2">Mengetahui (Final)</p>
                 {report.signoff.diperiksa?.nama ? (
                   <>
-                    <div className="flex justify-center mb-2 print:h-24"><VerifyQR type="pengkajian" facility={facilityKey} period={month} size={64} /></div>
+                    <div className="flex justify-center mb-2 print:h-24"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={roomName} size={64} /></div>
                     <p className="text-sm font-medium text-slate-800">{report.signoff.diperiksa.nama}</p>
                     <p className="text-xs text-slate-400">{report.signoff.diperiksa.jabatan} — {report.signoff.diperiksa.tanggal}</p>
                   </>
@@ -1557,9 +1796,10 @@ function ActivityPage({ session, month, setView }) {
 
 function VerifyPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const type = params.get("type"); // "harian" | "pengkajian"
+  const type = params.get("type"); // "harian" | "pengkajian" | "formulir"
   const facilityKey = params.get("facility");
-  const period = type === "pengkajian" ? params.get("month") : params.get("tanggal");
+  const roomName = params.get("roomName") || "";
+  const period = type === "pengkajian" ? params.get("month") : type === "formulir" ? params.get("bulan") : params.get("tanggal");
   const facility = FACILITIES.find((f) => f.key === facilityKey);
 
   const [loading, setLoading] = useState(true);
@@ -1575,7 +1815,7 @@ function VerifyPage() {
         return;
       }
       try {
-        const res = await fetchVerify(type, facilityKey, period);
+        const res = await fetchVerify(type, facilityKey, period, roomName);
         if (!cancelled) setData(res);
       } catch (err) {
         if (!cancelled) setErrorMsg(err.message);
@@ -1597,8 +1837,17 @@ function VerifyPage() {
       periodLabel = "Tanggal: " + fullDateID(period);
       if (data.found) signerRows = [{ label: "Disetujui SPV/Manager", nama: data.approvedBy?.nama, tanggal: data.approvedBy?.at }];
       if (data.backfill) signerRows.push({ label: "Dibuka via Backfill oleh", nama: data.backfill.byNama, tanggal: data.backfill.at, note: data.backfill.alasan });
+    } else if (type === "formulir") {
+      docLabel = "Formulir Bulanan EM Non Viable (FM.QA.024/R11)" + (roomName ? " — " + roomName : "");
+      periodLabel = "Periode: " + monthLabelID(period);
+      if (data.found) {
+        signerRows = [
+          { label: "Kepala Bagian", nama: data.kepalaBagian?.nama, tanggal: data.kepalaBagian?.tanggal },
+          { label: "Manager QA", nama: data.managerQA?.nama, tanggal: data.managerQA?.tanggal },
+        ];
+      }
     } else {
-      docLabel = "Pengkajian EM Non Viable";
+      docLabel = "Pengkajian EM Non Viable" + (roomName ? " — Ruangan: " + roomName : "");
       periodLabel = "Periode: " + monthLabelID(period);
       if (data.found) {
         signerRows = [
@@ -1719,7 +1968,8 @@ export default function App() {
         <Dashboard month={month} setMonth={setMonth} setView={setView} session={session} onNeedLogin={() => setShowLogin(true)} />
       )}
       {view.page === "entry" && session && <EntryPage session={session} facilityKey={view.facility} setView={setView} />}
-      {view.page === "pengkajian" && session && <PengkajianPage session={session} month={month} setView={setView} initialFacility={view.facility} />}
+      {view.page === "formulir" && session && <FormulirBulananPrint session={session} facilityKey={view.facility} roomName={view.room} bulan={view.bulan || month} setView={setView} />}
+      {view.page === "pengkajian" && session && <PengkajianPage session={session} month={month} setView={setView} initialFacility={view.facility} initialRoom={view.room} />}
       {view.page === "activity" && session && <ActivityPage session={session} month={month} setView={setView} />}
     </div>
   );

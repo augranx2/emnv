@@ -36,22 +36,44 @@ export function saveEntries(facility, month, entries, token) {
   return apiPost({ action: "saveEntries", facility, month, entries, token });
 }
 
-export function fetchReport(facility, month, token) {
+export function fetchReport(facility, month, token, roomName) {
   const params = { action: "report", facility, month };
   if (token) params.token = token;
+  if (roomName) params.roomName = roomName;
   return apiGet(params);
 }
 
-export function saveReport(facility, month, narrative, token) {
-  return apiPost({ action: "saveReport", facility, month, narrative, token });
+export function saveReport(facility, month, narrative, token, roomName) {
+  return apiPost({ action: "saveReport", facility, month, narrative, token, roomName });
 }
 
-export function approveDikaji(facility, month, token) {
-  return apiPost({ action: "approveDikaji", facility, month, token });
+export function approveDikaji(facility, month, token, roomName) {
+  return apiPost({ action: "approveDikaji", facility, month, token, roomName });
 }
 
-export function approveMengetahui(facility, month, token) {
-  return apiPost({ action: "approveMengetahui", facility, month, token });
+export function approveMengetahui(facility, month, token, roomName) {
+  return apiPost({ action: "approveMengetahui", facility, month, token, roomName });
+}
+
+// --- FORMULIR BULANAN (FM.QA.024/R11, cetak per ruangan, approval Kepala Bagian -> Manager QA) ---
+export function fetchFormulirBulanan(facility, bulan, roomName, token) {
+  return apiGet({ action: "formulirBulanan", facility, bulan, roomName, token });
+}
+
+export function approveKepalaBagian(facility, bulan, roomName, token) {
+  return apiPost({ action: "approveKepalaBagian", facility, bulan, roomName, token });
+}
+
+export function unapproveKepalaBagian(facility, bulan, roomName, token) {
+  return apiPost({ action: "unapproveKepalaBagian", facility, bulan, roomName, token });
+}
+
+export function approveManagerQAFormulir(facility, bulan, token) {
+  return apiPost({ action: "approveManagerQAFormulir", facility, bulan, token });
+}
+
+export function unapproveManagerQAFormulir(facility, bulan, token) {
+  return apiPost({ action: "unapproveManagerQAFormulir", facility, bulan, token });
 }
 
 export function fetchStatusIndex(month) {
@@ -113,10 +135,11 @@ export function changePassword(token, oldPassword, newPassword) {
 
 // Dipakai khusus halaman publik /verify (scan QR) — tetap bisa diakses tanpa
 // login, tapi cuma mengembalikan info tanda tangan.
-export function fetchVerify(type, facility, period) {
-  const params = type === "pengkajian"
-    ? { action: "verify", type, facility, month: period }
-    : { action: "verify", type: "harian", facility, tanggal: period };
+export function fetchVerify(type, facility, period, roomName) {
+  let params;
+  if (type === "pengkajian") params = { action: "verify", type, facility, month: period, roomName };
+  else if (type === "formulir") params = { action: "verify", type, facility, bulan: period, roomName };
+  else params = { action: "verify", type: "harian", facility, tanggal: period };
   return apiGet(params);
 }
 

@@ -14,17 +14,25 @@
  * dihasilkan (diakhiri /exec) untuk dipakai di public/config.js website
  * (domain rencana: emnv.vercel.app).
  *
- * TAB YANG DIBUTUHKAN (sudah ada di spreadsheet Anda, DITAMBAH 1 tab baru):
+ * TAB YANG DIBUTUHKAN (sudah ada di spreadsheet Anda, DITAMBAH 2 tab baru):
  *   User_Roles         : Nama | Role | Departemen | Username | PasswordBaru | PasswordHash | Salt
  *   Sessions           : Token | Username | Nama | Role | Departemen | LoginAt | ExpiresAt
  *   Audit_Log          : Waktu | Username | Nama | Role | Departemen | Aksi | Fasilitas | Bulan | Detail
  *   Limit_Persyaratan  : PersyaratanKey | Suhu(SyaratL/U,AlertL/U,ActionL/U) | RH(...) | DPG(...)  (19 kolom)
- *   Approval_Harian    : *** TAB BARU, buat manual dulu *** — Bulan | Tanggal | Fasilitas |
+ *   Approval_Harian    : Bulan | Tanggal | Fasilitas |
  *                        ApprovedNama | ApprovedUsername | ApprovedAt |
  *                        BackfillReason | BackfillByNama | BackfillByUsername | BackfillAt | UpdatedAt
+ *   Formulir_Bulanan   : *** TAB BARU, buat manual dulu *** — Bulan | Fasilitas | NamaRuang |
+ *                        KepalaBagianNama | KepalaBagianUsername | KepalaBagianTanggal |
+ *                        ManagerQANama | ManagerQAUsername | ManagerQATanggal | UpdatedAt
+ *                        (approval 2 tingkat untuk cetak FM.QA.024/R11 per ruangan — lihat
+ *                        §FORMULIR BULANAN di bawah)
  *   Laporan_Narasi     : Fasilitas | Bulan | Pendahuluan | PerParameterJSON | KesimpulanUmum |
  *                        DinilaiNama | DinilaiJabatan | DinilaiTanggal |
- *                        DiperiksaNama | DiperiksaJabatan | DiperiksaTanggal | UpdatedAt
+ *                        DiperiksaNama | DiperiksaJabatan | DiperiksaTanggal | UpdatedAt | NamaRuang
+ *                        *** TAMBAHKAN KOLOM M "NamaRuang" kalau belum ada *** — kosong berarti
+ *                        Pengkajian FASILITAS (semua ruangan, seperti sebelumnya); diisi nama
+ *                        ruangan berarti Pengkajian RUANGAN (opsional, lihat §FORMULIR BULANAN)
  *   {Facility}         : Nomor Ruangan | Nama Ruangan | Persyaratan Key   (tab master, 1 per fasilitas)
  *   {Facility}_Data    : Bulan | Tanggal | Jam (08:00/13:00) | Nama Ruangan | PersyaratanKey |
  *                        Suhu | RH | DPG | OPR | SPV                      (tab data, 1 per fasilitas)
@@ -126,7 +134,7 @@ function doGet(e) {
         result = getEntries_(e.parameter.facility, e.parameter.month);
         break;
       case "report":
-        result = getReportForViewer_(e.parameter.facility, e.parameter.month, e.parameter.token);
+        result = getReportForViewer_(e.parameter.facility, e.parameter.month, e.parameter.token, e.parameter.roomName);
         break;
       case "statusIndex":
         result = getStatusIndex_(e.parameter.month);
@@ -143,11 +151,18 @@ function doGet(e) {
       case "openInputDates":
         result = getOpenInputDates_(e.parameter.facility, e.parameter.token);
         break;
+      case "formulirBulanan":
+        result = getFormulirBulananForViewer_(e.parameter.facility, e.parameter.bulan, e.parameter.roomName, e.parameter.token);
+        break;
       case "verify":
         // Halaman /verify (scan QR) tetap publik — cuma info tanda tangan.
-        result = e.parameter.type === "pengkajian"
-          ? getVerifySignoffPengkajian_(e.parameter.facility, e.parameter.month)
-          : getVerifySignoffHarian_(e.parameter.facility, e.parameter.tanggal);
+        if (e.parameter.type === "pengkajian") {
+          result = getVerifySignoffPengkajian_(e.parameter.facility, e.parameter.month, e.parameter.roomName);
+        } else if (e.parameter.type === "formulir") {
+          result = getVerifySignoffFormulir_(e.parameter.facility, e.parameter.bulan, e.parameter.roomName);
+        } else {
+          result = getVerifySignoffHarian_(e.parameter.facility, e.parameter.tanggal);
+        }
         break;
       default:
         result = { error: "Aksi tidak dikenal: " + action };
@@ -176,17 +191,37 @@ function doPost(e) {
         break;
       case "saveReport":
         result = withAuth_(body.token, function (session) {
-          return saveReportAuthed_(session, body.facility, body.month, body.narrative || {});
+          return saveReportAuthed_(session, body.facility, body.month, body.narrative || {}, body.roomName);
         });
         break;
       case "approveDikaji":
         result = withAuth_(body.token, function (session) {
-          return approveDikajiAuthed_(session, body.facility, body.month);
+          return approveDikajiAuthed_(session, body.facility, body.month, body.roomName);
         });
         break;
       case "approveMengetahui":
         result = withAuth_(body.token, function (session) {
-          return approveMengetahuiAuthed_(session, body.facility, body.month);
+          return approveMengetahuiAuthed_(session, body.facility, body.month, body.roomName);
+        });
+        break;
+      case "approveKepalaBagian":
+        result = withAuth_(body.token, function (session) {
+          return approveKepalaBagianAuthed_(session, body.facility, body.bulan, body.roomName);
+        });
+        break;
+      case "unapproveKepalaBagian":
+        result = withAuth_(body.token, function (session) {
+          return unapproveKepalaBagianAuthed_(session, body.facility, body.bulan, body.roomName);
+        });
+        break;
+      case "approveManagerQAFormulir":
+        result = withAuth_(body.token, function (session) {
+          return approveManagerQAFormulirAuthed_(session, body.facility, body.bulan);
+        });
+        break;
+      case "unapproveManagerQAFormulir":
+        result = withAuth_(body.token, function (session) {
+          return unapproveManagerQAFormulirAuthed_(session, body.facility, body.bulan);
         });
         break;
       case "approveDay":
@@ -1071,15 +1106,20 @@ function isFacilityMonthFullyApproved_(facilityKey, month) {
 // PerParameterJSON | KesimpulanUmum | DinilaiNama | DinilaiJabatan |
 // DinilaiTanggal | DiperiksaNama | DiperiksaJabatan | DiperiksaTanggal | UpdatedAt
 // ---------------------------------------------------------------------------
-function getReport_(facilityKey, month) {
+// roomName kosong ("") = Pengkajian FASILITAS (semua ruangan, wajib, seperti
+// sebelumnya). roomName diisi = Pengkajian RUANGAN (opsional, mis. buat
+// keperluan audit) — disimpan di kolom M (NamaRuang), baris lama yang belum
+// punya kolom ini otomatis dianggap "" (Pengkajian fasilitas).
+function getReport_(facilityKey, month, roomName) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NARRATIVE_SHEET);
   if (!sheet) return { error: "Tab tidak ditemukan: " + NARRATIVE_SHEET };
+  const room = roomName || "";
   const values = sheet.getDataRange().getValues();
   for (let i = 1; i < values.length; i++) {
     const row = values[i];
-    if (row[0] === cfg.label && formatMonth_(row[1]) === month) {
+    if (row[0] === cfg.label && formatMonth_(row[1]) === month && String(row[12] || "") === room) {
       return {
         found: true,
         narrative: { pendahuluan: row[2], perParameter: safeParseJSON_(row[3]) || {}, kesimpulanUmum: row[4] },
@@ -1094,23 +1134,23 @@ function getReport_(facilityKey, month) {
   return { found: false };
 }
 
-function getReportForViewer_(facilityKey, month, token) {
-  const full = getReport_(facilityKey, month);
+function getReportForViewer_(facilityKey, month, token, roomName) {
+  const full = getReport_(facilityKey, month, roomName);
   if (full.error) return full;
   const session = token ? validateSession_(token) : null;
   if (session) return full;
   return { found: full.found, updatedAt: full.updatedAt, restricted: true };
 }
 
-function getVerifySignoffPengkajian_(facilityKey, month) {
-  const full = getReport_(facilityKey, month);
+function getVerifySignoffPengkajian_(facilityKey, month, roomName) {
+  const full = getReport_(facilityKey, month, roomName);
   if (full.error) return full;
   if (!full.found) return { found: false };
   return { found: true, signoff: full.signoff, updatedAt: full.updatedAt };
 }
 
-function isPengkajianFinalApproved_(facilityKey, month) {
-  const rep = getReport_(facilityKey, month);
+function isPengkajianFinalApproved_(facilityKey, month, roomName) {
+  const rep = getReport_(facilityKey, month, roomName);
   return !!(rep.found && rep.signoff && rep.signoff.diperiksa && rep.signoff.diperiksa.nama);
 }
 
@@ -1118,74 +1158,242 @@ function emptySignoffServer_() {
   return { dinilai: { nama: "", jabatan: "", tanggal: "" }, diperiksa: { nama: "", jabatan: "", tanggal: "" } };
 }
 
-function saveReport_(facilityKey, month, narrative, signoff) {
+function saveReport_(facilityKey, month, narrative, signoff, roomName) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NARRATIVE_SHEET);
   if (!sheet) return { error: "Tab tidak ditemukan: " + NARRATIVE_SHEET };
+  const room = roomName || "";
   const values = sheet.getDataRange().getValues();
   let targetRow = -1;
   for (let i = 1; i < values.length; i++) {
-    if (values[i][0] === cfg.label && formatMonth_(values[i][1]) === month) { targetRow = i + 1; break; }
+    if (values[i][0] === cfg.label && formatMonth_(values[i][1]) === month && String(values[i][12] || "") === room) { targetRow = i + 1; break; }
   }
   const dinilai = signoff.dinilai || {};
   const diperiksa = signoff.diperiksa || {};
   const rowValues = [
     cfg.label, month, narrative.pendahuluan || "", JSON.stringify(narrative.perParameter || {}), narrative.kesimpulanUmum || "",
     dinilai.nama || "", dinilai.jabatan || "", dinilai.tanggal || "",
-    diperiksa.nama || "", diperiksa.jabatan || "", diperiksa.tanggal || "", new Date(),
+    diperiksa.nama || "", diperiksa.jabatan || "", diperiksa.tanggal || "", new Date(), room,
   ];
   if (targetRow === -1) sheet.appendRow(rowValues);
   else sheet.getRange(targetRow, 1, 1, rowValues.length).setValues([rowValues]);
   return { ok: true };
 }
 
-function saveReportAuthed_(session, facilityKey, month, narrative) {
+function isRoomMonthFullyApproved_(facilityKey, month, roomName) {
+  const entries = (getEntries_(facilityKey, month).entries || []).filter(function (e) { return e.roomName === roomName; });
+  if (entries.length === 0) return false;
+  return entries.every(function (e) { return !!e.spv; });
+}
+
+function saveReportAuthed_(session, facilityKey, month, narrative, roomName) {
   if (!requireRole_(session, "Supervisor", "QA")) return { error: "Hanya Supervisor/Manager QA yang boleh menyusun Pengkajian EM Non Viable." };
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
-  const existing = getReport_(facilityKey, month);
+  const room = roomName || "";
+  const existing = getReport_(facilityKey, month, room);
   if (session.role !== "Administrator") {
     if (existing.found && existing.signoff && existing.signoff.diperiksa && existing.signoff.diperiksa.nama) {
-      return { error: "Pengkajian fasilitas ini bulan ini sudah di-approve final (Mengetahui) oleh Manager QA — narasi terkunci." };
+      return { error: "Pengkajian ini sudah di-approve final (Mengetahui) oleh Manager QA — narasi terkunci." };
     }
-    if (!existing.found && !isFacilityMonthFullyApproved_(facilityKey, month)) {
-      return { error: "Belum semua tanggal fasilitas ini bulan ini di-approve SPV/Manager. Pengkajian baru bisa dibuat setelah semua data harian selesai di-approve." };
+    if (!existing.found) {
+      const gateOk = room ? isRoomMonthFullyApproved_(facilityKey, month, room) : isFacilityMonthFullyApproved_(facilityKey, month);
+      if (!gateOk) {
+        return { error: room ? "Data ruangan ini bulan ini belum semua di-approve SPV/Manager." : "Belum semua tanggal fasilitas ini bulan ini di-approve SPV/Manager. Pengkajian baru bisa dibuat setelah semua data harian selesai di-approve." };
+      }
     }
   }
   const signoff = (existing && existing.signoff) || emptySignoffServer_();
-  const result = saveReport_(facilityKey, month, narrative, signoff);
-  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Susun Pengkajian EM Non Viable", fasilitas: cfg.label, bulan: month, detail: "" });
+  const result = saveReport_(facilityKey, month, narrative, signoff, room);
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Susun Pengkajian EM Non Viable" + (room ? " (Ruangan)" : ""), fasilitas: cfg.label, bulan: month, detail: room });
   return result;
 }
 
-function approveDikajiAuthed_(session, facilityKey, month) {
+function approveDikajiAuthed_(session, facilityKey, month, roomName) {
   if (!requireRole_(session, "Supervisor", "QA")) return { error: "Hanya Supervisor/Manager QA yang boleh menyetujui 'Dikaji Oleh'." };
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
-  const existing = getReport_(facilityKey, month);
+  const room = roomName || "";
+  const existing = getReport_(facilityKey, month, room);
   if (!existing.found) return { error: "Belum ada draf Pengkajian untuk fasilitas & bulan ini." };
   const signoff = existing.signoff || emptySignoffServer_();
   signoff.dinilai = { nama: session.nama, jabatan: session.role + " QA", tanggal: formatDate_(new Date()) };
-  const result = saveReport_(facilityKey, month, existing.narrative, signoff);
-  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Dikaji Oleh", fasilitas: cfg.label, bulan: month, detail: "" });
+  const result = saveReport_(facilityKey, month, existing.narrative, signoff, room);
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Dikaji Oleh", fasilitas: cfg.label, bulan: month, detail: room });
   return result;
 }
 
-function approveMengetahuiAuthed_(session, facilityKey, month) {
+function approveMengetahuiAuthed_(session, facilityKey, month, roomName) {
   if (!requireRole_(session, "Manager", "QA")) return { error: "Hanya Manager QA (atau yang mewakili) yang boleh menyetujui final 'Mengetahui'." };
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
-  const existing = getReport_(facilityKey, month);
+  const room = roomName || "";
+  const existing = getReport_(facilityKey, month, room);
   if (!existing.found) return { error: "Belum ada draf Pengkajian untuk fasilitas & bulan ini." };
   if (!existing.signoff || !existing.signoff.dinilai || !existing.signoff.dinilai.nama) {
     return { error: "Pengkajian ini belum di-approve 'Dikaji Oleh', tidak bisa langsung final." };
   }
   const signoff = existing.signoff;
   signoff.diperiksa = { nama: session.nama, jabatan: "Manager QA", tanggal: formatDate_(new Date()) };
-  const result = saveReport_(facilityKey, month, existing.narrative, signoff);
-  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Final (Mengetahui)", fasilitas: cfg.label, bulan: month, detail: "" });
+  const result = saveReport_(facilityKey, month, existing.narrative, signoff, room);
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Final (Mengetahui)", fasilitas: cfg.label, bulan: month, detail: room });
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// FORMULIR BULANAN (FM.QA.024/R11) — cetak per Fasilitas+Bulan+Ruangan,
+// menggantikan konsep lama "Report_FormQA". Approval 2 tingkat:
+// 1. Kepala Bagian (SPV/Manager departemen fasilitas itu, atau Manager PPIC)
+//    approve PER RUANGAN, kapan saja setelah ada data bulan itu.
+// 2. Manager QA approve SEKALIGUS untuk SEMUA ruangan fasilitas itu bulan
+//    itu — TAPI baru bisa kalau SEMUA ruangan yang punya data bulan itu
+//    sudah di-approve Kepala Bagian dulu (sesuai form fisik: "Mengetahui"
+//    Kepala bagian & Manager QA di bagian bawah tiap lembar formulir).
+// Tab "Formulir_Bulanan" (WAJIB dibuat manual): Bulan | Fasilitas |
+// NamaRuang | KepalaBagianNama | KepalaBagianUsername | KepalaBagianTanggal |
+// ManagerQANama | ManagerQAUsername | ManagerQATanggal | UpdatedAt
+// ---------------------------------------------------------------------------
+const FORMULIR_BULANAN_SHEET = "Formulir_Bulanan";
+const FORMULIR_NO = "FM.QA.024/R11";
+
+function getFormulirBulananSheet_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(FORMULIR_BULANAN_SHEET);
+  if (!sheet) throw new Error("Tab '" + FORMULIR_BULANAN_SHEET + "' tidak ditemukan. Buat dulu tab ini (lihat komentar di atas file).");
+  return sheet;
+}
+
+function findFormulirBulananRow_(facilityLabel, bulan, roomName) {
+  const sheet = getFormulirBulananSheet_();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { sheet: sheet, rowIndex: -1, row: null };
+  const values = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][1] === facilityLabel && formatMonth_(values[i][0]) === bulan && String(values[i][2] || "").trim() === String(roomName || "").trim()) {
+      return { sheet: sheet, rowIndex: i + 2, row: values[i] };
+    }
+  }
+  return { sheet: sheet, rowIndex: -1, row: null };
+}
+
+function getFormulirBulanan_(facilityKey, bulan, roomName) {
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
+  const found = findFormulirBulananRow_(cfg.label, bulan, roomName);
+  if (found.rowIndex === -1) return { found: false, formNo: FORMULIR_NO };
+  const row = found.row;
+  return {
+    found: true, formNo: FORMULIR_NO,
+    kepalaBagian: { nama: row[3] || "", username: row[4] || "", tanggal: row[5] || "" },
+    managerQA: { nama: row[6] || "", username: row[7] || "", tanggal: row[8] || "" },
+    updatedAt: row[9],
+  };
+}
+
+function upsertFormulirBulananRow_(cfg, bulan, roomName, patch) {
+  const found = findFormulirBulananRow_(cfg.label, bulan, roomName);
+  const prev = found.row || ["", cfg.label, roomName, "", "", "", "", "", "", ""];
+  const rowValues = [
+    bulan, cfg.label, roomName,
+    "kepalaBagianNama" in patch ? patch.kepalaBagianNama : prev[3],
+    "kepalaBagianUsername" in patch ? patch.kepalaBagianUsername : prev[4],
+    "kepalaBagianTanggal" in patch ? patch.kepalaBagianTanggal : prev[5],
+    "managerQANama" in patch ? patch.managerQANama : prev[6],
+    "managerQAUsername" in patch ? patch.managerQAUsername : prev[7],
+    "managerQATanggal" in patch ? patch.managerQATanggal : prev[8],
+    new Date(),
+  ];
+  if (found.rowIndex === -1) found.sheet.appendRow(rowValues);
+  else found.sheet.getRange(found.rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+}
+
+function getFormulirBulananForViewer_(facilityKey, bulan, roomName, token) {
+  const session = token ? validateSession_(token) : null;
+  if (!session) return { error: "Sesi tidak valid atau sudah habis, silakan login ulang." };
+  return getFormulirBulanan_(facilityKey, bulan, roomName);
+}
+
+function getVerifySignoffFormulir_(facilityKey, bulan, roomName) {
+  const full = getFormulirBulanan_(facilityKey, bulan, roomName);
+  if (full.error) return full;
+  if (!full.found) return { found: false };
+  return { found: true, kepalaBagian: full.kepalaBagian, managerQA: full.managerQA, updatedAt: full.updatedAt };
+}
+
+function approveKepalaBagianAuthed_(session, facilityKey, bulan, roomName) {
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
+  if (!requireRoleForFacility_(session, "Supervisor", cfg)) {
+    return { error: "Hanya Supervisor/Manager departemen " + cfg.department + " (atau Manager PPIC untuk fasilitas gudang terkait) yang boleh approve sebagai Kepala Bagian." };
+  }
+  const roomEntries = (getEntries_(facilityKey, bulan).entries || []).filter(function (e) { return e.roomName === roomName; });
+  if (roomEntries.length === 0) return { error: "Belum ada data ruangan ini bulan ini — belum bisa di-approve." };
+  const existing = getFormulirBulanan_(facilityKey, bulan, roomName);
+  if (session.role !== "Administrator" && existing.managerQA && existing.managerQA.nama) {
+    return { error: "Formulir fasilitas ini bulan ini sudah final (Manager QA sudah approve) — terkunci." };
+  }
+  upsertFormulirBulananRow_(cfg, bulan, roomName, { kepalaBagianNama: session.nama, kepalaBagianUsername: session.username, kepalaBagianTanggal: formatDate_(new Date()) });
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Formulir (Kepala Bagian)", fasilitas: cfg.label, bulan: bulan, detail: "Ruang: " + roomName });
+  return getFormulirBulanan_(facilityKey, bulan, roomName);
+}
+
+function unapproveKepalaBagianAuthed_(session, facilityKey, bulan, roomName) {
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
+  if (!requireRoleForFacility_(session, "Supervisor", cfg)) {
+    return { error: "Hanya Supervisor/Manager departemen " + cfg.department + " yang boleh membuka kembali approval Kepala Bagian." };
+  }
+  const existing = getFormulirBulanan_(facilityKey, bulan, roomName);
+  if (session.role !== "Administrator" && existing.managerQA && existing.managerQA.nama) {
+    return { error: "Formulir fasilitas ini bulan ini sudah final (Manager QA sudah approve) — hubungi Administrator untuk membuka kembali." };
+  }
+  upsertFormulirBulananRow_(cfg, bulan, roomName, { kepalaBagianNama: "", kepalaBagianUsername: "", kepalaBagianTanggal: "" });
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Unapprove Formulir (Kepala Bagian)", fasilitas: cfg.label, bulan: bulan, detail: "Ruang: " + roomName });
+  return getFormulirBulanan_(facilityKey, bulan, roomName);
+}
+
+// Fasilitas+bulan dianggap siap untuk approval Manager QA kalau SEMUA
+// ruangan yang punya data bulan itu sudah di-approve Kepala Bagian.
+function isFacilityMonthAllRoomsKepalaBagianApproved_(facilityKey, bulan) {
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return false;
+  const entries = getEntries_(facilityKey, bulan).entries || [];
+  const rooms = Array.from(new Set(entries.map(function (e) { return e.roomName; }).filter(Boolean)));
+  if (rooms.length === 0) return false;
+  return rooms.every(function (r) {
+    const f = getFormulirBulanan_(facilityKey, bulan, r);
+    return !!(f.found && f.kepalaBagian && f.kepalaBagian.nama);
+  });
+}
+
+function approveManagerQAFormulirAuthed_(session, facilityKey, bulan) {
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
+  if (!requireRole_(session, "Manager", "QA")) return { error: "Hanya Manager QA yang boleh approve Formulir tahap ini." };
+  if (session.role !== "Administrator" && !isFacilityMonthAllRoomsKepalaBagianApproved_(facilityKey, bulan)) {
+    return { error: "Belum semua ruangan fasilitas ini bulan ini di-approve Kepala Bagian. Manager QA baru bisa approve setelah semua ruangan selesai." };
+  }
+  const entries = getEntries_(facilityKey, bulan).entries || [];
+  const rooms = Array.from(new Set(entries.map(function (e) { return e.roomName; }).filter(Boolean)));
+  const nowStr = formatDate_(new Date());
+  rooms.forEach(function (r) {
+    upsertFormulirBulananRow_(cfg, bulan, r, { managerQANama: session.nama, managerQAUsername: session.username, managerQATanggal: nowStr });
+  });
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Formulir (Manager QA, semua ruangan)", fasilitas: cfg.label, bulan: bulan, detail: rooms.length + " ruangan" });
+  return { ok: true, rooms: rooms.length };
+}
+
+function unapproveManagerQAFormulirAuthed_(session, facilityKey, bulan) {
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
+  if (session.role !== "Administrator") return { error: "Hanya Administrator yang boleh membuka kembali approval Manager QA." };
+  const entries = getEntries_(facilityKey, bulan).entries || [];
+  const rooms = Array.from(new Set(entries.map(function (e) { return e.roomName; }).filter(Boolean)));
+  rooms.forEach(function (r) {
+    upsertFormulirBulananRow_(cfg, bulan, r, { managerQANama: "", managerQAUsername: "", managerQATanggal: "" });
+  });
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Unapprove Formulir (Manager QA)", fasilitas: cfg.label, bulan: bulan, detail: rooms.length + " ruangan" });
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
