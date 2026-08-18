@@ -5,9 +5,9 @@ import {
   ReferenceLine, ReferenceArea, ResponsiveContainer,
 } from "recharts";
 import {
-  LogIn, LogOut, User, Loader2, Building2, LayoutGrid, ChevronLeft,
+  LogIn, LogOut, User, Loader2, Building2, LayoutGrid, ChevronLeft, ChevronRight,
   Lock, CheckCircle2, XOctagon, History, Save, FileCheck2, ClipboardList,
-  Printer, Sparkles, AlertTriangle, TrendingUp,
+  Printer, Sparkles, AlertTriangle, TrendingUp, Calendar, FileQuestion,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
@@ -220,124 +220,333 @@ function ParamTrendChart({ entries, paramKey, paramLabel, unit, limit }) {
   );
 }
 
-/* ========================================================================= LOGIN */
+/* ========================================================================= TOPBAR, LOGIN, DASHBOARD */
 
-function LoginScreen({ onLogin }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function submit(e) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      await onLogin(username, password);
-    } catch (err) {
-      setError(err.message || "Login gagal.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
+function TopBar({ session, onLoginClick, onLogout, view, setView }) {
+  const [showProfile, setShowProfile] = useState(false);
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4">
-      <form onSubmit={submit} className="bg-white rounded-xl shadow-md p-8 w-full max-w-sm space-y-4">
-        <div className="text-center mb-2">
-          <h1 className="text-lg font-semibold text-slate-800">EM Non Viable</h1>
-          <p className="text-sm text-slate-500">PT. Rama Emerald Multi Sukses</p>
-        </div>
-        <div>
-          <label className="block text-sm text-slate-600 mb-1">Username</label>
-          <input value={username} onChange={(e) => setUsername(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" autoFocus />
-        </div>
-        <div>
-          <label className="block text-sm text-slate-600 mb-1">Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
-        </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" disabled={loading} className="w-full flex items-center justify-center gap-2 bg-slate-800 text-white rounded-lg py-2 text-sm font-medium hover:bg-slate-700 disabled:opacity-60">
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-          Masuk
+    <div className="no-print border-b border-slate-200 bg-white px-4 py-2.5">
+      <div className="mx-auto flex max-w-5xl items-center justify-between">
+        <button onClick={() => setView({ page: "dashboard" })} className="flex items-center gap-2 text-sm font-bold text-slate-700">
+          <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-8 w-8 object-contain" />
+          EM Non Viable — PT. Rama Emerald Multi Sukses
         </button>
-      </form>
+        <div className="flex items-center gap-2">
+          {session && hasAccess(session, "Supervisor", "QA") && (
+            <button onClick={() => setView({ page: "pengkajian" })}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "pengkajian" ? "bg-slate-800 text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+              <ClipboardList size={14} /> Pengkajian
+            </button>
+          )}
+          {session && hasAccess(session, "Supervisor") && (
+            <button onClick={() => setView({ page: "activity" })}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "activity" ? "bg-slate-800 text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+              <History size={14} /> Riwayat Aktivitas
+            </button>
+          )}
+          {session ? (
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShowProfile(true)}
+                className="hidden items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200 sm:inline-flex">
+                <User size={13} /> {session.nama} · {session.role}{session.departemen ? ` ${session.departemen}` : ""}
+              </button>
+              <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                <LogOut size={14} /> Keluar
+              </button>
+            </div>
+          ) : (
+            <button onClick={onLoginClick} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">
+              <LogIn size={14} /> Login
+            </button>
+          )}
+        </div>
+      </div>
+      {showProfile && session && <ProfileModal session={session} onClose={() => setShowProfile(false)} />}
     </div>
   );
 }
 
-/* ========================================================================= LAYOUT */
+function LoginModal({ onClose, onLogin }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-function Header({ session, onLogout, view, setView, month, setMonth }) {
+  const submit = async (ev) => {
+    ev.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      await onLogin(username.trim(), password);
+      onClose();
+    } catch (err) {
+      setError(err.message || "Login gagal.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <header className="bg-white border-b sticky top-0 z-10">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3 justify-between">
-        <div className="flex items-center gap-2">
-          <button onClick={() => setView({ page: "dashboard" })} className="font-semibold text-slate-800 flex items-center gap-2">
-            <LayoutGrid className="w-4 h-4" /> EM Non Viable
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+        <div className="mb-4 flex items-center gap-2">
+          <Lock size={18} className="text-blue-700" />
+          <h3 className="text-base font-bold text-slate-800">Login EM Non Viable</h3>
         </div>
-        <div className="flex items-center gap-3">
-          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="border rounded-lg px-2 py-1 text-sm" />
-          {hasAccess(session, "Supervisor") && (
-            <button onClick={() => setView({ page: "activity" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
-              <History className="w-4 h-4" /> Riwayat
+        <form onSubmit={submit}>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Username</label>
+          <input autoFocus type="text" value={username} onChange={(ev) => setUsername(ev.target.value)}
+            className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none" />
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password</label>
+          <input type="password" value={password} onChange={(ev) => setPassword(ev.target.value)}
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none" />
+          {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              Batal
             </button>
-          )}
-          {hasAccess(session, "Supervisor", "QA") && (
-            <button onClick={() => setView({ page: "pengkajian" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
-              <ClipboardList className="w-4 h-4" /> Pengkajian
+            <button type="submit" disabled={submitting || !username || !password}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60">
+              {submitting ? <Loader2 size={14} className="animate-spin" /> : null} Masuk
             </button>
-          )}
-          <div className="text-sm text-slate-600 flex items-center gap-1">
-            <User className="w-4 h-4" /> {session.nama} <span className="text-slate-400">({session.role}{session.departemen ? " · " + session.departemen : ""})</span>
           </div>
-          <button onClick={onLogout} className="text-sm text-slate-500 hover:text-red-600 flex items-center gap-1">
-            <LogOut className="w-4 h-4" /> Keluar
-          </button>
-        </div>
+        </form>
       </div>
-    </header>
+    </div>
+  );
+}
+
+function ProfileModal({ session, onClose }) {
+  const [showChangePw, setShowChangePw] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const submit = async (ev) => {
+    ev.preventDefault();
+    setError("");
+    if (newPassword.length < 6) { setError("Password baru minimal 6 karakter."); return; }
+    if (newPassword !== confirmPassword) { setError("Konfirmasi password baru tidak cocok."); return; }
+    setSubmitting(true);
+    try {
+      const res = await apiChangePassword(session.token, oldPassword, newPassword);
+      if (res.error) { setError(res.error); return; }
+      setSuccess(true);
+      setOldPassword(""); setNewPassword(""); setConfirmPassword("");
+    } catch (err) {
+      setError(err.message || "Gagal mengubah password.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+        <div className="mb-4 flex items-center gap-2">
+          <User size={18} className="text-blue-700" />
+          <h3 className="text-base font-bold text-slate-800">Profil Saya</h3>
+        </div>
+
+        <div className="mb-4 space-y-1.5 rounded-lg bg-slate-50 px-4 py-3 text-sm">
+          <p className="flex justify-between"><span className="text-slate-500">Username</span> <span className="font-medium text-slate-700">{session.username}</span></p>
+          <p className="flex justify-between"><span className="text-slate-500">Nama Lengkap</span> <span className="font-medium text-slate-700">{session.nama}</span></p>
+          <p className="flex justify-between"><span className="text-slate-500">Jabatan</span> <span className="font-medium text-slate-700">{session.role}</span></p>
+          <p className="flex justify-between"><span className="text-slate-500">Departemen</span> <span className="font-medium text-slate-700">{session.departemen || "-"}</span></p>
+        </div>
+
+        {!showChangePw ? (
+          <div className="flex justify-between gap-2">
+            <button onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              Tutup
+            </button>
+            <button onClick={() => setShowChangePw(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-800">
+              <Lock size={14} /> Ganti Password
+            </button>
+          </div>
+        ) : success ? (
+          <div className="text-center">
+            <CheckCircle2 className="mx-auto mb-2 text-emerald-600" size={28} />
+            <p className="mb-4 text-sm text-slate-600">Password berhasil diubah.</p>
+            <button onClick={onClose} className="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-800">Tutup</button>
+          </div>
+        ) : (
+          <form onSubmit={submit}>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password Lama</label>
+            <input type="password" value={oldPassword} onChange={(ev) => setOldPassword(ev.target.value)}
+              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none" />
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password Baru</label>
+            <input type="password" value={newPassword} onChange={(ev) => setNewPassword(ev.target.value)}
+              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none" />
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Konfirmasi Password Baru</label>
+            <input type="password" value={confirmPassword} onChange={(ev) => setConfirmPassword(ev.target.value)}
+              className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none" />
+            {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => { setShowChangePw(false); setError(""); }}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                Kembali
+              </button>
+              <button type="submit" disabled={submitting || !oldPassword || !newPassword || !confirmPassword}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60">
+                {submitting ? <Loader2 size={14} className="animate-spin" /> : null} Simpan Password Baru
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
 
 /* ========================================================================= DASHBOARD */
 
-function Dashboard({ month, setView }) {
+function StatCard({ icon, iconColor, tint, border, value, label }) {
+  return (
+    <div
+      className="rounded-xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      style={{ background: `linear-gradient(155deg, ${tint} 0%, #ffffff 72%)`, borderColor: border }}
+    >
+      <span className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm" style={{ color: iconColor }}>
+        {icon}
+      </span>
+      <p className="text-2xl font-bold text-slate-800">{value}</p>
+      <p className="text-xs font-medium text-slate-600">{label}</p>
+    </div>
+  );
+}
+
+function StatusPill({ level, hasData }) {
+  if (!hasData) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 text-slate-500">
+        Belum ada data
+      </span>
+    );
+  }
+  if (level >= 4) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "#fee2e2", color: "#b91c1c" }}>
+        <AlertTriangle size={13} /> Melebihi Syarat
+      </span>
+    );
+  }
+  if (level === 3) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "#ffedd5", color: "#c2410c" }}>
+        <AlertTriangle size={13} /> Terkendali (Perlu Perhatian)
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "#dcfce7", color: "#15803d" }}>
+      <CheckCircle2 size={13} /> Terkendali
+    </span>
+  );
+}
+
+const STATUS_TINT = {
+  0: { bg: "#f1f5f9", fg: "#64748b" },
+  1: { bg: "#dcfce7", fg: "#15803d" },
+  2: { bg: "#dcfce7", fg: "#15803d" },
+  3: { bg: "#ffedd5", fg: "#c2410c" },
+  4: { bg: "#fee2e2", fg: "#b91c1c" },
+};
+
+const STATUS_ACCENT = { 0: "#cbd5e1", 1: "#22c55e", 2: "#22c55e", 3: "#f97316", 4: "#ef4444" };
+
+function monthLabel(monthKey) {
+  return monthLabelID(monthKey);
+}
+
+function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
   const [status, setStatus] = useState({});
   const [loading, setLoading] = useState(true);
+  const [statusError, setStatusError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchStatusIndex(month).then((d) => { if (!cancelled) setStatus(d); }).finally(() => { if (!cancelled) setLoading(false); });
+    setStatusError("");
+    fetchStatusIndex(month)
+      .then((d) => { if (!cancelled) setStatus(d); })
+      .catch((err) => { if (!cancelled) setStatusError("Gagal memuat status dari spreadsheet: " + err.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [month]);
 
+  const perluCount = FACILITIES.filter((f) => (status[f.key]?.level || 0) === 3).length;
+  const tmsCount = FACILITIES.filter((f) => (status[f.key]?.level || 0) >= 4).length;
+  const terkendaliCount = FACILITIES.filter((f) => status[f.key]?.hasData && (status[f.key]?.level || 0) < 3).length;
+  const belumAdaCount = FACILITIES.filter((f) => !status[f.key]?.hasData).length;
+
+  function openFacility(key) {
+    if (!session) { onNeedLogin(); return; }
+    setView({ page: "entry", facility: key });
+  }
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
-      <h2 className="text-base font-semibold text-slate-800 mb-4">Rekap Status — {month}</h2>
-      {loading ? (
-        <div className="flex items-center gap-2 text-slate-500 text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+    <div>
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-blue-900">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-16 left-1/3 h-48 w-48 rounded-full bg-indigo-400/10 blur-3xl" />
+        <div className="relative mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-4 px-6 py-7">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-300">PT. Rama Emerald Multi Sukses — QA</p>
+            <h1 className="text-2xl font-bold text-white">Dashboard EM Non Viable</h1>
+            <p className="mt-1 text-sm text-blue-100">Rekap pemantauan Suhu, Kelembaban (RH), dan Perbedaan Tekanan (DPG) per fasilitas</p>
+          </div>
+          <label className="no-print inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm text-white backdrop-blur-sm">
+            <Calendar size={15} className="text-blue-200" />
+            <input type="month" value={month} onChange={(ev) => setMonth(ev.target.value)} onClick={(ev) => ev.currentTarget.showPicker?.()}
+              className="border-none bg-transparent text-sm text-white outline-none [color-scheme:dark]" />
+          </label>
+        </div>
+      </div>
+      <div className="mx-auto max-w-5xl p-6">
+
+        {statusError && (
+          <p className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{statusError}</p>
+        )}
+
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <StatCard icon={<LayoutGrid size={17} />} iconColor="#1d4ed8" tint="#dbeafe" border="#bfdbfe" value={FACILITIES.length} label="Total Fasilitas" />
+          <StatCard icon={<CheckCircle2 size={17} />} iconColor="#15803d" tint="#dcfce7" border="#bbf7d0" value={terkendaliCount} label="Terkendali" />
+          <StatCard icon={<AlertTriangle size={17} />} iconColor="#c2410c" tint="#ffedd5" border="#fed7aa" value={perluCount} label="Perlu Perhatian" />
+          <StatCard icon={<XOctagon size={17} />} iconColor="#b91c1c" tint="#fee2e2" border="#fecaca" value={tmsCount} label="Melebihi Syarat" />
+          <StatCard icon={<FileQuestion size={17} />} iconColor="#475569" tint="#f1f5f9" border="#e2e8f0" value={belumAdaCount} label="Belum Ada Data" />
+        </div>
+
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Fasilitas — {monthLabel(month)}</p>
+        <div className="space-y-2.5">
           {FACILITIES.map((f) => {
-            const s = status[f.key] || { level: 0, hasData: false };
-            const style = levelStyle(s.hasData ? s.level : null);
+            const st = status[f.key];
+            const level = st?.hasData ? (st?.level || 0) : 0;
+            const accent = STATUS_ACCENT[level];
+            const tint = STATUS_TINT[level];
             return (
-              <button key={f.key} onClick={() => setView({ page: "entry", facility: f.key })}
-                className="rounded-xl border bg-white p-4 text-left hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-slate-800 text-sm flex items-center gap-1"><Building2 className="w-4 h-4 text-slate-400" /> {f.label}</span>
+              <button key={f.key} onClick={() => openFacility(f.key)}
+                className="group flex w-full items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white pr-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
+                <span className="self-stretch w-1.5" style={{ background: accent }} />
+                <div className="flex flex-1 items-center gap-3 py-3.5 pl-3.5">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: tint.bg, color: tint.fg }}><Building2 size={19} /></span>
+                  <div>
+                    <p className="font-semibold text-slate-800">{f.label}</p>
+                    <p className="text-xs text-slate-400">{loading ? "Memuat..." : st?.hasData ? "Ada data bulan ini" : "Belum ada data bulan ini"}</p>
+                  </div>
                 </div>
-                <span className="inline-block text-xs font-medium rounded-full px-2 py-0.5" style={{ color: style.color, background: style.bg }}>
-                  {s.hasData ? style.label : "Belum ada data"}
-                </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  {loading ? <Loader2 className="animate-spin text-slate-300" size={18} /> : <StatusPill level={st?.level || 0} hasData={!!st?.hasData} />}
+                  <ChevronRight size={16} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-blue-400" />
+                </div>
               </button>
             );
           })}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -1254,34 +1463,61 @@ export default function App() {
   const { session, checking, login, logout } = useAuth();
   const [view, setView] = useState({ page: "dashboard" });
   const [month, setMonth] = useState(currentMonth());
+  const [showLogin, setShowLogin] = useState(false);
+
+  // Sama seperti EM Viable: Dashboard bisa dilihat siapa saja tanpa login.
+  // Login (lewat tombol di TopBar / prompt saat buka fasilitas) cuma
+  // diperlukan untuk input, approve, atau menyusun Pengkajian. Tombol Cetak
+  // disembunyikan untuk Tamu/publik, dan dijaga juga lewat CSS @media print
+  // (print-blocked) supaya Ctrl+P pun tidak menghasilkan cetakan berarti.
+  const canPrint = !!session && session.role !== "Tamu";
+
+  // Kalau logout ketika sedang di halaman yang butuh login, lempar balik ke
+  // Dashboard.
+  useEffect(() => {
+    const needsAuthPages = ["entry", "pengkajian", "activity"];
+    if (needsAuthPages.includes(view.page) && !session) setView({ page: "dashboard" });
+  }, [session, view.page]);
 
   if (checking) {
     return <div className="min-h-screen flex items-center justify-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin" /></div>;
   }
-  if (!session) {
-    return <LoginScreen onLogin={login} />;
-  }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className={`min-h-screen bg-slate-50 ${!canPrint ? "print-blocked" : ""}`}>
+      <div className="print-only-notice">
+        Dokumen ini tidak bisa dicetak oleh akun Tamu atau publik tanpa login. Hubungi personil QC/QA untuk salinan resmi.
+      </div>
       <style>{`
         .only-print { display: none; }
+        .print-only-notice { display: none; }
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         @media print {
           .no-print { display: none !important; }
           .only-print { display: block !important; }
           .print-card { box-shadow: none !important; border: 1px solid #cbd5e1 !important; page-break-inside: avoid; break-inside: avoid; }
           .avoid-break { page-break-inside: avoid; break-inside: avoid; }
+          .print-blocked > *:not(.print-only-notice) { display: none !important; }
+          .print-blocked .print-only-notice {
+            display: block !important;
+            padding: 5cm 2cm;
+            text-align: center;
+            font-size: 14px;
+            color: #334155;
+          }
         }
         @page {
           margin: 1.5cm 1.5cm 2cm 1.5cm;
         }
       `}</style>
-      <Header session={session} onLogout={logout} view={view} setView={setView} month={month} setMonth={setMonth} />
-      {view.page === "dashboard" && <Dashboard month={month} setView={setView} />}
-      {view.page === "entry" && <EntryPage session={session} facilityKey={view.facility} setView={setView} />}
-      {view.page === "pengkajian" && <PengkajianPage session={session} month={month} setView={setView} />}
-      {view.page === "activity" && <ActivityPage session={session} month={month} setView={setView} />}
+      <TopBar session={session} onLoginClick={() => setShowLogin(true)} onLogout={logout} view={view} setView={setView} />
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={login} />}
+      {view.page === "dashboard" && (
+        <Dashboard month={month} setMonth={setMonth} setView={setView} session={session} onNeedLogin={() => setShowLogin(true)} />
+      )}
+      {view.page === "entry" && session && <EntryPage session={session} facilityKey={view.facility} setView={setView} />}
+      {view.page === "pengkajian" && session && <PengkajianPage session={session} month={month} setView={setView} />}
+      {view.page === "activity" && session && <ActivityPage session={session} month={month} setView={setView} />}
     </div>
   );
 }
