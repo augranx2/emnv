@@ -4,87 +4,8 @@
 /**
  * EM NON VIABLE — Google Apps Script backend
  * PT. Rama Emerald Multi Sukses — QA
- *
- * Tempel seluruh isi file ini ke Apps Script (Extensions > Apps Script) yang
- * menempel pada Google Sheet "EM Non Viable - Database".
- *
- * Setelah ditempel: Deploy > Manage deployments > edit (pensil) > pilih
- * "New version" > Deploy. (Deployment pertama: Deploy > New deployment >
- * Web app, Execute as: Me, Who has access: Anyone.) Salin URL yang
- * dihasilkan (diakhiri /exec) untuk dipakai di public/config.js website
- * (domain rencana: emnv.vercel.app).
- *
- * TAB YANG DIBUTUHKAN (sudah ada di spreadsheet Anda, DITAMBAH 2 tab baru):
- *   User_Roles         : Nama | Role | Departemen | Username | PasswordBaru | PasswordHash | Salt
- *   Sessions           : Token | Username | Nama | Role | Departemen | LoginAt | ExpiresAt
- *   Audit_Log          : Waktu | Username | Nama | Role | Departemen | Aksi | Fasilitas | Bulan | Detail
- *   Limit_Persyaratan  : PersyaratanKey | Suhu(SyaratL/U,AlertL/U,ActionL/U) | RH(...) | DPG(...)  (19 kolom)
- *   Approval_Harian    : Bulan | Tanggal | Fasilitas |
- *                        ApprovedNama | ApprovedUsername | ApprovedAt |
- *                        BackfillReason | BackfillByNama | BackfillByUsername | BackfillAt | UpdatedAt
- *   Formulir_Bulanan   : *** TAB BARU, buat manual dulu *** — Bulan | Fasilitas | NamaRuang |
- *                        KepalaBagianNama | KepalaBagianUsername | KepalaBagianTanggal |
- *                        ManagerQANama | ManagerQAUsername | ManagerQATanggal | UpdatedAt
- *                        (approval 2 tingkat untuk cetak FM.QA.024/R11 per ruangan — lihat
- *                        §FORMULIR BULANAN di bawah)
- *   Laporan_Narasi     : Fasilitas | Bulan | Pendahuluan | PerParameterJSON | KesimpulanUmum |
- *                        DinilaiNama | DinilaiJabatan | DinilaiTanggal |
- *                        DiperiksaNama | DiperiksaJabatan | DiperiksaTanggal | UpdatedAt | NamaRuang
- *                        *** TAMBAHKAN KOLOM M "NamaRuang" kalau belum ada *** — kosong berarti
- *                        Pengkajian FASILITAS (semua ruangan, seperti sebelumnya); diisi nama
- *                        ruangan berarti Pengkajian RUANGAN (opsional, lihat §FORMULIR BULANAN)
- *   {Facility}         : Nomor Ruangan | Nama Ruangan | Persyaratan Key   (tab master, 1 per fasilitas)
- *   {Facility}_Data    : Bulan | Tanggal | Jam (08:00/13:00) | Nama Ruangan | PersyaratanKey |
- *                        Suhu | RH | DPG | OPR | SPV                      (tab data, 1 per fasilitas)
- *
- * (Tab lama "Report_FormQA" — approve per ruangan per bulan — TIDAK dipakai lagi
- * di versi ini, digantikan "Approval_Harian" di bawah. Boleh dibiarkan saja di
- * spreadsheet, tidak akan diganggu kode ini.)
- *
- * PENTING — Tab Master & merged cells: kolom "Persyaratan Key" di tab master
- * biasanya diisi pakai merged cell (cuma terisi di baris paling atas suatu
- * blok ruangan sejenis, baris-baris di bawahnya kosong). getMaster_() di
- * bawah SENGAJA melakukan forward-fill: baris kosong mewarisi Persyaratan
- * Key dari baris terakhir yang terisi di atasnya. Kalau ada ruangan yang
- * MEMANG tidak match kategori mana pun (bukan lanjutan blok di atasnya),
- * pastikan ada baris "pemisah" atau isi manual supaya tidak ikut ke-inherit
- * kategori yang salah.
- *
- * DEPARTEMEN & PENANGGUNG JAWAB PER FASILITAS (lihat FACILITIES di bawah):
- * Tiap fasilitas dipetakan ke satu Departemen utama (yang mengisi & approve
- * data harian). Sebagian fasilitas (GBJ, GBK, ketiga GBB) juga bisa
- * di-approve oleh Departemen "PPIC" (Manager PPIC), selain oleh SPV/Manager
- * departemen fasilitas itu sendiri.
- *
- * ALUR KERJA & PENGUNCIAN DATA (approval HARIAN, bukan per ruangan/bulan):
- * 1. Operator/Staff HANYA bisa input data untuk tanggal HARI INI (server-side
- *    enforced), boleh banyak ruangan sekaligus dalam satu hari itu. Kolom OPR
- *    diisi OTOMATIS dari nama akun yang login — tidak diketik manual.
- * 2. SPV/Manager departemen fasilitas itu (atau Manager PPIC untuk fasilitas
- *    gudang terkait) meng-approve SEMUA entri hari itu sekaligus (1 aksi =
- *    1 tanggal, seluruh ruangan). Kolom SPV di SEMUA baris tanggal itu otomatis
- *    terisi nama SPV yang approve. Begitu di-approve, tanggal itu (fasilitas
- *    itu) TERKUNCI dari edit/hapus untuk siapa pun kecuali Administrator,
- *    kecuali SPV yang sama membuka kembali (unapprove).
- * 3. QR verifikasi otomatis "muncul" (bisa dihasilkan) begitu suatu tanggal
- *    sudah ke-ACC — link ke halaman /verify yang membaca live dari sistem.
- * 4. BACKFILL (lupa isi hari sebelumnya): operator TIDAK bisa langsung isi
- *    tanggal yang sudah lewat. SPV/Manager harus "buka akses" dulu untuk
- *    tanggal itu (dengan alasan tertulis, dicatat di Audit_Log) — baru
- *    operator bisa mengisi tanggal tsb, sampai SPV meng-approve-nya (yang
- *    otomatis menutup lagi jendela backfill itu).
- * 5. QA (Supervisor/Manager QA) menyusun Pengkajian bulanan (Laporan_Narasi)
- *    PER FASILITAS, dan baru boleh MULAI untuk suatu fasilitas+bulan setelah
- *    SEMUA tanggal yang punya data bulan itu sudah di-approve SPV/Manager.
- * 6. Begitu Pengkajian suatu fasilitas+bulan sudah di-approve FINAL
- *    ("Mengetahui" oleh Manager QA), seluruh data & approval harian fasilitas
- *    itu bulan itu terkunci total (termasuk dari unapprove) kecuali oleh
- *    Administrator. Narasi Pengkajian sendiri juga ikut terkunci.
  */
 
-// ---------------------------------------------------------------------------
-// KONFIGURASI: 13 fasilitas
-// ---------------------------------------------------------------------------
 const FACILITIES = {
   nbl: { label: "NBL", masterSheet: "NBL", dataSheet: "NBL_Data", department: "Produksi" },
   bl: { label: "BL", masterSheet: "BL", dataSheet: "BL_Data", department: "Produksi" },
@@ -106,22 +27,13 @@ const LIMIT_SHEET = "Limit_Persyaratan";
 const PARAMS = ["suhu", "rh", "dpg"];
 const SESI_SERVER = ["08:00", "13:00"];
 
-// ---------------------------------------------------------------------------
-// KONFIGURASI: AUTH / ROLE / AUDIT  (identik EM Viable)
-// ---------------------------------------------------------------------------
 const USER_ROLES_SHEET = "User_Roles";
 const SESSIONS_SHEET = "Sessions";
 const AUDIT_LOG_SHEET = "Audit_Log";
 const APPROVAL_HARIAN_SHEET = "Approval_Harian";
-const SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8 jam
-// Sengaja TIDAK ada role level 0 (Tamu mulai dari 1) — lihat catatan sama di
-// EM Viable: menghindari bug `!ROLE_LEVEL[role]` salah anggap role valid
-// level-0 sebagai "tidak dikenal". Selalu cek `=== undefined` di kode ini.
+const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;
 const ROLE_LEVEL = { Tamu: 1, Staff: 2, Supervisor: 3, Manager: 4, "Assistant Manager": 4, Administrator: 5 };
 
-// ---------------------------------------------------------------------------
-// ENTRY POINTS
-// ---------------------------------------------------------------------------
 function doGet(e) {
   try {
     const action = e.parameter.action;
@@ -155,7 +67,6 @@ function doGet(e) {
         result = getFormulirBulananForViewer_(e.parameter.facility, e.parameter.bulan, e.parameter.roomName, e.parameter.token);
         break;
       case "verify":
-        // Halaman /verify (scan QR) tetap publik — cuma info tanda tangan.
         if (e.parameter.type === "pengkajian") {
           result = getVerifySignoffPengkajian_(e.parameter.facility, e.parameter.month, e.parameter.roomName);
         } else if (e.parameter.type === "formulir") {
@@ -277,9 +188,6 @@ function withAuth_(token, fn) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// AUTH: LOGIN / LOGOUT / SESSION  (identik EM Viable — username/password saja)
-// ---------------------------------------------------------------------------
 function randomHex_(numBytes) {
   const chars = [];
   for (let i = 0; i < numBytes; i++) chars.push(("0" + Math.floor(Math.random() * 256).toString(16)).slice(-2));
@@ -298,7 +206,6 @@ function getUserRolesSheet_() {
   return sheet;
 }
 
-// Kolom User_Roles: A Nama | B Role | C Departemen | D Username | E PasswordBaru | F PasswordHash | G Salt
 function migratePasswords_() {
   const sheet = getUserRolesSheet_();
   const lastRow = sheet.getLastRow();
@@ -388,7 +295,6 @@ function logout_(token) {
   return { ok: true };
 }
 
-// Sessions: A Token | B Username | C Nama | D Role | E Departemen | F LoginAt | G ExpiresAt
 function validateSession_(token) {
   if (!token) return null;
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SESSIONS_SHEET);
@@ -417,8 +323,6 @@ function whoami_(token) {
   return { ok: true, nama: session.nama, role: session.role, departemen: session.departemen, username: session.username };
 }
 
-// Cek akses generik (role level minimal + departemen persis) — dipakai untuk
-// hal yang TIDAK terikat fasilitas tertentu (mis. Pengkajian QA, Riwayat Aktivitas).
 function requireRole_(session, minRole, departemen) {
   if (session.role === "Administrator") return true;
   const level = ROLE_LEVEL[session.role] || 0;
@@ -428,10 +332,6 @@ function requireRole_(session, minRole, departemen) {
   return true;
 }
 
-// Cek akses KHUSUS FASILITAS: departemen sesi harus cocok dengan departemen
-// utama fasilitas ITU, ATAU departemen alternatifnya (mis. "PPIC" untuk
-// GBJ/GBK/GBB) — untuk PPIC, level minimal SELALU Manager berapa pun
-// minRole yang diminta (Manager PPIC tidak bisa jadi "Staff" pengganti).
 function requireRoleForFacility_(session, minRole, cfg) {
   if (session.role === "Administrator") return true;
   const level = ROLE_LEVEL[session.role] || 0;
@@ -444,9 +344,6 @@ function requireRoleForFacility_(session, minRole, cfg) {
   return false;
 }
 
-// ---------------------------------------------------------------------------
-// AUDIT LOG  (identik EM Viable)
-// ---------------------------------------------------------------------------
 function writeAuditLog_(entry) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(AUDIT_LOG_SHEET);
   if (!sheet) return;
@@ -471,12 +368,6 @@ function getActivityLog_(token, month, facilityLabel) {
   return { logs: logs.slice(0, 300) };
 }
 
-// ---------------------------------------------------------------------------
-// LIMIT_PERSYARATAN  — lookup dua sisi (Syarat/Alert/Action, Lower/Upper)
-// ---------------------------------------------------------------------------
-// Kolom (1-indexed setelah header): 1 PersyaratanKey,
-// 2-7 Suhu(SyaratL,SyaratU,AlertL,AlertU,ActionL,ActionU),
-// 8-13 RH(...), 14-19 DPG(...)
 function normalizeKey_(key) {
   return String(key || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -515,26 +406,16 @@ function inRange_(v, lower, upper) {
   return true;
 }
 
-// Parameter dianggap "wajib diisi" untuk suatu ruangan kalau Limit_Persyaratan
-// punya minimal satu batas (Syarat/Alert/Action) terisi untuk parameter itu.
-// Kalau semuanya NA/kosong, parameter itu tidak dipersyaratkan sama sekali.
 function isParamRequired_(limit) {
   if (!limit) return false;
   return [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU].some(function (x) { return x !== null; });
 }
 
-// Menerima angka yang diketik pakai koma ATAU titik sebagai desimal (mis.
-// "25,5" atau "25.5") — dipakai di semua tempat yang mem-parsing nilai Suhu/
-// RH/DPG hasil input, supaya konsisten dengan konvensi angka Indonesia.
 function toNumberSafe_(v) {
   if (v === null || v === undefined || v === "") return NaN;
   return Number(String(v).trim().replace(",", "."));
 }
 
-// Level: null = parameter ini tidak dipersyaratkan untuk ruangan ini (NA di
-// Limit_Persyaratan). 0 = dipersyaratkan tapi belum ada data. 1 = Baik
-// (dalam Alert). 2 = di luar Alert, masih dalam Action. 3 = di luar Action,
-// masih dalam Syarat. 4 = di luar Syarat (deviasi).
 function levelForTwoSided_(rawValue, limit) {
   if (!isParamRequired_(limit)) return null;
   if (rawValue === null || rawValue === undefined || rawValue === "") return 0;
@@ -546,10 +427,6 @@ function levelForTwoSided_(rawValue, limit) {
   return 4;
 }
 
-// ---------------------------------------------------------------------------
-// MASTER ROOM LIST  (tab "{Facility}": Nomor Ruangan | Nama Ruangan | Persyaratan Key)
-// Forward-fill Persyaratan Key untuk baris yang kosong (lanjutan merged cell).
-// ---------------------------------------------------------------------------
 function getMaster_(facilityKey) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
@@ -560,7 +437,7 @@ function getMaster_(facilityKey) {
   const values = sheet.getDataRange().getValues();
   const rooms = [];
   let lastKey = "";
-  for (let i = 1; i < values.length; i++) { // baris 1 = header
+  for (let i = 1; i < values.length; i++) {
     const row = values[i];
     const code = row[0];
     const name = row[1];
@@ -571,11 +448,7 @@ function getMaster_(facilityKey) {
     } else {
       persyaratanKey = lastKey;
     }
-    if (!persyaratanKey) continue; // tidak ada kategori sama sekali -> dikecualikan
-    // "required" & "limits" dihitung dari Limit_Persyaratan LANGSUNG (bukan
-    // dari data entri yang sudah tersimpan) — supaya frontend tahu sejak
-    // ruangan dipilih (sebelum ada data tersimpan) parameter mana yang wajib
-    // diisi DAN berapa syarat/alert/action-nya, untuk ditampilkan ke operator.
+    if (!persyaratanKey) continue;
     const required = {};
     const limits = {};
     PARAMS.forEach(function (p) {
@@ -588,10 +461,6 @@ function getMaster_(facilityKey) {
   return { facility: facilityKey, rooms: rooms };
 }
 
-// ---------------------------------------------------------------------------
-// MONTHLY ENTRIES  (tab "{Facility}_Data": Bulan | Tanggal | Jam | Nama Ruangan
-// | PersyaratanKey | Suhu | RH | DPG | OPR | SPV)
-// ---------------------------------------------------------------------------
 function getEntries_(facilityKey, month) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
@@ -613,12 +482,6 @@ function getEntries_(facilityKey, month) {
     const jam = formatTime_(row[2]);
     const roomName = row[3];
     entries.push({
-      // ID STABIL berbasis konten (bukan posisi baris) — WAJIB, karena
-      // saveEntries_ menulis ulang SELURUH baris (clear+rewrite) setiap kali
-      // simpan, jadi urutan/posisi baris di sheet bisa berubah. Kalau id
-      // masih berbasis index baris ("row-N"), id lama yang dipegang
-      // frontend akan salah sasaran setelah rewrite berikutnya — bisa bikin
-      // baris lain kesalahan-deteksi "terhapus" padahal cuma pindah posisi.
       id: roomName + "|" + tanggal + "|" + jam,
       tanggal: tanggal,
       jam: jam,
@@ -656,11 +519,6 @@ function saveEntries_(facilityKey, month, entries) {
     e.opr || "", e.spv || "",
   ]);
   const finalRows = kept.concat(newRows);
-  // Kolom C (Jam) dipaksa format teks biasa DULU, sebelum ditulis — kalau
-  // tidak, Google Sheets otomatis mengubah string "08:00"/"13:00" jadi nilai
-  // waktu internal (lalu terbaca aneh seperti "1899-12-30T...") begitu
-  // dibaca lagi lewat getValues(). Ini juga otomatis merapikan baris LAMA
-  // yang sudah kadung ke-convert, karena seluruh kolom ditulis ulang di sini.
   sheet.getRange(2, 3, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat("@");
   sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 10).clearContent();
   if (finalRows.length > 0) sheet.getRange(2, 1, finalRows.length, 10).setValues(finalRows);
@@ -676,19 +534,10 @@ function todayStr_() {
   return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
 }
 
-// Ruangan+tanggal dianggap TERKUNCI kalau ADA baris untuk ruangan+tanggal itu
-// yang kolom SPV-nya sudah terisi (approve SPV = kunci). Ini dicek dari data
-// yang SUDAH TERSIMPAN ("before"), bukan dari flag hari terpisah — SPV/Manager
-// bisa approve per-ruangan sekarang, jadi status kunci itu properti tiap
-// baris, bukan properti satu tanggal secara keseluruhan.
 function isRoomSpvLocked_(entries, tanggal, roomName) {
   return entries.some(function (e) { return e.tanggal === tanggal && e.roomName === roomName && !!e.spv; });
 }
 
-// Ruangan+tanggal dianggap "lengkap" (boleh di-approve OPR/SPV) HANYA kalau
-// KEDUA sesi (08:00 & 13:00) sudah ada barisnya DAN semua parameter wajib di
-// tiap sesi itu terisi (nilai "-" dihitung terisi — dipakai kalau alat
-// pemantau untuk parameter itu memang tidak tersedia di ruangan itu).
 function isRoomComplete_(entries, tanggal, roomName, limitMap) {
   const rows = entries.filter(function (e) { return e.tanggal === tanggal && e.roomName === roomName; });
   if (rows.length === 0) return false;
@@ -703,9 +552,6 @@ function isRoomComplete_(entries, tanggal, roomName, limitMap) {
   });
 }
 
-// Menulis (atau mengosongkan) satu kolom di {Facility}_Data untuk baris yang
-// cocok Bulan+Tanggal (dan Ruangan kalau roomName diisi — null berarti
-// SEMUA ruangan tanggal itu). colIndex 0-based (OPR=8, SPV=9).
 function stampFieldOnDataRows_(cfg, month, tanggal, roomName, colIndex, value) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(cfg.dataSheet);
   if (!sheet) return 0;
@@ -741,24 +587,14 @@ function saveEntriesAuthed_(session, facilityKey, month, entries) {
     return { error: "Staff tidak bisa menghapus data yang sudah tersimpan. Hubungi Supervisor/Manager." };
   }
 
-  // Baris BARU/BERUBAH (id belum ada di "before", atau isinya beda dari
-  // "before") wajib tanggalnya = hari ini, ATAU tanggal itu sedang dibuka
-  // backfill oleh SPV/Manager (dan belum di-approve). Baris yang TIDAK
-  // berubah dari "before" dibiarkan lolos apa adanya (supaya save dari
-  // ruangan lain tidak ikut kena validasi tanggal ruangan yang tidak diedit).
   const beforeById = {};
   before.forEach(function (e) { beforeById[e.id] = e; });
-  const today = todayStr_();
   const limitMap = loadLimitMap_();
 
-  // Kelengkapan per sesi: kalau SATU parameter di sesi itu terisi, SEMUA
-  // parameter yang wajib (required, per Limit_Persyaratan ruangan itu) juga
-  // harus terisi — tidak boleh simpan sebagian (mis. Suhu+RH tanpa DPG kalau
-  // DPG memang dipersyaratkan untuk ruangan itu).
   function checkComplete(e) {
-    const anyFilled = e.suhu !== null && e.suhu !== undefined && e.suhu !== "" ||
-      e.rh !== null && e.rh !== undefined && e.rh !== "" ||
-      e.dpg !== null && e.dpg !== undefined && e.dpg !== "";
+    const anyFilled = (e.suhu !== null && e.suhu !== undefined && e.suhu !== "") ||
+      (e.rh !== null && e.rh !== undefined && e.rh !== "") ||
+      (e.dpg !== null && e.dpg !== undefined && e.dpg !== "");
     if (!anyFilled) return null;
     const missing = [];
     PARAMS.forEach(function (p) {
@@ -775,48 +611,31 @@ function saveEntriesAuthed_(session, facilityKey, month, entries) {
     }
   });
 
-  // Baris BARU/BERUBAH (id belum ada di "before", atau isinya beda dari
-  // "before"): tanggal masa depan tetap ditolak (jaga-jaga, walau UI sudah
-  // membatasi via max=hari ini). Tanggal hari ini maupun tanggal sebelumnya
-  // BEBAS diisi langsung TANPA perlu backfill, selama ruangan+tanggal itu
-  // belum di-approve SPV/Manager (lihat pengecekan lock di bawah) — backfill
-  // sekarang cuma dipakai untuk MEMBUKA KEMBALI data yang sudah di-ACC.
   if (session.role !== "Administrator") {
-    const touchedByDateRoom = {}; // "tanggal|room" -> true, untuk baris baru/berubah
+    const touchedByDateRoom = {};
     entries.forEach(function (e) {
       const prev = beforeById[e.id];
       const isNewOrChanged = !prev || prev.suhu !== e.suhu || prev.rh !== e.rh || prev.dpg !== e.dpg;
       if (isNewOrChanged && e.tanggal) {
         touchedByDateRoom[e.tanggal + "|" + e.roomName] = true;
-        if (e.tanggal > today) {
-          throw new Error("Tanggal " + e.tanggal + " belum terjadi — tidak bisa mengisi data untuk tanggal yang akan datang.");
-        }
       }
     });
-    // Kunci per RUANGAN: kalau ruangan+tanggal ini SUDAH di-approve SPV
-    // (kolom SPV sudah terisi di data tersimpan), tidak boleh diedit lagi —
-    // apa pun status kelengkapannya. Approve SPV = kunci; approve OPR TIDAK
-    // mengunci (operator masih boleh mengubah nilai & approve ulang selama
-    // SPV belum approve).
+
+    // Tanggal lampau tetap bisa diisi selama ruangan+tanggal tersebut belum di-approve SPV
     Object.keys(touchedByDateRoom).forEach(function (key) {
       const idx = key.lastIndexOf("|");
       const tgl = key.slice(0, idx);
       const roomName = key.slice(idx + 1);
       if (isRoomSpvLocked_(before, tgl, roomName)) {
-        throw new Error("Ruangan '" + roomName + "' tanggal " + tgl + " sudah di-approve SPV/Manager — terkunci. Minta SPV/Manager membuka kembali (backfill) dulu kalau perlu koreksi.");
+        throw new Error("Ruangan '" + roomName + "' tanggal " + tgl + " sudah di-approve SPV/Manager — terkunci. Hubungi SPV/Manager bila perlu pembukaan kembali.");
       }
     });
-    // Kunci total kalau Pengkajian fasilitas+bulan ini sudah final.
+
     if (isPengkajianFinalApproved_(facilityKey, month)) {
       return { error: "Pengkajian EM Non Viable fasilitas ini bulan ini sudah di-approve final oleh Manager QA — data mentah terkunci. Hubungi Administrator kalau perlu perubahan." };
     }
   }
 
-  // "Simpan" HANYA menyimpan nilai — TIDAK approve apa pun. OPR/SPV cuma
-  // terisi lewat tombol Approve (OPR)/Approve (SPV) terpisah (lihat
-  // approveOprAuthed_/approveSpvAuthed_ di bawah). Baris yang berubah
-  // nilainya otomatis kembali "belum di-ACC operator" (OPR dikosongkan lagi)
-  // supaya operator wajib approve ulang setelah mengubah data.
   const finalEntries = entries.map(function (e) {
     const prev = beforeById[e.id];
     const isNewOrChanged = !prev || prev.suhu !== e.suhu || prev.rh !== e.rh || prev.dpg !== e.dpg;
@@ -832,16 +651,9 @@ function saveEntriesAuthed_(session, facilityKey, month, entries) {
   return result;
 }
 
-// ---------------------------------------------------------------------------
-// APPROVAL_HARIAN  (approve SEKALIGUS semua entri satu Fasilitas + Tanggal,
-// bukan per ruangan/bulan) — tab "Approval_Harian". Kolom:
-// A Bulan | B Tanggal | C Fasilitas | D ApprovedNama | E ApprovedUsername |
-// F ApprovedAt | G BackfillReason | H BackfillByNama | I BackfillByUsername |
-// J BackfillAt | K UpdatedAt
-// ---------------------------------------------------------------------------
 function getApprovalHarianSheet_() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(APPROVAL_HARIAN_SHEET);
-  if (!sheet) throw new Error("Tab '" + APPROVAL_HARIAN_SHEET + "' tidak ditemukan. Buat dulu tab ini (lihat komentar di atas file).");
+  if (!sheet) throw new Error("Tab '" + APPROVAL_HARIAN_SHEET + "' tidak ditemukan.");
   return sheet;
 }
 
@@ -875,9 +687,6 @@ function getDayStatus_(facilityKey, tanggal) {
 }
 
 function getDayStatusForViewer_(facilityKey, tanggal, token) {
-  // Status hari (approved/backfill) tidak sensitif — boleh dilihat siapa saja
-  // yang sedang memakai app (tetap butuh login supaya bukan endpoint publik
-  // liar, tapi tidak perlu departemen yang cocok).
   const session = token ? validateSession_(token) : null;
   if (!session) return { error: "Sesi tidak valid atau sudah habis, silakan login ulang." };
   return getDayStatus_(facilityKey, tanggal);
@@ -888,8 +697,6 @@ function isDayApproved_(facilityLabel, tanggal) {
   return !!(found.rowIndex !== -1 && found.row[3]);
 }
 
-// Backfill dianggap "terbuka" kalau ada baris dengan BackfillReason terisi
-// DAN belum di-approve (approve otomatis "menutup" jendela backfill itu).
 function isBackfillOpen_(facilityLabel, tanggal) {
   const found = findApprovalHarianRow_(facilityLabel, tanggal);
   if (found.rowIndex === -1) return false;
@@ -929,10 +736,6 @@ function approveDayAuthed_(session, facilityKey, tanggal) {
   const entriesThatDay = entries.filter(function (e) { return e.tanggal === tanggal; });
   if (entriesThatDay.length === 0) return { error: "Belum ada data yang diisi operator untuk tanggal ini." };
 
-  // "Approve Semua" HANYA meng-approve ruangan yang datanya SUDAH LENGKAP
-  // (kedua sesi, semua parameter wajib terisi) dan BELUM di-approve SPV.
-  // Ruangan yang belum lengkap/belum diisi dilewati saja — TIDAK ikut
-  // ter-lock, operator tetap bisa melanjutkan mengisi ruangan itu.
   const limitMap = loadLimitMap_();
   const roomsThatDay = Array.from(new Set(entriesThatDay.map(function (e) { return e.roomName; })));
   const roomsToApprove = roomsThatDay.filter(function (r) {
@@ -944,15 +747,13 @@ function approveDayAuthed_(session, facilityKey, tanggal) {
   let totalRowsChanged = 0;
   roomsToApprove.forEach(function (r) { totalRowsChanged += stampFieldOnDataRows_(cfg, month, tanggal, r, 9, session.nama); });
 
-  // Flag ringkasan Approval_Harian cuma ditandai "approved" kalau SEMUA
-  // ruangan hari itu ikut ter-approve (tidak ada yang dilewati karena belum
-  // lengkap) — supaya badge di panel atas tidak menyesatkan.
   const allApproved = roomsThatDay.every(function (r) { return roomsToApprove.indexOf(r) !== -1; });
   if (allApproved) {
+    // Waktu approve tercatat real-time (today)
     const nowStr = formatDate_(new Date());
     upsertApprovalHarianRow_(cfg, tanggal, { approvedNama: session.nama, approvedUsername: session.username, approvedAt: nowStr });
   }
-  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Data Harian (Semua Ruangan)", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal + " — " + roomsToApprove.length + " ruangan di-approve (" + totalRowsChanged + " baris), " + (roomsThatDay.length - roomsToApprove.length) + " ruangan dilewati (belum lengkap)" });
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Data Harian (Semua Ruangan)", fasilitas: cfg.label, bulan: month, detail: "Tanggal Data: " + tanggal + " (Approved pada: " + todayStr_() + ") — " + roomsToApprove.length + " ruangan di-approve" });
   const status = getDayStatus_(facilityKey, tanggal);
   status.approvedRooms = roomsToApprove.length;
   status.skippedRooms = roomsThatDay.length - roomsToApprove.length;
@@ -970,13 +771,11 @@ function unapproveDayAuthed_(session, facilityKey, tanggal) {
     return { error: "Pengkajian EM Non Viable fasilitas ini bulan ini sudah final — tidak bisa dibuka kembali. Hubungi Administrator." };
   }
   upsertApprovalHarianRow_(cfg, tanggal, { approvedNama: "", approvedUsername: "", approvedAt: "" });
-  stampFieldOnDataRows_(cfg, month, tanggal, null, 9, ""); // kosongkan SPV semua ruangan tanggal ini -> benar2 kebuka lagi
+  stampFieldOnDataRows_(cfg, month, tanggal, null, 9, "");
   writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Unapprove Data Harian", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal });
   return getDayStatus_(facilityKey, tanggal);
 }
 
-// Approve OLEH OPERATOR untuk SATU ruangan+tanggal — TIDAK mengunci (operator
-// masih bisa mengubah nilai & approve ulang selama SPV belum approve).
 function approveOprAuthed_(session, facilityKey, tanggal, roomName) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
@@ -984,10 +783,6 @@ function approveOprAuthed_(session, facilityKey, tanggal, roomName) {
     return { error: "Hanya Staff/Operator, Supervisor, atau Manager departemen " + cfg.department + " yang boleh approve (OPR) data ini." };
   }
   const month = tanggal.slice(0, 7);
-  const today = todayStr_();
-  if (session.role !== "Administrator" && tanggal > today) {
-    return { error: "Tanggal " + tanggal + " belum terjadi — tidak bisa approve data untuk tanggal yang akan datang." };
-  }
   const entries = getEntries_(facilityKey, month).entries || [];
   if (isRoomSpvLocked_(entries, tanggal, roomName)) {
     return { error: "Ruangan ini sudah di-approve SPV/Manager — tidak perlu/tidak bisa approve OPR lagi." };
@@ -997,12 +792,10 @@ function approveOprAuthed_(session, facilityKey, tanggal, roomName) {
     return { error: "Data ruangan ini belum lengkap (kedua sesi 08:00 & 13:00, semua parameter wajib) — lengkapi & simpan dulu sebelum approve." };
   }
   const changed = stampFieldOnDataRows_(cfg, month, tanggal, roomName, 8, session.nama);
-  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve OPR", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal + " — Ruang: " + roomName + " (" + changed + " baris)" });
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve OPR", fasilitas: cfg.label, bulan: month, detail: "Tanggal Data: " + tanggal + " (Approved pada: " + todayStr_() + ") — Ruang: " + roomName });
   return { ok: true, changed: changed };
 }
 
-// Approve OLEH SPV/MANAGER untuk SATU ruangan+tanggal — INI yang mengunci
-// ruangan itu dari edit lebih lanjut (kecuali dibuka lagi lewat backfill).
 function approveSpvAuthed_(session, facilityKey, tanggal, roomName) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
@@ -1024,7 +817,7 @@ function approveSpvAuthed_(session, facilityKey, tanggal, roomName) {
     return { error: "Operator belum approve (OPR) data ini — minta operator approve dulu sebelum di-ACC SPV/Manager." };
   }
   const changed = stampFieldOnDataRows_(cfg, month, tanggal, roomName, 9, session.nama);
-  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve SPV", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal + " — Ruang: " + roomName + " (" + changed + " baris)" });
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve SPV", fasilitas: cfg.label, bulan: month, detail: "Tanggal Data: " + tanggal + " (Approved pada: " + todayStr_() + ") — Ruang: " + roomName });
   return { ok: true, changed: changed };
 }
 
@@ -1032,57 +825,33 @@ function openBackfillAuthed_(session, facilityKey, tanggal, alasan) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
   if (!requireRoleForFacility_(session, "Supervisor", cfg)) {
-    return { error: "Hanya Supervisor/Manager departemen " + cfg.department + " (atau Manager PPIC) yang boleh membuka akses backfill." };
+    return { error: "Hanya Supervisor/Manager departemen " + cfg.department + " (atau Manager PPIC) yang boleh membuka kembali data." };
   }
-  if (!alasan || !String(alasan).trim()) return { error: "Alasan backfill wajib diisi." };
-  if (tanggal > todayStr_()) return { error: "Backfill tidak bisa untuk tanggal yang belum terjadi." };
+  if (!alasan || !String(alasan).trim()) return { error: "Alasan pembukaan kembali wajib diisi." };
+  if (tanggal > todayStr_()) return { error: "Tidak bisa untuk tanggal yang belum terjadi." };
   const month = tanggal.slice(0, 7);
   if (session.role !== "Administrator" && isPengkajianFinalApproved_(facilityKey, month)) {
-    return { error: "Pengkajian EM Non Viable fasilitas ini bulan ini sudah final — tidak bisa membuka backfill lagi." };
+    return { error: "Pengkajian EM Non Viable fasilitas ini bulan ini sudah final — data terkunci permanen." };
   }
-  // Cek TERKUNCI dari status baris SPV yang sesungguhnya (bukan cuma flag
-  // "hari di-approve" dari aksi bulk Approve Semua) — supaya tetap kedeteksi
-  // walau ruangan itu di-approve satu-satu lewat approveSpvAuthed_.
-  const dateEntries = (getEntries_(facilityKey, month).entries || []).filter(function (e) { return e.tanggal === tanggal; });
-  const anyLocked = dateEntries.some(function (e) { return !!e.spv; });
+  const wasApproved = isDayApproved_(cfg.label, tanggal);
   const patch = { backfillReason: String(alasan).trim(), backfillByNama: session.nama, backfillByUsername: session.username, backfillAt: formatDate_(new Date()) };
-  if (anyLocked) {
-    // Tanggal ini sudah ada ruangan yang di-ACC — backfill di sini SEKALIGUS
-    // membuka kembali (unapprove) SEMUA ruangan tanggal itu supaya operator
-    // bisa menambah/koreksi data, dengan alasan tercatat di Audit_Log. Kolom
-    // SPV di SEMUA baris tanggal itu ikut dikosongkan supaya benar-benar
-    // kebuka (bukan cuma flag ringkasannya saja).
+  if (wasApproved) {
     patch.approvedNama = "";
     patch.approvedUsername = "";
     patch.approvedAt = "";
     stampFieldOnDataRows_(cfg, month, tanggal, null, 9, "");
   }
   upsertApprovalHarianRow_(cfg, tanggal, patch);
-  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: anyLocked ? "Buka Kembali via Backfill" : "Buka Akses Backfill", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal + " — Alasan: " + alasan });
+  writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: wasApproved ? "Buka Kembali Data Terkunci" : "Catatan Tambahan Tanggal", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal + " — Alasan: " + alasan });
   return getDayStatus_(facilityKey, tanggal);
 }
 
-// Untuk halaman input operator: tanggal hari ini + semua tanggal backfill
-// yang masih terbuka (belum di-approve) untuk fasilitas ini.
 function getOpenInputDates_(facilityKey, token) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
   const session = token ? validateSession_(token) : null;
   if (!session) return { error: "Sesi tidak valid atau sudah habis, silakan login ulang." };
-  const today = todayStr_();
-  const sheet = getApprovalHarianSheet_();
-  const lastRow = sheet.getLastRow();
-  const backfillDates = [];
-  if (lastRow >= 2) {
-    const values = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
-    values.forEach(function (row) {
-      const tglRow = formatDate_(row[1]);
-      if (row[2] === cfg.label && row[6] && !row[3] && tglRow !== today) {
-        backfillDates.push({ tanggal: tglRow, alasan: row[6], byNama: row[7] });
-      }
-    });
-  }
-  return { today: today, backfillDates: backfillDates };
+  return { today: todayStr_() };
 }
 
 function getVerifySignoffHarian_(facilityKey, tanggal) {
@@ -1092,10 +861,6 @@ function getVerifySignoffHarian_(facilityKey, tanggal) {
   return { found: true, approvedBy: status.approvedBy, backfill: status.backfill || null };
 }
 
-// Fasilitas+bulan dianggap "selesai" untuk keperluan Pengkajian kalau SEMUA
-// baris data bulan itu sudah punya SPV terisi (approved) — dicek per baris,
-// bukan lewat flag Approval_Harian, karena sekarang approve SPV bisa terjadi
-// per-ruangan (approveSpvAuthed_) maupun sekaligus per-hari (approveDayAuthed_).
 function isFacilityMonthFullyApproved_(facilityKey, month) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return false;
@@ -1104,16 +869,6 @@ function isFacilityMonthFullyApproved_(facilityKey, month) {
   return entries.every(function (e) { return !!e.spv; });
 }
 
-// ---------------------------------------------------------------------------
-// PENGKAJIAN EM NON VIABLE  (tab "Laporan_Narasi") — disusun & di-approve QA
-// saja, per Fasilitas + Bulan. Kolom (12): Fasilitas | Bulan | Pendahuluan |
-// PerParameterJSON | KesimpulanUmum | DinilaiNama | DinilaiJabatan |
-// DinilaiTanggal | DiperiksaNama | DiperiksaJabatan | DiperiksaTanggal | UpdatedAt
-// ---------------------------------------------------------------------------
-// roomName kosong ("") = Pengkajian FASILITAS (semua ruangan, wajib, seperti
-// sebelumnya). roomName diisi = Pengkajian RUANGAN (opsional, mis. buat
-// keperluan audit) — disimpan di kolom M (NamaRuang), baris lama yang belum
-// punya kolom ini otomatis dianggap "" (Pengkajian fasilitas).
 function getReport_(facilityKey, month, roomName) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
@@ -1204,7 +959,7 @@ function saveReportAuthed_(session, facilityKey, month, narrative, roomName) {
     if (!existing.found) {
       const gateOk = room ? isRoomMonthFullyApproved_(facilityKey, month, room) : isFacilityMonthFullyApproved_(facilityKey, month);
       if (!gateOk) {
-        return { error: room ? "Data ruangan ini bulan ini belum semua di-approve SPV/Manager." : "Belum semua tanggal fasilitas ini bulan ini di-approve SPV/Manager. Pengkajian baru bisa dibuat setelah semua data harian selesai di-approve." };
+        return { error: room ? "Data ruangan ini bulan ini belum semua di-approve SPV/Manager." : "Belum semua data harian fasilitas ini bulan ini di-approve SPV/Manager." };
       }
     }
   }
@@ -1245,25 +1000,12 @@ function approveMengetahuiAuthed_(session, facilityKey, month, roomName) {
   return result;
 }
 
-// ---------------------------------------------------------------------------
-// FORMULIR BULANAN (FM.QA.024/R11) — cetak per Fasilitas+Bulan+Ruangan,
-// menggantikan konsep lama "Report_FormQA". Approval 2 tingkat:
-// 1. Kepala Bagian (SPV/Manager departemen fasilitas itu, atau Manager PPIC)
-//    approve PER RUANGAN, kapan saja setelah ada data bulan itu.
-// 2. Manager QA approve SEKALIGUS untuk SEMUA ruangan fasilitas itu bulan
-//    itu — TAPI baru bisa kalau SEMUA ruangan yang punya data bulan itu
-//    sudah di-approve Kepala Bagian dulu (sesuai form fisik: "Mengetahui"
-//    Kepala bagian & Manager QA di bagian bawah tiap lembar formulir).
-// Tab "Formulir_Bulanan" (WAJIB dibuat manual): Bulan | Fasilitas |
-// NamaRuang | KepalaBagianNama | KepalaBagianUsername | KepalaBagianTanggal |
-// ManagerQANama | ManagerQAUsername | ManagerQATanggal | UpdatedAt
-// ---------------------------------------------------------------------------
 const FORMULIR_BULANAN_SHEET = "Formulir_Bulanan";
 const FORMULIR_NO = "FM.QA.024/R11";
 
 function getFormulirBulananSheet_() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(FORMULIR_BULANAN_SHEET);
-  if (!sheet) throw new Error("Tab '" + FORMULIR_BULANAN_SHEET + "' tidak ditemukan. Buat dulu tab ini (lihat komentar di atas file).");
+  if (!sheet) throw new Error("Tab '" + FORMULIR_BULANAN_SHEET + "' tidak ditemukan.");
   return sheet;
 }
 
@@ -1356,8 +1098,6 @@ function unapproveKepalaBagianAuthed_(session, facilityKey, bulan, roomName) {
   return getFormulirBulanan_(facilityKey, bulan, roomName);
 }
 
-// Fasilitas+bulan dianggap siap untuk approval Manager QA kalau SEMUA
-// ruangan yang punya data bulan itu sudah di-approve Kepala Bagian.
 function isFacilityMonthAllRoomsKepalaBagianApproved_(facilityKey, bulan) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return false;
@@ -1400,10 +1140,6 @@ function unapproveManagerQAFormulirAuthed_(session, facilityKey, bulan) {
   return { ok: true };
 }
 
-// ---------------------------------------------------------------------------
-// STATUS INDEX  (dashboard rekap 13 fasilitas) — level tertinggi di antara
-// Suhu/RH/DPG dari seluruh entri bulan itu, per fasilitas.
-// ---------------------------------------------------------------------------
 function getStatusIndex_(month) {
   const out = {};
   Object.keys(FACILITIES).forEach((key) => {
@@ -1421,9 +1157,6 @@ function getStatusIndex_(month) {
   return { month: month, status: out };
 }
 
-// ---------------------------------------------------------------------------
-// UTIL  (identik EM Viable)
-// ---------------------------------------------------------------------------
 function formatMonth_(value) {
   if (value instanceof Date) return Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM");
   return String(value || "").trim();
