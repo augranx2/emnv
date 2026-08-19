@@ -311,7 +311,7 @@ function TopBar({ session, onLoginClick, onLogout, view, setView }) {
               </button>
             </div>
           ) : (
-            <button onClick={onLoginClick} className="inline-flex items-center gap-1.5 rounded-lg bg-orange-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-900">
+            <button onClick={onLoginClick} className="inline-flex items-center gap-1.5 rounded-lg bg-red-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-900">
               <LogIn size={14} /> Login
             </button>
           )}
@@ -346,23 +346,23 @@ function LoginModal({ onClose, onLogin }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center gap-2">
-          <Lock size={18} className="text-orange-800" />
+          <Lock size={18} className="text-red-800" />
           <h3 className="text-base font-bold text-slate-800">Login EM Non Viable</h3>
         </div>
         <form onSubmit={submit}>
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Username</label>
           <input autoFocus type="text" value={username} onChange={(ev) => setUsername(ev.target.value)}
-            className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" />
+            className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none" />
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password</label>
           <input type="password" value={password} onChange={(ev) => setPassword(ev.target.value)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" />
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none" />
           {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
               Batal
             </button>
             <button type="submit" disabled={submitting || !username || !password}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-orange-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-900 disabled:opacity-60">
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-900 disabled:opacity-60">
               {submitting ? <Loader2 size={14} className="animate-spin" /> : null} Masuk
             </button>
           </div>
@@ -403,7 +403,7 @@ function ProfileModal({ session, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center gap-2">
-          <User size={18} className="text-orange-800" />
+          <User size={18} className="text-red-800" />
           <h3 className="text-base font-bold text-slate-800">Profil Saya</h3>
         </div>
 
@@ -419,7 +419,7 @@ function ProfileModal({ session, onClose }) {
             <button onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
               Tutup
             </button>
-            <button onClick={() => setShowChangePw(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-orange-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-900">
+            <button onClick={() => setShowChangePw(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-red-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-900">
               <Lock size={14} /> Ganti Password
             </button>
           </div>
@@ -427,19 +427,19 @@ function ProfileModal({ session, onClose }) {
           <div className="text-center">
             <CheckCircle2 className="mx-auto mb-2 text-emerald-600" size={28} />
             <p className="mb-4 text-sm text-slate-600">Password berhasil diubah.</p>
-            <button onClick={onClose} className="rounded-lg bg-orange-800 px-4 py-1.5 text-sm font-semibold text-white hover:bg-orange-900">Tutup</button>
+            <button onClick={onClose} className="rounded-lg bg-red-800 px-4 py-1.5 text-sm font-semibold text-white hover:bg-red-900">Tutup</button>
           </div>
         ) : (
           <form onSubmit={submit}>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password Lama</label>
             <input type="password" value={oldPassword} onChange={(ev) => setOldPassword(ev.target.value)}
-              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" />
+              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none" />
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password Baru</label>
             <input type="password" value={newPassword} onChange={(ev) => setNewPassword(ev.target.value)}
-              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" />
+              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none" />
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Konfirmasi Password Baru</label>
             <input type="password" value={confirmPassword} onChange={(ev) => setConfirmPassword(ev.target.value)}
-              className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" />
+              className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none" />
             {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => { setShowChangePw(false); setError(""); }}
@@ -447,7 +447,7 @@ function ProfileModal({ session, onClose }) {
                 Kembali
               </button>
               <button type="submit" disabled={submitting || !oldPassword || !newPassword || !confirmPassword}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-900 disabled:opacity-60">
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-900 disabled:opacity-60">
                 {submitting ? <Loader2 size={14} className="animate-spin" /> : null} Simpan Password Baru
               </button>
             </div>
@@ -546,17 +546,17 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
 
   return (
     <div>
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-orange-950">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-orange-500/20 blur-3xl" />
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-red-950">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-red-900/25 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-16 left-1/3 h-48 w-48 rounded-full bg-indigo-400/10 blur-3xl" />
         <div className="relative mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-4 px-6 py-7">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-orange-300">PT. Rama Emerald Multi Sukses — QA</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-red-300">PT. Rama Emerald Multi Sukses — QA</p>
             <h1 className="text-2xl font-bold text-white">Dashboard EM Non Viable</h1>
-            <p className="mt-1 text-sm text-orange-100">Rekap pemantauan Suhu, Kelembaban (RH), dan Perbedaan Tekanan (DPG) per fasilitas</p>
+            <p className="mt-1 text-sm text-red-100">Rekap pemantauan Suhu, Kelembaban (RH), dan Perbedaan Tekanan (DPG) per fasilitas</p>
           </div>
           <label className="no-print inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm text-white backdrop-blur-sm">
-            <Calendar size={15} className="text-orange-200" />
+            <Calendar size={15} className="text-red-200" />
             <input type="month" value={month} onChange={(ev) => setMonth(ev.target.value)} onClick={(ev) => ev.currentTarget.showPicker?.()}
               className="border-none bg-transparent text-sm text-white outline-none [color-scheme:dark]" />
           </label>
@@ -585,7 +585,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
             const tint = STATUS_TINT[level];
             return (
               <button key={f.key} onClick={() => openFacility(f.key)}
-                className="group flex w-full items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white pr-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md">
+                className="group flex w-full items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white pr-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-red-300 hover:shadow-md">
                 <span className="self-stretch w-1.5" style={{ background: accent }} />
                 <div className="flex flex-1 items-center gap-3 py-3.5 pl-3.5">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: tint.bg, color: tint.fg }}><Building2 size={19} /></span>
@@ -596,7 +596,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {loading ? <Loader2 className="animate-spin text-slate-300" size={18} /> : <StatusPill level={st?.level || 0} hasData={!!st?.hasData} />}
-                  <ChevronRight size={16} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-orange-500" />
+                  <ChevronRight size={16} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-red-400" />
                 </div>
               </button>
             );
@@ -947,18 +947,18 @@ function EntryPage({ session, facilityKey, setView }) {
       </div>
 
       <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card">
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-900 to-orange-950 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-orange-500/20 blur-3xl" />
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-900 to-red-950 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-red-900/25 blur-3xl" />
           <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div className="flex items-start gap-3">
               <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-orange-300">PT. Rama Emerald Multi Sukses — QA</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-red-300">PT. Rama Emerald Multi Sukses — QA</p>
                 <h2 className="text-xl font-bold text-white">Data Pemantauan Suhu, RH &amp; DPG — {cfg?.label}</h2>
-                <p className="text-sm text-orange-100">Tanggal: <span className="font-medium text-white">{selectedDate}</span></p>
+                <p className="text-sm text-red-100">Tanggal: <span className="font-medium text-white">{selectedDate}</span></p>
               </div>
             </div>
-            <div className="text-right text-xs text-orange-200">
+            <div className="text-right text-xs text-red-200">
               <p>No. Formulir: FM.QA.024/R11</p>
             </div>
           </div>
@@ -1014,7 +1014,7 @@ function EntryPage({ session, facilityKey, setView }) {
       <div className="print-card avoid-break no-print mb-4 rounded-xl border border-slate-200 bg-white p-4">
         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Pilih Ruangan</label>
         <select
-          className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none sm:w-auto"
+          className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none sm:w-auto"
           value={selectedRoom ? selectedRoom.code + "|" + selectedRoom.name : ""}
           onChange={(ev) => {
             const [code, ...rest] = ev.target.value.split("|");
@@ -1525,7 +1525,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
               <>
                 <p className="mb-2 text-[11px] italic text-slate-400">{kepalaBagianDone ? "Belum di-ACC" : "Menunggu semua ruangan di-ACC Kepala Bagian"}</p>
                 {canManagerQA && (
-                  <button onClick={handleApproveManagerQA} disabled={busy} className="no-print inline-flex items-center gap-1.5 rounded-lg bg-orange-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-900 disabled:opacity-50">
+                  <button onClick={handleApproveManagerQA} disabled={busy} className="no-print inline-flex items-center gap-1.5 rounded-lg bg-red-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-900 disabled:opacity-50">
                     <FileCheck2 size={13} /> Approve (Manager QA) — Semua Ruangan Fasilitas Ini
                   </button>
                 )}
@@ -1636,22 +1636,22 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       </div>
 
       <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card">
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-900 to-orange-950 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-orange-500/20 blur-3xl" />
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-900 to-red-950 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-red-900/25 blur-3xl" />
           <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div className="flex items-start gap-3">
               <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-orange-300">PT. Rama Emerald Multi Sukses — QA</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-red-300">PT. Rama Emerald Multi Sukses — QA</p>
                 <h2 className="text-xl font-bold text-white">{roomName ? "Pengkajian Ruangan (Opsional)" : "Pengkajian EM Non Viable"}</h2>
-                <p className="text-sm text-orange-100">
+                <p className="text-sm text-red-100">
                   Fasilitas: <span className="font-medium text-white">{cfg?.label}</span>
                   {roomName && <> · Ruangan: <span className="font-medium text-white">{roomName}</span></>}
                   {" "}· Periode: <span className="font-medium text-white">{monthLabelID(month)}</span>
                 </p>
               </div>
             </div>
-            <div className="text-right text-xs text-orange-200">
+            <div className="text-right text-xs text-red-200">
               <p>Acuan: FM.QA.024/R11</p>
             </div>
           </div>
@@ -1715,7 +1715,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               <button onClick={handleSave} className="text-sm bg-slate-800 text-white rounded-lg px-4 py-2 flex items-center gap-2"><Save className="w-4 h-4" /> Simpan Draf</button>
             )}
             {canDraft && report?.found && !report?.signoff?.dinilai?.nama && (
-              <button onClick={handleDikaji} className="text-sm bg-orange-800 text-white rounded-lg px-4 py-2">Approve "Dikaji Oleh"</button>
+              <button onClick={handleDikaji} className="text-sm bg-red-800 text-white rounded-lg px-4 py-2">Approve "Dikaji Oleh"</button>
             )}
             {canFinal && report?.signoff?.dinilai?.nama && !isFinal && (
               <button onClick={handleMengetahui} className="text-sm bg-emerald-600 text-white rounded-lg px-4 py-2">Approve Final "Mengetahui"</button>

@@ -862,16 +862,26 @@ function getDayStatus_(facilityKey, tanggal) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
   const found = findApprovalHarianRow_(cfg.label, tanggal);
-  if (found.rowIndex === -1) {
-    return { tanggal: tanggal, approved: false, backfill: null };
+  const row = found.rowIndex === -1 ? null : found.row;
+  const backfill = row && row[6] ? { alasan: row[6], byNama: row[7], byUsername: row[8], at: row[9] } : null;
+
+  if (row && row[3]) {
+    // Flag "hari di-approve" (dari tombol Approve Semua) sudah terisi.
+    return { tanggal: tanggal, approved: true, approvedBy: { nama: row[3], username: row[4], at: row[5] }, backfill: backfill };
   }
-  const row = found.row;
-  return {
-    tanggal: tanggal,
-    approved: !!row[3],
-    approvedBy: row[3] ? { nama: row[3], username: row[4], at: row[5] } : null,
-    backfill: row[6] ? { alasan: row[6], byNama: row[7], byUsername: row[8], at: row[9] } : null,
-  };
+
+  // Flag hari belum tentu terisi kalau approve-nya dilakukan SATU-SATU per
+  // ruangan (approveSpvAuthed_ tidak menyentuh Approval_Harian) — jadi cek
+  // juga langsung dari data mentah: kalau ADA baris tanggal ini yang sudah
+  // punya SPV, anggap tanggal ini sudah ada yang di-ACC (dipakai QR
+  // verifikasi supaya tidak salah bilang "belum ditandatangani").
+  const month = tanggal.slice(0, 7);
+  const entriesThatDay = (getEntries_(facilityKey, month).entries || []).filter(function (e) { return e.tanggal === tanggal; });
+  const approvedEntry = entriesThatDay.find(function (e) { return !!e.spv; });
+  if (approvedEntry) {
+    return { tanggal: tanggal, approved: true, approvedBy: { nama: approvedEntry.spv, username: "", at: "" }, backfill: backfill };
+  }
+  return { tanggal: tanggal, approved: false, backfill: backfill };
 }
 
 function getDayStatusForViewer_(facilityKey, tanggal, token) {
