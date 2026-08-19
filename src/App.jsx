@@ -76,7 +76,7 @@ const LEVEL_STYLE = {
   1: { label: "Baik", color: "#15803d", bg: "#dcfce7" },
   2: { label: "Alert", color: "#b45309", bg: "#fef3c7" },
   3: { label: "Action", color: "#c2410c", bg: "#ffedd5" },
-  4: { label: "Deviasi", color: "#b91c1c", bg: "#fee2e2" },
+  4: { label: "Deviasi", color: "#881337", bg: "#ffe4e6" },
 };
 
 function levelStyle(level) {
@@ -225,20 +225,20 @@ function ParamTrendChart({ entries, paramKey, paramLabel, unit, limit }) {
           <LegendChip color="#15803d" label="Baik" />
           <LegendChip color="#b45309" label="Alert" />
           <LegendChip color="#c2410c" label="Action" />
-          <LegendChip color="#b91c1c" label="Deviasi" />
+          <LegendChip color="#881337" label="Deviasi" />
         </div>
       </div>
       <ResponsiveContainer width="100%" height={240}>
         <ComposedChart data={data} margin={{ top: 10, right: 15, left: 10, bottom: 30 }}>
           <defs>
             <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ea580c" stopOpacity={0.25} />
-              <stop offset="100%" stopColor="#ea580c" stopOpacity={0} />
+              <stop offset="0%" stopColor="#9f1239" stopOpacity={0.25} />
+              <stop offset="100%" stopColor="#9f1239" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-          {limit.syaratL !== null && <ReferenceArea y1={yMin} y2={limit.syaratL} fill="#ef4444" fillOpacity={0.06} ifOverflow="hidden" />}
-          {limit.syaratU !== null && <ReferenceArea y1={limit.syaratU} y2={yMax} fill="#ef4444" fillOpacity={0.06} ifOverflow="hidden" />}
+          {limit.syaratL !== null && <ReferenceArea y1={yMin} y2={limit.syaratL} fill="#e11d48" fillOpacity={0.06} ifOverflow="hidden" />}
+          {limit.syaratU !== null && <ReferenceArea y1={limit.syaratU} y2={yMax} fill="#e11d48" fillOpacity={0.06} ifOverflow="hidden" />}
           {limit.actionL !== null && limit.syaratL !== null && <ReferenceArea y1={limit.syaratL} y2={limit.actionL} fill="#f97316" fillOpacity={0.07} ifOverflow="hidden" />}
           {limit.actionU !== null && limit.syaratU !== null && <ReferenceArea y1={limit.actionU} y2={limit.syaratU} fill="#f97316" fillOpacity={0.07} ifOverflow="hidden" />}
           {limit.alertL !== null && limit.actionL !== null && <ReferenceArea y1={limit.actionL} y2={limit.alertL} fill="#f59e0b" fillOpacity={0.06} ifOverflow="hidden" />}
@@ -246,10 +246,10 @@ function ParamTrendChart({ entries, paramKey, paramLabel, unit, limit }) {
           <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} angle={-35} textAnchor="end" interval={0} height={40} axisLine={{ stroke: "#e2e8f0" }} tickLine={false} />
           <YAxis domain={[yMin, yMax]} tick={{ fontSize: 11, fill: "#64748b" }} width={38} axisLine={false} tickLine={false} />
           <Tooltip content={<ChartTooltip unit={unit} />} />
-          {limit.syaratL !== null && <ReferenceLine y={limit.syaratL} stroke="#dc2626" strokeWidth={1.25} strokeDasharray="4 3" />}
-          {limit.syaratU !== null && <ReferenceLine y={limit.syaratU} stroke="#dc2626" strokeWidth={1.25} strokeDasharray="4 3" />}
+          {limit.syaratL !== null && <ReferenceLine y={limit.syaratL} stroke="#881337" strokeWidth={1.25} strokeDasharray="4 3" />}
+          {limit.syaratU !== null && <ReferenceLine y={limit.syaratU} stroke="#881337" strokeWidth={1.25} strokeDasharray="4 3" />}
           <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
-          <Line type="monotone" dataKey="value" stroke="#ea580c" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
+          <Line type="monotone" dataKey="value" stroke="#9f1239" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -261,7 +261,7 @@ function ParamTrendChart({ entries, paramKey, paramLabel, unit, limit }) {
 function TopBar({ session, onLoginClick, onLogout, view, setView }) {
   const [showProfile, setShowProfile] = useState(false);
   return (
-    <div className="no-print border-b border-slate-200 bg-white px-4 py-2.5 shadow-sm">
+    <div className="no-print border-b border-rose-100 bg-white px-4 py-2.5 shadow-sm">
       <div className="mx-auto flex max-w-5xl items-center justify-between">
         <button onClick={() => setView({ page: "dashboard" })} className="flex items-center gap-2.5 text-sm font-bold text-slate-800">
           <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-8 w-8 object-contain" />
@@ -270,28 +270,28 @@ function TopBar({ session, onLoginClick, onLogout, view, setView }) {
         <div className="flex items-center gap-2">
           {session && hasAccess(session, "Supervisor", "QA") && (
             <button onClick={() => setView({ page: "pengkajian" })}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "pengkajian" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-300 text-slate-600 hover:bg-slate-100"}`}>
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "pengkajian" ? "bg-rose-950 text-white shadow-sm" : "border border-slate-300 text-slate-600 hover:bg-rose-50"}`}>
               <ClipboardList size={14} /> Pengkajian
             </button>
           )}
           {session && hasAccess(session, "Supervisor") && (
             <button onClick={() => setView({ page: "activity" })}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "activity" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-300 text-slate-600 hover:bg-slate-100"}`}>
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "activity" ? "bg-rose-950 text-white shadow-sm" : "border border-slate-300 text-slate-600 hover:bg-rose-50"}`}>
               <History size={14} /> Riwayat Aktivitas
             </button>
           )}
           {session ? (
             <div className="flex items-center gap-2">
               <button onClick={() => setShowProfile(true)}
-                className="hidden items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-800 border border-slate-200 hover:bg-slate-200 sm:inline-flex">
-                <User size={13} className="text-orange-600" /> {session.nama} · {session.role}{session.departemen ? ` ${session.departemen}` : ""}
+                className="hidden items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-950 border border-rose-200 hover:bg-rose-100 sm:inline-flex">
+                <User size={13} className="text-rose-800" /> {session.nama} · {session.role}{session.departemen ? ` ${session.departemen}` : ""}
               </button>
               <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
                 <LogOut size={14} /> Keluar
               </button>
             </div>
           ) : (
-            <button onClick={onLoginClick} className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-orange-700 shadow-sm">
+            <button onClick={onLoginClick} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-950 shadow-sm">
               <LogIn size={14} /> Login
             </button>
           )}
@@ -326,23 +326,23 @@ function LoginModal({ onClose, onLogin }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center gap-2">
-          <Lock size={18} className="text-orange-600" />
+          <Lock size={18} className="text-rose-900" />
           <h3 className="text-base font-bold text-slate-800">Login EM Non Viable</h3>
         </div>
         <form onSubmit={submit}>
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Username</label>
           <input autoFocus type="text" value={username} onChange={(ev) => setUsername(ev.target.value)}
-            className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" />
+            className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-900 focus:outline-none" />
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password</label>
           <input type="password" value={password} onChange={(ev) => setPassword(ev.target.value)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" />
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-900 focus:outline-none" />
           {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
               Batal
             </button>
             <button type="submit" disabled={submitting || !username || !password}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-rose-950 disabled:opacity-60">
               {submitting ? <Loader2 size={14} className="animate-spin" /> : null} Masuk
             </button>
           </div>
@@ -383,7 +383,7 @@ function ProfileModal({ session, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center gap-2">
-          <User size={18} className="text-orange-600" />
+          <User size={18} className="text-rose-900" />
           <h3 className="text-base font-bold text-slate-800">Profil Saya</h3>
         </div>
 
@@ -399,7 +399,7 @@ function ProfileModal({ session, onClose }) {
             <button onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
               Tutup
             </button>
-            <button onClick={() => setShowChangePw(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-700">
+            <button onClick={() => setShowChangePw(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-rose-950">
               <Lock size={14} /> Ganti Password
             </button>
           </div>
@@ -407,19 +407,19 @@ function ProfileModal({ session, onClose }) {
           <div className="text-center">
             <CheckCircle2 className="mx-auto mb-2 text-emerald-600" size={28} />
             <p className="mb-4 text-sm text-slate-600">Password berhasil diubah.</p>
-            <button onClick={onClose} className="rounded-lg bg-orange-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-orange-700">Tutup</button>
+            <button onClick={onClose} className="rounded-lg bg-rose-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-rose-950">Tutup</button>
           </div>
         ) : (
           <form onSubmit={submit}>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password Lama</label>
             <input type="password" value={oldPassword} onChange={(ev) => setOldPassword(ev.target.value)}
-              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" />
+              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-900 focus:outline-none" />
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password Baru</label>
             <input type="password" value={newPassword} onChange={(ev) => setNewPassword(ev.target.value)}
-              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" />
+              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-900 focus:outline-none" />
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Konfirmasi Password Baru</label>
             <input type="password" value={confirmPassword} onChange={(ev) => setConfirmPassword(ev.target.value)}
-              className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" />
+              className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-900 focus:outline-none" />
             {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => { setShowChangePw(false); setError(""); }}
@@ -427,7 +427,7 @@ function ProfileModal({ session, onClose }) {
                 Kembali
               </button>
               <button type="submit" disabled={submitting || !oldPassword || !newPassword || !confirmPassword}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-rose-950 disabled:opacity-60">
                 {submitting ? <Loader2 size={14} className="animate-spin" /> : null} Simpan Password Baru
               </button>
             </div>
@@ -465,7 +465,7 @@ function StatusPill({ level, hasData }) {
   }
   if (level >= 4) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "#fee2e2", color: "#b91c1c" }}>
+      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "#ffe4e6", color: "#881337" }}>
         <AlertTriangle size={13} /> Melebihi Syarat
       </span>
     );
@@ -489,10 +489,10 @@ const STATUS_TINT = {
   1: { bg: "#dcfce7", fg: "#15803d" },
   2: { bg: "#dcfce7", fg: "#15803d" },
   3: { bg: "#ffedd5", fg: "#c2410c" },
-  4: { bg: "#fee2e2", fg: "#b91c1c" },
+  4: { bg: "#ffe4e6", fg: "#881337" },
 };
 
-const STATUS_ACCENT = { 0: "#cbd5e1", 1: "#22c55e", 2: "#22c55e", 3: "#f97316", 4: "#ef4444" };
+const STATUS_ACCENT = { 0: "#cbd5e1", 1: "#22c55e", 2: "#22c55e", 3: "#f97316", 4: "#9f1239" };
 
 function monthLabel(monthKey) {
   return monthLabelID(monthKey);
@@ -526,18 +526,18 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
 
   return (
     <div>
-      {/* GRADASI: ABU-ABU GELAP / SLATE KE ORANYE */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-stone-800 to-orange-600 shadow-md">
-        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-orange-400/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-16 left-1/3 h-48 w-48 rounded-full bg-amber-400/15 blur-3xl" />
+      {/* GRADASI: HITAM KE MERAH MAROON */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 shadow-md">
+        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-rose-600/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-16 left-1/3 h-48 w-48 rounded-full bg-red-800/10 blur-3xl" />
         <div className="relative mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-4 px-6 py-7">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-orange-200">PT. Rama Emerald Multi Sukses — QA</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
             <h1 className="text-2xl font-extrabold text-white drop-shadow-sm">Dashboard EM Non Viable</h1>
-            <p className="mt-1 text-sm font-medium text-slate-200">Rekap pemantauan Suhu, Kelembaban (RH), dan Perbedaan Tekanan (DPG) per fasilitas</p>
+            <p className="mt-1 text-sm font-medium text-rose-100/80">Rekap pemantauan Suhu, Kelembaban (RH), dan Perbedaan Tekanan (DPG) per fasilitas</p>
           </div>
           <label className="no-print inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3.5 py-2 text-sm text-white backdrop-blur-sm shadow-sm">
-            <Calendar size={15} className="text-orange-300" />
+            <Calendar size={15} className="text-rose-300" />
             <input type="month" value={month} onChange={(ev) => setMonth(ev.target.value)} onClick={(ev) => ev.currentTarget.showPicker?.()}
               className="border-none bg-transparent text-sm font-medium text-white outline-none [color-scheme:dark]" />
           </label>
@@ -550,10 +550,10 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
         )}
 
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <StatCard icon={<LayoutGrid size={17} />} iconColor="#ea580c" tint="#ffedd5" border="#fed7aa" value={FACILITIES.length} label="Total Fasilitas" />
+          <StatCard icon={<LayoutGrid size={17} />} iconColor="#9f1239" tint="#ffe4e6" border="#fecdd3" value={FACILITIES.length} label="Total Fasilitas" />
           <StatCard icon={<CheckCircle2 size={17} />} iconColor="#15803d" tint="#dcfce7" border="#bbf7d0" value={terkendaliCount} label="Terkendali" />
           <StatCard icon={<AlertTriangle size={17} />} iconColor="#c2410c" tint="#ffedd5" border="#fed7aa" value={perluCount} label="Perlu Perhatian" />
-          <StatCard icon={<XOctagon size={17} />} iconColor="#b91c1c" tint="#fee2e2" border="#fecaca" value={tmsCount} label="Melebihi Syarat" />
+          <StatCard icon={<XOctagon size={17} />} iconColor="#881337" tint="#ffe4e6" border="#fda4af" value={tmsCount} label="Melebihi Syarat" />
           <StatCard icon={<FileQuestion size={17} />} iconColor="#475569" tint="#f1f5f9" border="#e2e8f0" value={belumAdaCount} label="Belum Ada Data" />
         </div>
 
@@ -566,7 +566,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
             const tint = STATUS_TINT[level];
             return (
               <button key={f.key} onClick={() => openFacility(f.key)}
-                className="group flex w-full items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white pr-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-400 hover:shadow-md">
+                className="group flex w-full items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white pr-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-rose-400 hover:shadow-md">
                 <span className="self-stretch w-1.5" style={{ background: accent }} />
                 <div className="flex flex-1 items-center gap-3 py-3.5 pl-3.5">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: tint.bg, color: tint.fg }}><Building2 size={19} /></span>
@@ -577,7 +577,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {loading ? <Loader2 className="animate-spin text-slate-300" size={18} /> : <StatusPill level={st?.level || 0} hasData={!!st?.hasData} />}
-                  <ChevronRight size={16} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-orange-600" />
+                  <ChevronRight size={16} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-rose-700" />
                 </div>
               </button>
             );
@@ -834,12 +834,12 @@ function EntryPage({ session, facilityKey, setView }) {
         </button>
         <div className="flex items-center gap-2">
           {hasAccess(session, "Supervisor", "QA") && (
-            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-rose-50">
               <ClipboardList className="w-4 h-4" /> Pengkajian QA
             </button>
           )}
           {selectedRoom && (
-            <button onClick={() => setView({ page: "formulir", facility: facilityKey, room: selectedRoom.name, bulan: month })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <button onClick={() => setView({ page: "formulir", facility: facilityKey, room: selectedRoom.name, bulan: month })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-rose-50">
               <FileCheck2 className="w-4 h-4" /> Formulir Bulanan (FM.QA.024/R11)
             </button>
           )}
@@ -851,17 +851,17 @@ function EntryPage({ session, facilityKey, setView }) {
         </div>
       </div>
 
-      {/* GRADASI: ABU-ABU GELAP / SLATE KE ORANYE */}
+      {/* GRADASI: HITAM KE MERAH MAROON */}
       <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card shadow-sm">
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-stone-800 to-orange-600 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-orange-400/20 blur-3xl" />
+        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-rose-600/15 blur-3xl" />
           <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div className="flex items-start gap-3">
               <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert drop-shadow" />
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-orange-200">PT. Rama Emerald Multi Sukses — QA</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
                 <h2 className="text-xl font-bold text-white drop-shadow-sm">Data Pemantauan Suhu, RH &amp; DPG — {cfg?.label}</h2>
-                <p className="text-sm font-medium text-slate-200">Tanggal Data: <span className="font-semibold text-white">{selectedDate}</span></p>
+                <p className="text-sm font-medium text-rose-100/80">Tanggal Data: <span className="font-semibold text-white">{selectedDate}</span></p>
               </div>
             </div>
             <div className="text-right text-xs font-medium text-slate-200">
@@ -879,12 +879,12 @@ function EntryPage({ session, facilityKey, setView }) {
 
       <div className="no-print flex flex-wrap items-center gap-2 mb-4">
         <button onClick={() => { setSelectedDate(todayStr()); setSelectedRoom(null); }}
-          className={`text-xs rounded-full px-3.5 py-1.5 border font-medium ${selectedDate === todayStr() ? "bg-slate-900 text-white border-slate-900 shadow-sm" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+          className={`text-xs rounded-full px-3.5 py-1.5 border font-medium ${selectedDate === todayStr() ? "bg-rose-900 text-white border-rose-900 shadow-sm" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
           Hari ini
         </button>
         <input type="date" value={selectedDate} max={todayStr()}
           onChange={(ev) => { if (ev.target.value) { setSelectedDate(ev.target.value); setSelectedRoom(null); } }}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 focus:border-orange-500 focus:outline-none" />
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 focus:border-rose-900 focus:outline-none" />
         <span className="text-xs text-slate-400">
           Pilih tanggal pemantauan. Tanggal lampau tetap dapat diisi selama belum di-ACC oleh SPV/Manager.
         </span>
@@ -920,7 +920,7 @@ function EntryPage({ session, facilityKey, setView }) {
       <div className="print-card avoid-break no-print mb-4 rounded-xl border border-slate-200 bg-white p-4">
         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Pilih Ruangan</label>
         <select
-          className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none sm:w-auto"
+          className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-900 focus:outline-none sm:w-auto"
           value={selectedRoom ? selectedRoom.code + "|" + selectedRoom.name : ""}
           onChange={(ev) => {
             const [code, ...rest] = ev.target.value.split("|");
@@ -993,7 +993,7 @@ function EntryPage({ session, facilityKey, setView }) {
                           disabled={!canInput || roomLocked || !required}
                           placeholder={required ? "" : "N/A"}
                           onChange={(e) => updateField(jam, p.key, e.target.value)}
-                          className="w-16 text-center rounded px-1 py-1 border disabled:bg-slate-50 disabled:text-slate-300 focus:border-orange-500 focus:outline-none"
+                          className="w-16 text-center rounded px-1 py-1 border disabled:bg-slate-50 disabled:text-slate-300 focus:border-rose-900 focus:outline-none"
                           style={{ background: v !== "" ? style.bg : undefined, color: v !== "" ? style.color : undefined }}
                         />
                       </td>
@@ -1032,14 +1032,14 @@ function EntryPage({ session, facilityKey, setView }) {
                 </button>
               )}
               {canApprove && (
-                <button onClick={handleApproveSpv} disabled={saving || !SESI.every((jam) => !!values[jam]?.opr)} className="flex items-center gap-2 bg-orange-600 text-white rounded-lg px-4 py-2 text-sm hover:bg-orange-700 disabled:opacity-60 shadow-sm">
+                <button onClick={handleApproveSpv} disabled={saving || !SESI.every((jam) => !!values[jam]?.opr)} className="flex items-center gap-2 bg-rose-900 text-white rounded-lg px-4 py-2 text-sm hover:bg-rose-950 disabled:opacity-60 shadow-sm">
                   <FileCheck2 className="w-4 h-4" /> Approve (SPV)
                 </button>
               )}
             </div>
           )}
           {roomLocked && (
-            <div className="px-4 py-3 border-t bg-amber-50 text-amber-800 text-xs flex items-center gap-2">
+            <div className="px-4 py-3 border-t bg-rose-50 text-rose-900 text-xs flex items-center gap-2">
               <Lock className="w-3.5 h-3.5" /> Ruangan ini tanggal {selectedDate} sudah di-approve SPV/Manager — terkunci.
             </div>
           )}
@@ -1143,7 +1143,7 @@ function EntryPage({ session, facilityKey, setView }) {
 function PrintableTextarea({ value, onChange, disabled, rows = 3 }) {
   return (
     <>
-      <textarea value={value} disabled={disabled} onChange={onChange} rows={rows} className="no-print w-full border rounded-lg px-3 py-2 text-sm disabled:bg-slate-50 focus:border-orange-500 focus:outline-none" />
+      <textarea value={value} disabled={disabled} onChange={onChange} rows={rows} className="no-print w-full border rounded-lg px-3 py-2 text-sm disabled:bg-slate-50 focus:border-rose-900 focus:outline-none" />
       <p className="only-print whitespace-pre-wrap text-sm text-slate-800 leading-relaxed">{value || "-"}</p>
     </>
   );
@@ -1298,7 +1298,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
         </button>
         <div className="flex items-center gap-2">
           {hasAccess(session, "Supervisor", "QA") && (
-            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: roomName })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: roomName })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-rose-50">
               <ClipboardList className="w-4 h-4" /> Pengkajian Ruangan Ini (Opsional)
             </button>
           )}
@@ -1418,7 +1418,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
               <>
                 <p className="mb-2 text-[11px] italic text-slate-400">{kepalaBagianDone ? "Belum di-ACC" : "Menunggu semua ruangan di-ACC Kepala Bagian"}</p>
                 {canManagerQA && (
-                  <button onClick={handleApproveManagerQA} disabled={busy} className="no-print inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-700 disabled:opacity-50 shadow-sm">
+                  <button onClick={handleApproveManagerQA} disabled={busy} className="no-print inline-flex items-center gap-1.5 rounded-lg bg-rose-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-950 disabled:opacity-50 shadow-sm">
                     <FileCheck2 size={13} /> Approve (Manager QA) — Semua Ruangan Fasilitas Ini
                   </button>
                 )}
@@ -1524,17 +1524,17 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </button>
       </div>
 
-      {/* GRADASI: ABU-ABU GELAP / SLATE KE ORANYE */}
+      {/* GRADASI: HITAM KE MERAH MAROON */}
       <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card shadow-sm">
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-stone-800 to-orange-600 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-orange-400/20 blur-3xl" />
+        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-rose-600/15 blur-3xl" />
           <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div className="flex items-start gap-3">
               <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert drop-shadow" />
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-orange-200">PT. Rama Emerald Multi Sukses — QA</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
                 <h2 className="text-xl font-bold text-white drop-shadow-sm">{roomName ? "Pengkajian Ruangan (Opsional)" : "Pengkajian EM Non Viable"}</h2>
-                <p className="text-sm font-medium text-slate-200">
+                <p className="text-sm font-medium text-rose-100/80">
                   Fasilitas: <span className="font-semibold text-white">{cfg?.label}</span>
                   {roomName && <> · Ruangan: <span className="font-semibold text-white">{roomName}</span></>}
                   {" "}· Periode: <span className="font-semibold text-white">{monthLabelID(month)}</span>
@@ -1556,7 +1556,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         <div className="no-print flex flex-wrap gap-2 mb-4">
           {FACILITIES.map((f) => (
             <button key={f.key} onClick={() => setFacilityKey(f.key)}
-              className={`text-xs rounded-full px-3 py-1 border font-medium ${facilityKey === f.key ? "bg-slate-900 text-white border-slate-900 shadow-sm" : "border-slate-300 text-slate-600 hover:bg-slate-100"}`}>
+              className={`text-xs rounded-full px-3 py-1 border font-medium ${facilityKey === f.key ? "bg-rose-950 text-white border-rose-950 shadow-sm" : "border-slate-300 text-slate-600 hover:bg-rose-50"}`}>
               {f.label}
             </button>
           ))}
@@ -1571,7 +1571,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         <div className="print-card bg-white rounded-xl border p-5 space-y-4 shadow-sm">
           {canDraft && !isFinal && (
             <div className="no-print flex justify-end">
-              <button onClick={handleGenerateAI} disabled={generating} className="text-sm bg-orange-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 hover:bg-orange-700 disabled:opacity-60 shadow-sm">
+              <button onClick={handleGenerateAI} disabled={generating} className="text-sm bg-rose-900 text-white rounded-lg px-4 py-2 flex items-center gap-2 hover:bg-rose-950 disabled:opacity-60 shadow-sm">
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Generate Narasi AI
               </button>
             </div>
@@ -1605,7 +1605,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               <button onClick={handleSave} className="text-sm bg-slate-800 text-white rounded-lg px-4 py-2 flex items-center gap-2 hover:bg-slate-900"><Save className="w-4 h-4" /> Simpan Draf</button>
             )}
             {canDraft && report?.found && !report?.signoff?.dinilai?.nama && (
-              <button onClick={handleDikaji} className="text-sm bg-orange-600 text-white rounded-lg px-4 py-2 hover:bg-orange-700 shadow-sm">Approve "Dikaji Oleh"</button>
+              <button onClick={handleDikaji} className="text-sm bg-rose-900 text-white rounded-lg px-4 py-2 hover:bg-rose-950 shadow-sm">Approve "Dikaji Oleh"</button>
             )}
             {canFinal && report?.signoff?.dinilai?.nama && !isFinal && (
               <button onClick={handleMengetahui} className="text-sm bg-emerald-600 text-white rounded-lg px-4 py-2 hover:bg-emerald-700 shadow-sm">Approve Final "Mengetahui"</button>
