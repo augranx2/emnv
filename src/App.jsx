@@ -261,7 +261,7 @@ function ParamTrendChart({ entries, paramKey, paramLabel, unit, limit }) {
 function TopBar({ session, onLoginClick, onLogout, view, setView }) {
   const [showProfile, setShowProfile] = useState(false);
   return (
-    <div className="no-print border-b border-orange-100 bg-white px-4 py-2.5 shadow-sm">
+    <div className="no-print border-b border-slate-200 bg-white px-4 py-2.5 shadow-sm">
       <div className="mx-auto flex max-w-5xl items-center justify-between">
         <button onClick={() => setView({ page: "dashboard" })} className="flex items-center gap-2.5 text-sm font-bold text-slate-800">
           <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-8 w-8 object-contain" />
@@ -270,20 +270,20 @@ function TopBar({ session, onLoginClick, onLogout, view, setView }) {
         <div className="flex items-center gap-2">
           {session && hasAccess(session, "Supervisor", "QA") && (
             <button onClick={() => setView({ page: "pengkajian" })}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "pengkajian" ? "bg-orange-600 text-white shadow-sm" : "border border-slate-300 text-slate-600 hover:bg-orange-50"}`}>
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "pengkajian" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-300 text-slate-600 hover:bg-slate-100"}`}>
               <ClipboardList size={14} /> Pengkajian
             </button>
           )}
           {session && hasAccess(session, "Supervisor") && (
             <button onClick={() => setView({ page: "activity" })}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "activity" ? "bg-orange-600 text-white shadow-sm" : "border border-slate-300 text-slate-600 hover:bg-orange-50"}`}>
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "activity" ? "bg-slate-900 text-white shadow-sm" : "border border-slate-300 text-slate-600 hover:bg-slate-100"}`}>
               <History size={14} /> Riwayat Aktivitas
             </button>
           )}
           {session ? (
             <div className="flex items-center gap-2">
               <button onClick={() => setShowProfile(true)}
-                className="hidden items-center gap-1.5 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-950 border border-orange-200/80 hover:bg-orange-100 sm:inline-flex">
+                className="hidden items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-800 border border-slate-200 hover:bg-slate-200 sm:inline-flex">
                 <User size={13} className="text-orange-600" /> {session.nama} · {session.role}{session.departemen ? ` ${session.departemen}` : ""}
               </button>
               <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
@@ -526,20 +526,20 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
 
   return (
     <div>
-      {/* GRADASI DIBALIK: ORANYE / AMBER KE PUTIH */}
-      <div className="relative overflow-hidden border-b border-orange-100 bg-gradient-to-r from-amber-600 via-orange-500 to-white shadow-sm">
-        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-white/40 blur-2xl" />
-        <div className="pointer-events-none absolute bottom-0 left-1/3 h-40 w-40 rounded-full bg-amber-400/30 blur-2xl" />
+      {/* GRADASI: ABU-ABU GELAP / SLATE KE ORANYE */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-stone-800 to-orange-600 shadow-md">
+        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-orange-400/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-16 left-1/3 h-48 w-48 rounded-full bg-amber-400/15 blur-3xl" />
         <div className="relative mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-4 px-6 py-7">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-amber-100">PT. Rama Emerald Multi Sukses — QA</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-orange-200">PT. Rama Emerald Multi Sukses — QA</p>
             <h1 className="text-2xl font-extrabold text-white drop-shadow-sm">Dashboard EM Non Viable</h1>
-            <p className="mt-1 text-sm font-medium text-orange-50">Rekap pemantauan Suhu, Kelembaban (RH), dan Perbedaan Tekanan (DPG) per fasilitas</p>
+            <p className="mt-1 text-sm font-medium text-slate-200">Rekap pemantauan Suhu, Kelembaban (RH), dan Perbedaan Tekanan (DPG) per fasilitas</p>
           </div>
-          <label className="no-print inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-white/90 px-3.5 py-2 text-sm text-slate-800 shadow-sm backdrop-blur-sm">
-            <Calendar size={15} className="text-orange-600" />
+          <label className="no-print inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3.5 py-2 text-sm text-white backdrop-blur-sm shadow-sm">
+            <Calendar size={15} className="text-orange-300" />
             <input type="month" value={month} onChange={(ev) => setMonth(ev.target.value)} onClick={(ev) => ev.currentTarget.showPicker?.()}
-              className="border-none bg-transparent text-sm font-semibold text-slate-800 outline-none" />
+              className="border-none bg-transparent text-sm font-medium text-white outline-none [color-scheme:dark]" />
           </label>
         </div>
       </div>
@@ -834,12 +834,12 @@ function EntryPage({ session, facilityKey, setView }) {
         </button>
         <div className="flex items-center gap-2">
           {hasAccess(session, "Supervisor", "QA") && (
-            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-orange-50">
+            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
               <ClipboardList className="w-4 h-4" /> Pengkajian QA
             </button>
           )}
           {selectedRoom && (
-            <button onClick={() => setView({ page: "formulir", facility: facilityKey, room: selectedRoom.name, bulan: month })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-orange-50">
+            <button onClick={() => setView({ page: "formulir", facility: facilityKey, room: selectedRoom.name, bulan: month })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
               <FileCheck2 className="w-4 h-4" /> Formulir Bulanan (FM.QA.024/R11)
             </button>
           )}
@@ -851,25 +851,25 @@ function EntryPage({ session, facilityKey, setView }) {
         </div>
       </div>
 
-      {/* GRADASI DIBALIK: ORANYE / AMBER KE PUTIH */}
-      <div className="mb-5 overflow-hidden rounded-xl border border-orange-200 print-card shadow-sm">
-        <div className="relative overflow-hidden bg-gradient-to-r from-amber-600 via-orange-500 to-white px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-white/40 blur-2xl" />
+      {/* GRADASI: ABU-ABU GELAP / SLATE KE ORANYE */}
+      <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card shadow-sm">
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-stone-800 to-orange-600 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-orange-400/20 blur-3xl" />
           <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div className="flex items-start gap-3">
-              <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain drop-shadow" />
+              <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert drop-shadow" />
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-100">PT. Rama Emerald Multi Sukses — QA</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-orange-200">PT. Rama Emerald Multi Sukses — QA</p>
                 <h2 className="text-xl font-bold text-white drop-shadow-sm">Data Pemantauan Suhu, RH &amp; DPG — {cfg?.label}</h2>
-                <p className="text-sm font-medium text-orange-50">Tanggal Data: <span className="font-semibold text-white">{selectedDate}</span></p>
+                <p className="text-sm font-medium text-slate-200">Tanggal Data: <span className="font-semibold text-white">{selectedDate}</span></p>
               </div>
             </div>
-            <div className="text-right text-xs font-semibold text-slate-700 sm:text-slate-700">
-              <p className="rounded-md bg-white/80 px-2.5 py-1 backdrop-blur-sm">No. Formulir: FM.QA.024/R11</p>
+            <div className="text-right text-xs font-medium text-slate-200">
+              <p className="rounded-md bg-white/10 px-2.5 py-1 backdrop-blur-sm border border-white/10">No. Formulir: FM.QA.024/R11</p>
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between bg-white px-5 py-3 border-t border-orange-100">
+        <div className="flex items-center justify-between bg-white px-5 py-3 border-t border-slate-100">
           <span className="text-xs text-slate-500 font-medium">{selectedRoom ? `Status ${selectedRoom.name} (langsung dari input)` : "Status keseluruhan tanggal ini"}</span>
           <StatusPill level={liveLevel} hasData={liveHasData} />
         </div>
@@ -879,7 +879,7 @@ function EntryPage({ session, facilityKey, setView }) {
 
       <div className="no-print flex flex-wrap items-center gap-2 mb-4">
         <button onClick={() => { setSelectedDate(todayStr()); setSelectedRoom(null); }}
-          className={`text-xs rounded-full px-3.5 py-1.5 border font-medium ${selectedDate === todayStr() ? "bg-orange-600 text-white border-orange-600 shadow-sm" : "border-slate-300 text-slate-600 hover:bg-orange-50"}`}>
+          className={`text-xs rounded-full px-3.5 py-1.5 border font-medium ${selectedDate === todayStr() ? "bg-slate-900 text-white border-slate-900 shadow-sm" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
           Hari ini
         </button>
         <input type="date" value={selectedDate} max={todayStr()}
@@ -1298,7 +1298,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
         </button>
         <div className="flex items-center gap-2">
           {hasAccess(session, "Supervisor", "QA") && (
-            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: roomName })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-orange-50">
+            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: roomName })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
               <ClipboardList className="w-4 h-4" /> Pengkajian Ruangan Ini (Opsional)
             </button>
           )}
@@ -1307,8 +1307,6 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
           </button>
         </div>
       </div>
-
-      {error && <p className="no-print text-sm text-red-600 mb-3">{error}</p>}
 
       <div className="print-card avoid-break rounded-xl border-2 border-slate-800 bg-white p-5 text-xs">
         <div className="mb-4 flex items-start justify-between gap-4 border-b-2 border-slate-800 pb-3">
@@ -1526,29 +1524,29 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </button>
       </div>
 
-      {/* GRADASI DIBALIK: ORANYE / AMBER KE PUTIH */}
-      <div className="mb-5 overflow-hidden rounded-xl border border-orange-200 print-card shadow-sm">
-        <div className="relative overflow-hidden bg-gradient-to-r from-amber-600 via-orange-500 to-white px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-white/40 blur-2xl" />
+      {/* GRADASI: ABU-ABU GELAP / SLATE KE ORANYE */}
+      <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card shadow-sm">
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-stone-800 to-orange-600 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-orange-400/20 blur-3xl" />
           <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div className="flex items-start gap-3">
-              <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain drop-shadow" />
+              <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert drop-shadow" />
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-100">PT. Rama Emerald Multi Sukses — QA</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-orange-200">PT. Rama Emerald Multi Sukses — QA</p>
                 <h2 className="text-xl font-bold text-white drop-shadow-sm">{roomName ? "Pengkajian Ruangan (Opsional)" : "Pengkajian EM Non Viable"}</h2>
-                <p className="text-sm font-medium text-orange-50">
+                <p className="text-sm font-medium text-slate-200">
                   Fasilitas: <span className="font-semibold text-white">{cfg?.label}</span>
                   {roomName && <> · Ruangan: <span className="font-semibold text-white">{roomName}</span></>}
                   {" "}· Periode: <span className="font-semibold text-white">{monthLabelID(month)}</span>
                 </p>
               </div>
             </div>
-            <div className="text-right text-xs font-semibold text-slate-700">
-              <p className="rounded-md bg-white/80 px-2.5 py-1 backdrop-blur-sm">Acuan: FM.QA.024/R11</p>
+            <div className="text-right text-xs font-medium text-slate-200">
+              <p className="rounded-md bg-white/10 px-2.5 py-1 backdrop-blur-sm border border-white/10">Acuan: FM.QA.024/R11</p>
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between bg-white px-5 py-3 border-t border-orange-100">
+        <div className="flex items-center justify-between bg-white px-5 py-3 border-t border-slate-100">
           <span className="text-xs text-slate-500 font-medium">Status keseluruhan periode ini</span>
           <StatusPill level={facilityOverallLevel(monthEntries)} hasData={monthEntries.length > 0} />
         </div>
@@ -1558,7 +1556,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         <div className="no-print flex flex-wrap gap-2 mb-4">
           {FACILITIES.map((f) => (
             <button key={f.key} onClick={() => setFacilityKey(f.key)}
-              className={`text-xs rounded-full px-3 py-1 border font-medium ${facilityKey === f.key ? "bg-orange-600 text-white border-orange-600 shadow-sm" : "border-slate-300 text-slate-600 hover:bg-orange-50"}`}>
+              className={`text-xs rounded-full px-3 py-1 border font-medium ${facilityKey === f.key ? "bg-slate-900 text-white border-slate-900 shadow-sm" : "border-slate-300 text-slate-600 hover:bg-slate-100"}`}>
               {f.label}
             </button>
           ))}
