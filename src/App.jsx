@@ -2,19 +2,18 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, ReferenceArea, ResponsiveContainer,
+  ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import {
-  LogIn, LogOut, User, Loader2, Building2, LayoutGrid, ChevronLeft, ChevronRight,
-  Lock, CheckCircle2, XOctagon, History, Save, FileCheck2, ClipboardList,
-  Printer, Sparkles, AlertTriangle, Calendar, FileQuestion, CheckCheck,
+  LogIn, LogOut, User, Loader2, Building2, ChevronLeft, ChevronRight,
+  Lock, CheckCircle2, XOctagon, History, Save, FileCheck2,
+  Printer, Sparkles, Calendar, Plus, Trash2, CheckCheck,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
   fetchReport, saveReport as apiSaveReport, fetchStatusIndex,
   approveDikaji as apiApproveDikaji, approveMengetahui as apiApproveMengetahui,
-  fetchActivityLog, changePassword as apiChangePassword,
-  fetchVerify, generateNarrative,
+  fetchActivityLog, fetchVerify, generateNarrative,
   fetchFormulirBulanan, approveKepalaBagian as apiApproveKepalaBagian,
   approveManagerQAFormulir as apiApproveManagerQAFormulir,
 } from "./api.js";
@@ -100,6 +99,21 @@ function levelStyle(level) {
   return LEVEL_STYLE[level] || LEVEL_STYLE[0];
 }
 
+function roomCategory(room) {
+  const key = room.persyaratanKey || "";
+  const idx = key.indexOf(" : ");
+  return idx === -1 ? key || "Kategori Umum" : key.slice(0, idx);
+}
+
+function formatRange(lower, upper, unit) {
+  const lo = lower !== null && lower !== undefined ? String(lower).replace(".", ",") : null;
+  const hi = upper !== null && upper !== undefined ? String(upper).replace(".", ",") : null;
+  if (lo === null && hi === null) return "N/A";
+  if (lo === null) return `≤ ${hi} ${unit}`;
+  if (hi === null) return `≥ ${lo} ${unit}`;
+  return `${lo} – ${hi} ${unit}`;
+}
+
 function facilityOverallLevel(entries) {
   let max = 0;
   (entries || []).forEach((e) => {
@@ -111,7 +125,7 @@ function facilityOverallLevel(entries) {
   return max;
 }
 
-/* ========================================================================= QR & VERIFIKASI TTD ========================================================================= */
+/* ========================================================================= QR VERIFIKASI TTD ========================================================================= */
 function buildVerifyUrl(params) {
   const qs = new URLSearchParams(params).toString();
   return `${window.location.origin}/verify?${qs}`;
@@ -125,37 +139,39 @@ function VerifyQR({ type, facility, period, roomName, size = 26, hideLabel = tru
   const url = buildVerifyUrl(params);
 
   return (
-    <a href={url} target="_blank" rel="noreferrer" title="Klik untuk verifikasi tanda tangan" className="inline-flex flex-col items-center gap-0.5 hover:opacity-80">
+    <a href={url} target="_blank" rel="noreferrer" title="Klik verifikasi TTD" className="inline-flex flex-col items-center gap-0.5 hover:opacity-80">
       <QRCodeSVG value={url} size={size} level="M" bgColor="#ffffff" fgColor="#0f172a" />
       {!hideLabel && <span className="text-[9px] text-slate-400">Scan</span>}
     </a>
   );
 }
 
-/* ========================================================================= GRAFIK PERBANDINGAN HARIAN (CROSS-SECTIONAL) ========================================================================= */
-function DayParamChart({ entriesForDay, rooms, paramKey, paramLabel, unit }) {
+/* ========================================================================= GRAFIK CROSS-SECTIONAL (RUANGAN TERPILIH) ========================================================================= */
+function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, paramLabel, unit }) {
   const data = useMemo(() => {
-    return rooms.map((r) => {
-      const rowAm = entriesForDay.find((e) => e.roomName === r.name && e.jam === "08:00");
-      const rowPm = entriesForDay.find((e) => e.roomName === r.name && e.jam === "13:00");
+    return activeRoomNames.map((name) => {
+      const rObj = rooms.find((r) => r.name === name);
+      const rowAm = currentDayEntries.find((e) => e.roomName === name && e.jam === "08:00");
+      const rowPm = currentDayEntries.find((e) => e.roomName === name && e.jam === "13:00");
       const vAm = toNumberSafe(rowAm?.[paramKey]);
       const vPm = toNumberSafe(rowPm?.[paramKey]);
-      const lim = r.limits?.[paramKey];
+      const lim = rObj?.limits?.[paramKey];
+
       return {
-        roomName: r.name,
-        code: r.code,
+        roomName: name,
+        code: rObj?.code || "",
         valAm: vAm,
         valPm: vPm,
         syaratL: lim?.syaratL ?? null,
         syaratU: lim?.syaratU ?? null,
       };
     }).filter((d) => d.valAm !== null || d.valPm !== null);
-  }, [entriesForDay, rooms, paramKey]);
+  }, [activeRoomNames, rooms, currentDayEntries, paramKey]);
 
   if (data.length === 0) {
     return (
       <div className="p-4 bg-slate-50 rounded-xl border border-dashed text-center text-xs text-slate-400">
-        Belum ada data {paramLabel} yang tersimpan pada tanggal ini.
+        Belum ada data {paramLabel} yang tersimpan untuk ruangan terpilih.
       </div>
     );
   }
@@ -170,7 +186,7 @@ function DayParamChart({ entriesForDay, rooms, paramKey, paramLabel, unit }) {
   return (
     <div className="bg-white border rounded-xl p-4 shadow-sm space-y-2">
       <div className="flex flex-wrap items-center justify-between text-xs border-b pb-2">
-        <span className="font-bold text-slate-700">{paramLabel} — Perbandingan Ruangan (Tanggal Terpilih)</span>
+        <span className="font-bold text-slate-700">{paramLabel} — Perbandingan Ruangan Terisi</span>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1 text-[11px] text-emerald-700 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-emerald-600"/> 08:00</span>
           <span className="flex items-center gap-1 text-[11px] text-rose-800 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-rose-800"/> 13:00</span>
@@ -381,7 +397,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
   );
 }
 
-/* ========================================================================= HALAMAN INPUT HARIAN + GRAFIK + APPROVAL (ALL-IN-ONE) ========================================================================= */
+/* ========================================================================= HALAMAN INTEGRATED (DYNAMIC ROOM SELECTOR EM VIABLE STYLE) ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey);
   const canInput = hasFacilityAccess(session, "Staff", cfg);
@@ -398,10 +414,12 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // State nilai input untuk seluruh ruangan pada selectedDate: { [roomName]: { "08:00": {suhu,rh,dpg,opr,spv}, "13:00": {...} } }
+  // Daftar nama ruangan yang sedang ditampilkan di tabel input
+  const [activeRoomNames, setActiveRoomNames] = useState([]);
+  // Nilai input: { [roomName]: { "08:00": {suhu,rh,dpg,opr,spv}, "13:00": {...} } }
   const [gridValues, setGridValues] = useState({});
 
-  // State Narasi
+  // Narasi State
   const [pendahuluan, setPendahuluan] = useState("");
   const [kesimpulanUmum, setKesimpulanUmum] = useState("");
   const [perParameter, setPerParameter] = useState({ suhu: "", rh: "", dpg: "" });
@@ -431,16 +449,26 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Siapkan grid nilai input tiap kali selectedDate atau monthEntries berubah
+  // Siapkan baris aktif saat tanggal berganti atau saat data termuat
   useEffect(() => {
     if (rooms.length === 0) return;
+
+    // Cari ruangan yang sudah punya entri di tanggal ini
+    const existingRoomsToday = Array.from(
+      new Set(monthEntries.filter((e) => e.tanggal === selectedDate).map((e) => e.roomName))
+    ).filter(Boolean);
+
+    // Jika belum ada data sama sekali hari ini, default tampilkan ruangan pertama
+    const initialActive = existingRoomsToday.length > 0 ? existingRoomsToday : [rooms[0]?.name].filter(Boolean);
+    setActiveRoomNames(initialActive);
+
+    // Bangun state nilai
     const initialGrid = {};
     rooms.forEach((r) => {
       initialGrid[r.name] = {
         "08:00": { suhu: "", rh: "", dpg: "", opr: "", spv: "" },
         "13:00": { suhu: "", rh: "", dpg: "", opr: "", spv: "" },
       };
-      // Terapkan default "-" bila parameter memang tidak dipersyaratkan
       SESI.forEach((jam) => {
         PARAM_DEFS.forEach((p) => {
           if (!r.required?.[p.key]) initialGrid[r.name][jam][p.key] = "-";
@@ -448,7 +476,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       });
     });
 
-    // Masukkan data tersimpan jika sudah ada
     monthEntries.filter((e) => e.tanggal === selectedDate).forEach((e) => {
       if (initialGrid[e.roomName] && initialGrid[e.roomName][e.jam]) {
         initialGrid[e.roomName][e.jam] = {
@@ -464,6 +491,23 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setGridValues(initialGrid);
   }, [selectedDate, monthEntries, rooms]);
 
+  // Tambah ruangan baru ke tabel
+  function handleAddRoom(roomName) {
+    if (!roomName || activeRoomNames.includes(roomName)) return;
+    setActiveRoomNames((prev) => [...prev, roomName]);
+  }
+
+  // Ganti pilihan ruangan pada baris yang ada
+  function handleChangeActiveRoom(oldRoomName, newRoomName) {
+    if (!newRoomName || oldRoomName === newRoomName) return;
+    setActiveRoomNames((prev) => prev.map((name) => (name === oldRoomName ? newRoomName : name)));
+  }
+
+  // Hapus baris ruangan dari tampilan
+  function handleRemoveActiveRoom(roomName) {
+    setActiveRoomNames((prev) => prev.filter((name) => name !== roomName));
+  }
+
   function handleCellChange(roomName, jam, field, val) {
     const normalized = (field === "suhu" || field === "rh" || field === "dpg") ? val.replace(/\./g, ",") : val;
     setGridValues((prev) => ({
@@ -478,23 +522,24 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }));
   }
 
-  // Simpan data (tanpa mengubah status approval)
+  // Simpan Draf
   async function handleSaveDataOnly() {
     setSaving(true);
     setError("");
     try {
       const todayRows = [];
-      rooms.forEach((r) => {
+      activeRoomNames.forEach((rName) => {
+        const rObj = rooms.find((r) => r.name === rName);
         SESI.forEach((jam) => {
-          const v = gridValues[r.name]?.[jam] || {};
+          const v = gridValues[rName]?.[jam] || {};
           const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
           if (anyFilled) {
             todayRows.push({
-              id: `${r.name}|${selectedDate}|${jam}`,
+              id: `${rName}|${selectedDate}|${jam}`,
               tanggal: selectedDate,
               jam,
-              roomName: r.name,
-              persyaratanKey: r.persyaratanKey,
+              roomName: rName,
+              persyaratanKey: rObj?.persyaratanKey || "",
               suhu: v.suhu === "" || v.suhu === "-" ? null : v.suhu,
               rh: v.rh === "" || v.rh === "-" ? null : v.rh,
               dpg: v.dpg === "" || v.dpg === "-" ? null : v.dpg,
@@ -505,12 +550,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         });
       });
 
-      const otherRows = monthEntries
-        .filter((e) => e.tanggal !== selectedDate)
-        .map((e) => ({ ...e, id: `${e.roomName}|${e.tanggal}|${e.jam}` }));
-
-      const merged = otherRows.concat(todayRows);
-      await apiSaveEntries(facilityKey, month, merged, session.token);
+      const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
+      await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
       await loadData();
     } catch (err) {
       setError(err.message);
@@ -519,27 +560,28 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  // APPROVE SEMUA RUANGAN OLEH OPR (SEKALIGUS)
+  // APPROVE OPR BATCH (SEMUA RUANGAN TERPILIH)
   async function handleApproveOprBatch() {
     setSaving(true);
     setError("");
     try {
       const todayRows = [];
-      rooms.forEach((r) => {
+      activeRoomNames.forEach((rName) => {
+        const rObj = rooms.find((r) => r.name === rName);
         SESI.forEach((jam) => {
-          const v = gridValues[r.name]?.[jam] || {};
+          const v = gridValues[rName]?.[jam] || {};
           const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
           if (anyFilled) {
             todayRows.push({
-              id: `${r.name}|${selectedDate}|${jam}`,
+              id: `${rName}|${selectedDate}|${jam}`,
               tanggal: selectedDate,
               jam,
-              roomName: r.name,
-              persyaratanKey: r.persyaratanKey,
+              roomName: rName,
+              persyaratanKey: rObj?.persyaratanKey || "",
               suhu: v.suhu === "" || v.suhu === "-" ? null : v.suhu,
               rh: v.rh === "" || v.rh === "-" ? null : v.rh,
               dpg: v.dpg === "" || v.dpg === "-" ? null : v.dpg,
-              opr: session.nama, // Auto set TTD Operator
+              opr: session.nama,
               spv: v.spv || "",
             });
           }
@@ -547,7 +589,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       });
 
       if (todayRows.length === 0) {
-        throw new Error("Belum ada nilai yang diinput untuk di-approve pada tanggal ini.");
+        throw new Error("Belum ada nilai yang diinput untuk di-approve.");
       }
 
       const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
@@ -560,35 +602,36 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  // APPROVE SEMUA RUANGAN OLEH SPV (SEKALIGUS & KUNCI)
+  // APPROVE SPV BATCH (SEMUA RUANGAN TERPILIH & KUNCI)
   async function handleApproveSpvBatch() {
     setSaving(true);
     setError("");
     try {
       const todayRows = [];
-      rooms.forEach((r) => {
+      activeRoomNames.forEach((rName) => {
+        const rObj = rooms.find((r) => r.name === rName);
         SESI.forEach((jam) => {
-          const v = gridValues[r.name]?.[jam] || {};
+          const v = gridValues[rName]?.[jam] || {};
           const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
           if (anyFilled) {
             todayRows.push({
-              id: `${r.name}|${selectedDate}|${jam}`,
+              id: `${rName}|${selectedDate}|${jam}`,
               tanggal: selectedDate,
               jam,
-              roomName: r.name,
-              persyaratanKey: r.persyaratanKey,
+              roomName: rName,
+              persyaratanKey: rObj?.persyaratanKey || "",
               suhu: v.suhu === "" || v.suhu === "-" ? null : v.suhu,
               rh: v.rh === "" || v.rh === "-" ? null : v.rh,
               dpg: v.dpg === "" || v.dpg === "-" ? null : v.dpg,
               opr: v.opr || session.nama,
-              spv: session.nama, // Auto set TTD SPV (Lock)
+              spv: session.nama,
             });
           }
         });
       });
 
       if (todayRows.length === 0) {
-        throw new Error("Tidak ada data ruangan untuk di-approve SPV pada tanggal ini.");
+        throw new Error("Tidak ada data ruangan untuk di-approve SPV.");
       }
 
       const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
@@ -639,20 +682,38 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     try { await apiApproveMengetahui(facilityKey, month, session.token); await loadData(); } catch (err) { setError(err.message); }
   }
 
-  const entriesForChart = useMemo(() => {
+  const currentDayEntries = useMemo(() => {
     return monthEntries.filter((e) => e.tanggal === selectedDate);
   }, [monthEntries, selectedDate]);
 
   const currentLevel = facilityOverallLevel(monthEntries);
   const isFinalApproved = !!report?.signoff?.diperiksa?.nama;
+  const isDaySpvApproved = currentDayEntries.length > 0 && currentDayEntries.every((e) => !!e.spv);
 
-  // Status kunci SPV pada tanggal ini (jika semua baris sudah ada SPV)
-  const isDaySpvApproved = entriesForChart.length > 0 && entriesForChart.every((e) => !!e.spv);
-  const isDayOprApproved = entriesForChart.length > 0 && entriesForChart.every((e) => !!e.opr);
+  // Status mapping per ruangan di tanggal ini (untuk badge dropdown)
+  const roomStatusToday = useMemo(() => {
+    const map = {};
+    rooms.forEach((r) => {
+      const rows = currentDayEntries.filter((e) => e.roomName === r.name);
+      if (rows.length === 0) {
+        map[r.name] = "empty";
+      } else if (rows.every((e) => !!e.spv)) {
+        map[r.name] = "spv";
+      } else if (rows.some((e) => !!e.opr)) {
+        map[r.name] = "opr";
+      } else {
+        map[r.name] = "filled";
+      }
+    });
+    return map;
+  }, [rooms, currentDayEntries]);
+
+  // Daftar ruangan yang belum tampil di tabel
+  const unselectedRooms = rooms.filter((r) => !activeRoomNames.includes(r.name));
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6 print:max-w-none print:p-0">
-      {/* Header bar navigasi */}
+      {/* Header Bar */}
       <div className="no-print flex flex-wrap items-center justify-between gap-2">
         <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
           <ChevronLeft size={16} /> Kembali ke Dashboard
@@ -688,7 +749,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
         </div>
         <div className="flex items-center justify-between bg-white px-5 py-2.5 border-t border-slate-100 text-xs">
-          <span className="text-slate-400">Status keseluruhan fasilitas periode ini:</span>
+          <span className="text-slate-400">Status keseluruhan periode ini:</span>
           <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-semibold" style={{ background: levelStyle(currentLevel).bg, color: levelStyle(currentLevel).color }}>
             {levelStyle(currentLevel).label}
           </span>
@@ -697,11 +758,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       {error && <p className="p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-200 whitespace-pre-line">{error}</p>}
 
-      {/* SECTION 1: TABEL INPUT HARIAN SELURUH RUANGAN */}
+      {/* SECTION 1: TABEL INPUT PEMILIHAN RUANGAN (EM VIABLE STYLE) */}
       <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
           <div className="flex items-center gap-2">
-            <label className="text-xs font-bold text-slate-700">Tanggal Pengukuran:</label>
+            <label className="text-xs font-bold text-slate-700">Tanggal:</label>
             <input type="date" value={selectedDate} max={todayStr()} onChange={(e) => setSelectedDate(e.target.value)}
               className="border rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 outline-none focus:border-rose-700" />
             <button onClick={() => setSelectedDate(todayStr())} className="text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-600">
@@ -722,68 +783,91 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Simpan Draf
                 </button>
                 {isOperator && (
-                  <button onClick={handleApproveOprBatch} disabled={saving}
+                  <button onClick={handleApproveOprBatch} disabled={saving || activeRoomNames.length === 0}
                     className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm disabled:opacity-50">
-                    <CheckCheck size={14} /> Approve OPR (Semua Ruang)
+                    <CheckCheck size={14} /> Approve OPR (Semua Ruang Terpilih)
                   </button>
                 )}
               </>
             )}
             {canApproveSPV && !isDaySpvApproved && (
-              <button onClick={handleApproveSpvBatch} disabled={saving}
+              <button onClick={handleApproveSpvBatch} disabled={saving || activeRoomNames.length === 0}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-rose-900 hover:bg-rose-950 text-white shadow-sm disabled:opacity-50">
-                <FileCheck2 size={14} /> Approve SPV &amp; Kunci (Semua Ruang)
+                <FileCheck2 size={14} /> Approve SPV &amp; Kunci (Semua)
               </button>
             )}
           </div>
         </div>
 
+        {/* Tabel Data */}
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-slate-50 text-slate-600 border-b">
-                <th className="px-3 py-2 text-left w-56">RUANGAN</th>
+                <th className="px-3 py-2 text-left min-w-[220px]">PILIH RUANGAN</th>
                 <th className="px-2 py-2 text-center w-16">JAM</th>
                 <th className="px-2 py-2 text-center w-24">SUHU (°C)</th>
                 <th className="px-2 py-2 text-center w-24">RH (%)</th>
                 <th className="px-2 py-2 text-center w-24">DPG (Pa)</th>
                 <th className="px-2 py-2 text-center w-36">OPR (TTD)</th>
                 <th className="px-2 py-2 text-center w-36">SPV (TTD)</th>
+                <th className="px-2 py-2 text-center w-10">AKSI</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rooms.map((r) => {
+              {activeRoomNames.map((rName) => {
+                const rObj = rooms.find((r) => r.name === rName);
+                if (!rObj) return null;
+
                 return SESI.map((jam, jamIdx) => {
-                  const v = gridValues[r.name]?.[jam] || {};
-                  const sLvl = liveLevelFor(v.suhu, r.limits?.suhu);
-                  const rLvl = liveLevelFor(v.rh, r.limits?.rh);
-                  const dLvl = liveLevelFor(v.dpg, r.limits?.dpg);
+                  const v = gridValues[rName]?.[jam] || {};
+                  const sLvl = liveLevelFor(v.suhu, rObj.limits?.suhu);
+                  const rLvl = liveLevelFor(v.rh, rObj.limits?.rh);
+                  const dLvl = liveLevelFor(v.dpg, rObj.limits?.dpg);
                   const isLocked = isDaySpvApproved || !!v.spv;
 
                   return (
-                    <tr key={r.code + jam} className={jamIdx === 0 ? "border-t border-slate-200" : "bg-slate-50/30"}>
+                    <tr key={rObj.code + jam} className={jamIdx === 0 ? "border-t border-slate-200" : "bg-slate-50/30"}>
                       {jamIdx === 0 ? (
-                        <td rowSpan={2} className="px-3 py-2 align-middle font-semibold text-slate-800 border-r border-slate-100">
-                          {r.name}
-                          <span className="block text-[10px] text-slate-400 font-normal">{r.code}</span>
+                        <td rowSpan={2} className="px-3 py-2 align-middle border-r border-slate-100">
+                          <select
+                            value={rName}
+                            disabled={isLocked}
+                            onChange={(e) => handleChangeActiveRoom(rName, e.target.value)}
+                            className="w-full border rounded px-2 py-1.5 font-semibold text-slate-800 outline-none focus:border-rose-700 bg-white"
+                          >
+                            {Array.from(new Set(rooms.map(roomCategory))).map((cat) => (
+                              <optgroup key={cat} label={cat}>
+                                {rooms.filter((r) => roomCategory(r) === cat).map((r) => {
+                                  const st = roomStatusToday[r.name];
+                                  const labelSuffix = st === "spv" ? " ✓ disetujui" : st === "opr" ? " • diapprove OPR" : st === "filled" ? " • terisi" : "";
+                                  return (
+                                    <option key={r.code + r.name} value={r.name}>
+                                      {r.code} — {r.name}{labelSuffix}
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+                            ))}
+                          </select>
                         </td>
                       ) : null}
                       <td className="px-2 py-1.5 text-center font-medium text-slate-500">{jam}</td>
                       <td className="px-2 py-1.5 text-center">
-                        <input value={v.suhu ?? ""} onChange={(e) => handleCellChange(r.name, jam, "suhu", e.target.value)}
-                          placeholder={r.required?.suhu ? "" : "N/A"} disabled={isLocked || !r.required?.suhu || !canInput}
+                        <input value={v.suhu ?? ""} onChange={(e) => handleCellChange(rName, jam, "suhu", e.target.value)}
+                          placeholder={rObj.required?.suhu ? "" : "N/A"} disabled={isLocked || !rObj.required?.suhu || !canInput}
                           className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50"
                           style={{ background: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).bg : undefined, color: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).color : undefined }} />
                       </td>
                       <td className="px-2 py-1.5 text-center">
-                        <input value={v.rh ?? ""} onChange={(e) => handleCellChange(r.name, jam, "rh", e.target.value)}
-                          placeholder={r.required?.rh ? "" : "N/A"} disabled={isLocked || !r.required?.rh || !canInput}
+                        <input value={v.rh ?? ""} onChange={(e) => handleCellChange(rName, jam, "rh", e.target.value)}
+                          placeholder={rObj.required?.rh ? "" : "N/A"} disabled={isLocked || !rObj.required?.rh || !canInput}
                           className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50"
                           style={{ background: v.rh && v.rh !== "-" ? levelStyle(rLvl).bg : undefined, color: v.rh && v.rh !== "-" ? levelStyle(rLvl).color : undefined }} />
                       </td>
                       <td className="px-2 py-1.5 text-center">
-                        <input value={v.dpg ?? ""} onChange={(e) => handleCellChange(r.name, jam, "dpg", e.target.value)}
-                          placeholder={r.required?.dpg ? "" : "N/A"} disabled={isLocked || !r.required?.dpg || !canInput}
+                        <input value={v.dpg ?? ""} onChange={(e) => handleCellChange(rName, jam, "dpg", e.target.value)}
+                          placeholder={rObj.required?.dpg ? "" : "N/A"} disabled={isLocked || !rObj.required?.dpg || !canInput}
                           className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50"
                           style={{ background: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).bg : undefined, color: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).color : undefined }} />
                       </td>
@@ -803,6 +887,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                           </div>
                         ) : <span className="text-slate-300 italic text-[11px]">—</span>}
                       </td>
+                      {jamIdx === 0 ? (
+                        <td rowSpan={2} className="px-2 py-1.5 text-center align-middle">
+                          {!isLocked && activeRoomNames.length > 1 && (
+                            <button onClick={() => handleRemoveActiveRoom(rName)} className="text-slate-400 hover:text-red-600 p-1" title="Hapus dari daftar input">
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </td>
+                      ) : null}
                     </tr>
                   );
                 });
@@ -810,22 +903,94 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             </tbody>
           </table>
         </div>
+
+        {/* Dropdown Tambah Ruangan Baru */}
+        {canInput && !isDaySpvApproved && unselectedRooms.length > 0 && (
+          <div className="pt-2 flex items-center gap-2">
+            <select
+              value=""
+              onChange={(e) => handleAddRoom(e.target.value)}
+              className="border border-dashed border-rose-300 bg-rose-50/40 rounded-lg px-3 py-1.5 text-xs text-rose-900 font-semibold outline-none hover:bg-rose-50"
+            >
+              <option value="">+ Tambah Ruangan Lain...</option>
+              {Array.from(new Set(unselectedRooms.map(roomCategory))).map((cat) => (
+                <optgroup key={cat} label={cat}>
+                  {unselectedRooms.filter((r) => roomCategory(r) === cat).map((r) => {
+                    const st = roomStatusToday[r.name];
+                    const labelSuffix = st === "spv" ? " ✓ disetujui" : st === "opr" ? " • diapprove OPR" : st === "filled" ? " • terisi" : "";
+                    return (
+                      <option key={r.code + r.name} value={r.name}>
+                        {r.code} — {r.name}{labelSuffix}
+                      </option>
+                    );
+                  })}
+                </optgroup>
+              ))}
+            </select>
+            <span className="text-[11px] text-slate-400">Pilih ruangan tambahan yang ingin diisi pada tanggal ini</span>
+          </div>
+        )}
       </div>
 
-      {/* SECTION 2: GRAFIK CROSS-SECTIONAL (1 HARI SELURUH RUANGAN) */}
+      {/* SECTION 2: CARD PERSYARATAN & LIMIT (EM VIABLE STYLE) */}
+      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
+        <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit (Ruangan Terpilih)</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs text-left">
+            <thead>
+              <tr className="bg-slate-50 text-slate-500 border-b">
+                <th className="px-3 py-1.5">PARAMETER</th>
+                <th className="px-3 py-1.5">RUANGAN</th>
+                <th className="px-3 py-1.5">SYARAT</th>
+                <th className="px-3 py-1.5">ALERT LIMIT</th>
+                <th className="px-3 py-1.5">ACTION LIMIT</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {activeRoomNames.map((rName) => {
+                const rObj = rooms.find((r) => r.name === rName);
+                if (!rObj) return null;
+
+                return PARAM_DEFS.map((p) => {
+                  const lim = rObj.limits?.[p.key];
+                  if (!rObj.required?.[p.key] || !lim) return null;
+
+                  return (
+                    <tr key={rName + p.key}>
+                      <td className="px-3 py-1 font-semibold text-slate-700">{p.label}</td>
+                      <td className="px-3 py-1 text-slate-600">{rName}</td>
+                      <td className="px-3 py-1 text-slate-800">{formatRange(lim.syaratL, lim.syaratU, p.unit)}</td>
+                      <td className="px-3 py-1 text-amber-700">{formatRange(lim.alertL, lim.alertU, p.unit)}</td>
+                      <td className="px-3 py-1 text-orange-700">{formatRange(lim.actionL, lim.actionU, p.unit)}</td>
+                    </tr>
+                  );
+                });
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-500">
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"/> Terkendali</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"/> Alert</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-500"/> Action</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500"/> Melebihi Syarat</span>
+        </div>
+      </div>
+
+      {/* SECTION 3: GRAFIK CROSS-SECTIONAL (1 HARI SELURUH RUANGAN) */}
       <div className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
         <div>
-          <h2 className="text-sm font-bold text-slate-800">Grafik Perbandingan Seluruh Ruangan ({selectedDate})</h2>
-          <p className="text-xs text-slate-400">Grafik otomatis terbentuk dari data seluruh ruangan pada tanggal yang sedang dibuka</p>
+          <h2 className="text-sm font-bold text-slate-800">Grafik Perbandingan Ruangan Terisi ({selectedDate})</h2>
+          <p className="text-xs text-slate-400">Grafik terbentuk otomatis dari ruangan yang sedang dipilih &amp; diinput</p>
         </div>
         <div className="space-y-4">
-          <DayParamChart entriesForDay={entriesForChart} rooms={rooms} paramKey="suhu" paramLabel="Suhu" unit="°C" />
-          <DayParamChart entriesForDay={entriesForChart} rooms={rooms} paramKey="rh" paramLabel="Kelembaban Relatif (RH)" unit="%" />
-          <DayParamChart entriesForDay={entriesForChart} rooms={rooms} paramKey="dpg" paramLabel="Perbedaan Tekanan (DPG)" unit="Pa" />
+          <DayParamChart activeRoomNames={activeRoomNames} rooms={rooms} currentDayEntries={currentDayEntries} paramKey="suhu" paramLabel="Suhu" unit="°C" />
+          <DayParamChart activeRoomNames={activeRoomNames} rooms={rooms} currentDayEntries={currentDayEntries} paramKey="rh" paramLabel="Kelembaban Relatif (RH)" unit="%" />
+          <DayParamChart activeRoomNames={activeRoomNames} rooms={rooms} currentDayEntries={currentDayEntries} paramKey="dpg" paramLabel="Perbedaan Tekanan (DPG)" unit="Pa" />
         </div>
       </div>
 
-      {/* SECTION 3: PEMBAHASAN & NARASI BULANAN QA */}
+      {/* SECTION 4: PEMBAHASAN & NARASI BULANAN QA */}
       <div className="bg-white rounded-xl border p-5 shadow-sm space-y-5">
         <div className="flex items-center justify-between border-b pb-3">
           <div>
@@ -867,7 +1032,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             className="w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
         </div>
 
-        {/* SECTION 4: TANDA TANGAN (SIGN-OFF QA) */}
+        {/* SECTION 5: TANDA TANGAN (SIGN-OFF QA) */}
         <div className="pt-4 border-t space-y-3">
           <p className="text-xs font-bold text-slate-700">Tanda Tangan Pengkajian Bulanan</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -924,14 +1089,12 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
   const [selectedRoom, setSelectedRoom] = useState(roomName || "");
   const [entries, setEntries] = useState([]);
   const [formulir, setFormulir] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const canKepalaBagian = cfg ? hasFacilityAccess(session, "Supervisor", cfg) : false;
   const canManagerQA = hasAccess(session, "Manager", "QA");
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const [master, entriesRes, formulirRes] = await Promise.all([
         fetchMaster(facilityKey),
@@ -947,8 +1110,6 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
       setFormulir(formulirRes);
     } catch {
       // ignore
-    } finally {
-      setLoading(false);
     }
   }, [facilityKey, bulan, selectedRoom, session.token]);
 
@@ -1111,10 +1272,9 @@ function VerifyPage() {
   const period = type === "pengkajian" ? params.get("month") : type === "formulir" ? params.get("bulan") : params.get("tanggal");
   const facility = FACILITIES.find((f) => f.key === facilityKey);
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchVerify(type, facilityKey, period, roomName).then(setData).finally(() => setLoading(false));
+    fetchVerify(type, facilityKey, period, roomName).then(setData);
   }, [type, facilityKey, period, roomName]);
 
   return (
