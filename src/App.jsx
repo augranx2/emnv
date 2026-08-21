@@ -7,27 +7,21 @@ import {
 import {
   LogIn, LogOut, User, Loader2, Building2, LayoutGrid, ChevronLeft, ChevronRight,
   Lock, CheckCircle2, XOctagon, History, Save, FileCheck2, ClipboardList,
-  Printer, Sparkles, AlertTriangle, TrendingUp, Calendar, FileQuestion,
+  Printer, Sparkles, AlertTriangle, Calendar, FileQuestion, CheckCheck,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
   fetchReport, saveReport as apiSaveReport, fetchStatusIndex,
   approveDikaji as apiApproveDikaji, approveMengetahui as apiApproveMengetahui,
-  fetchActivityLog, fetchDayStatus, fetchOpenInputDates,
-  approveDay as apiApproveDay, unapproveDay as apiUnapproveDay,
-  approveOpr as apiApproveOpr, approveSpv as apiApproveSpv,
-  openBackfill as apiOpenBackfill, changePassword as apiChangePassword,
+  fetchActivityLog, changePassword as apiChangePassword,
   fetchVerify, generateNarrative,
   fetchFormulirBulanan, approveKepalaBagian as apiApproveKepalaBagian,
-  unapproveKepalaBagian as apiUnapproveKepalaBagian,
   approveManagerQAFormulir as apiApproveManagerQAFormulir,
-  unapproveManagerQAFormulir as apiUnapproveManagerQAFormulir,
 } from "./api.js";
 import { useAuth, hasAccess, hasFacilityAccess } from "./auth.js";
 import { buildFacilityStats, generateLocalNarrative, fullDateID, monthLabelID } from "./narrativeGenerator.js";
 
-/* ========================================================================= */
-
+/* ========================================================================= KONFIGURASI ========================================================================= */
 const FACILITIES = [
   { key: "nbl", label: "NBL", department: "Produksi" },
   { key: "bl", label: "BL", department: "Produksi" },
@@ -50,34 +44,55 @@ const PARAM_DEFS = [
   { key: "dpg", label: "DPG", unit: "Pa" },
 ];
 
-/* ========================================================================= QR VERIFIKASI TANDA TANGAN */
-function buildVerifyUrl(params) {
-  const qs = new URLSearchParams(params).toString();
-  return `${window.location.origin}/verify?${qs}`;
-}
-
-function VerifyQR({ type, facility, period, roomName, size = 84, hideLabel = false }) {
-  const params = { type, facility };
-  if (type === "pengkajian") { params.month = period; if (roomName) params.roomName = roomName; }
-  else if (type === "formulir") { params.bulan = period; params.roomName = roomName; }
-  else { params.type = "harian"; params.tanggal = period; }
-  const url = buildVerifyUrl(params);
-  return (
-    <div className="inline-flex flex-col items-center gap-1">
-      <QRCodeSVG value={url} size={size} level="M" bgColor="#ffffff" fgColor="#0f172a" />
-      {!hideLabel && <span className="text-center text-[9px] leading-tight text-slate-400">Scan untuk verifikasi</span>}
-    </div>
-  );
-}
-
 const SESI = ["08:00", "13:00"];
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function currentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function daysInMonth(monthStr) {
+  if (!monthStr) return 31;
+  const [y, m] = monthStr.split("-").map(Number);
+  return new Date(y, m, 0).getDate();
+}
+
+function toNumberSafe(v) {
+  if (v === null || v === undefined || v === "" || v === "-") return null;
+  const n = Number(String(v).replace(",", "."));
+  return Number.isNaN(n) ? null : n;
+}
+
+function inRange(v, lower, upper) {
+  if (lower !== null && lower !== undefined && v < lower) return false;
+  if (upper !== null && upper !== undefined && v > upper) return false;
+  return true;
+}
+
+function liveLevelFor(rawValue, limit) {
+  if (!limit) return null;
+  const allNull = [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU].every((x) => x === null || x === undefined);
+  if (allNull) return null;
+  if (rawValue === "-") return 1;
+  const v = toNumberSafe(rawValue);
+  if (v === null) return 0;
+  if (inRange(v, limit.alertL, limit.alertU)) return 1;
+  if (inRange(v, limit.actionL, limit.actionU)) return 2;
+  if (inRange(v, limit.syaratL, limit.syaratU)) return 3;
+  return 4;
+}
 
 const LEVEL_STYLE = {
   0: { label: "Belum diisi", color: "#64748b", bg: "#f1f5f9" },
-  1: { label: "Baik", color: "#15803d", bg: "#dcfce7" },
+  1: { label: "Terkendali", color: "#15803d", bg: "#dcfce7" },
   2: { label: "Alert", color: "#b45309", bg: "#fef3c7" },
   3: { label: "Action", color: "#c2410c", bg: "#ffedd5" },
-  4: { label: "Deviasi", color: "#b91c1c", bg: "#fee2e2" },
+  4: { label: "Melebihi Syarat", color: "#b91c1c", bg: "#fee2e2" },
 };
 
 function levelStyle(level) {
@@ -96,211 +111,130 @@ function facilityOverallLevel(entries) {
   return max;
 }
 
-function toNumberSafe(v) {
-  if (v === null || v === undefined || v === "" || v === "-") return NaN;
-  return Number(String(v).replace(",", "."));
-}
-function inRangeClient(v, lower, upper) {
-  if (lower !== null && lower !== undefined && v < lower) return false;
-  if (upper !== null && upper !== undefined && v > upper) return false;
-  return true;
-}
-function liveLevelFor(rawValue, limit) {
-  if (!limit) return null;
-  const allNull = [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU].every((x) => x === null || x === undefined);
-  if (allNull) return null;
-  if (rawValue === "-") return 1;
-  const v = toNumberSafe(rawValue);
-  if (rawValue === "" || rawValue === null || rawValue === undefined || Number.isNaN(v)) return 0;
-  if (inRangeClient(v, limit.alertL, limit.alertU)) return 1;
-  if (inRangeClient(v, limit.actionL, limit.actionU)) return 2;
-  if (inRangeClient(v, limit.syaratL, limit.syaratU)) return 3;
-  return 4;
-}
-function liveRoomLevel(values, room) {
-  if (!room) return 0;
-  let max = 0;
-  SESI.forEach((jam) => {
-    PARAM_DEFS.forEach((p) => {
-      const lvl = liveLevelFor(values[jam]?.[p.key], room.limits?.[p.key]);
-      if (lvl !== null && lvl > max) max = lvl;
-    });
-  });
-  return max;
+/* ========================================================================= QR & VERIFIKASI TTD ========================================================================= */
+function buildVerifyUrl(params) {
+  const qs = new URLSearchParams(params).toString();
+  return `${window.location.origin}/verify?${qs}`;
 }
 
-function roomCategory(room) {
-  const key = room.persyaratanKey || "";
-  const idx = key.indexOf(" : ");
-  return idx === -1 ? key || "Lainnya" : key.slice(0, idx);
-}
+function VerifyQR({ type, facility, period, roomName, size = 26, hideLabel = true }) {
+  const params = { type, facility };
+  if (type === "pengkajian") { params.month = period; if (roomName) params.roomName = roomName; }
+  else if (type === "formulir") { params.bulan = period; params.roomName = roomName; }
+  else { params.type = "harian"; params.tanggal = period; }
+  const url = buildVerifyUrl(params);
 
-function formatNum(n) {
-  if (n === null || n === undefined) return null;
-  return String(n).replace(".", ",");
-}
-
-function formatRange(lower, upper, unit) {
-  const lo = formatNum(lower);
-  const hi = formatNum(upper);
-  if (lo === null && hi === null) return "N/A";
-  if (lo === null) return `≤ ${hi} ${unit}`;
-  if (hi === null) return `≥ ${lo} ${unit}`;
-  return `${lo} – ${hi} ${unit}`;
-}
-
-function daysInMonth(monthStr) {
-  if (!monthStr) return 31;
-  const [y, m] = monthStr.split("-").map(Number);
-  return new Date(y, m, 0).getDate();
-}
-
-function currentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-/* ========================================================================= GRAFIK TREN */
-function chartDotColor(level) {
-  return levelStyle(level).color;
-}
-
-function ChartDot({ cx, cy, payload }) {
-  if (cx == null || cy == null) return null;
-  return <circle cx={cx} cy={cy} r={4} fill={chartDotColor(payload.level)} stroke="#fff" strokeWidth={1.5} />;
-}
-
-function ChartTooltip({ active, payload, unit }) {
-  if (!active || !payload || !payload.length) return null;
-  const p = payload[0].payload;
-  const style = levelStyle(p.level);
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
-      <p className="mb-1 max-w-[160px] font-semibold text-slate-600">{p.label}</p>
-      <p className="text-sm font-bold" style={{ color: style.color }}>{p.value} {unit}</p>
-      <p className="font-medium" style={{ color: style.color }}>{style.label}</p>
-    </div>
+    <a href={url} target="_blank" rel="noreferrer" title="Klik untuk verifikasi tanda tangan" className="inline-flex flex-col items-center gap-0.5 hover:opacity-80">
+      <QRCodeSVG value={url} size={size} level="M" bgColor="#ffffff" fgColor="#0f172a" />
+      {!hideLabel && <span className="text-[9px] text-slate-400">Scan</span>}
+    </a>
   );
 }
 
-function LegendChip({ color, label }) {
+/* ========================================================================= GRAFIK PERBANDINGAN HARIAN (CROSS-SECTIONAL) ========================================================================= */
+function DayParamChart({ entriesForDay, rooms, paramKey, paramLabel, unit }) {
+  const data = useMemo(() => {
+    return rooms.map((r) => {
+      const rowAm = entriesForDay.find((e) => e.roomName === r.name && e.jam === "08:00");
+      const rowPm = entriesForDay.find((e) => e.roomName === r.name && e.jam === "13:00");
+      const vAm = toNumberSafe(rowAm?.[paramKey]);
+      const vPm = toNumberSafe(rowPm?.[paramKey]);
+      const lim = r.limits?.[paramKey];
+      return {
+        roomName: r.name,
+        code: r.code,
+        valAm: vAm,
+        valPm: vPm,
+        syaratL: lim?.syaratL ?? null,
+        syaratU: lim?.syaratU ?? null,
+      };
+    }).filter((d) => d.valAm !== null || d.valPm !== null);
+  }, [entriesForDay, rooms, paramKey]);
+
+  if (data.length === 0) {
+    return (
+      <div className="p-4 bg-slate-50 rounded-xl border border-dashed text-center text-xs text-slate-400">
+        Belum ada data {paramLabel} yang tersimpan pada tanggal ini.
+      </div>
+    );
+  }
+
+  const refLim = data[0] || {};
+  const allVals = data.flatMap((d) => [d.valAm, d.valPm, d.syaratL, d.syaratU]).filter((v) => v !== null && v !== undefined);
+  const minVal = Math.min(...allVals, 0);
+  const maxVal = Math.max(...allVals, 10);
+  const yMin = minVal - (maxVal - minVal) * 0.1;
+  const yMax = maxVal + (maxVal - minVal) * 0.1;
+
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
-      {label}
-    </span>
-  );
-}
-
-function ParamTrendChart({ entries, paramKey, paramLabel, unit, limit }) {
-  if (!limit) return null;
-  const dateCounts = {};
-  entries.forEach((e) => { dateCounts[e.jam] = (dateCounts[e.jam] || 0) + 1; });
-  const data = entries
-    .map((e) => {
-      const raw = e[paramKey];
-      if (raw === null || raw === undefined || raw === "" || raw === "-") return null;
-      const v = Number(String(raw).replace(",", "."));
-      if (Number.isNaN(v)) return null;
-      return { label: `${e.tanggal.slice(-2)}/${e.jam}`, value: v, level: e.level?.[paramKey] ?? 0 };
-    })
-    .filter(Boolean);
-  if (data.length === 0) return null;
-
-  const allVals = data.map((d) => d.value);
-  const boundsForRange = [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU, ...allVals].filter((v) => v !== null && v !== undefined);
-  const yMin = Math.min(...boundsForRange) - (Math.max(...boundsForRange) - Math.min(...boundsForRange)) * 0.1 || 0;
-  const yMax = Math.max(...boundsForRange) + (Math.max(...boundsForRange) - Math.min(...boundsForRange)) * 0.1 || 1;
-  const peak = data.reduce((a, b) => (b.level > a.level ? b : a), data[0]);
-  const peakStyle = levelStyle(peak.level);
-  const gradId = `nvGrad-${paramKey}`;
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print-card avoid-break">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-b border-slate-100 px-4 py-2.5">
-        <div>
-          <p className="text-xs font-semibold text-slate-600">{paramLabel} — Tren Bulan Ini</p>
-          <p className="text-[11px] text-slate-400">
-            Status terburuk: <span className="font-semibold" style={{ color: peakStyle.color }}>{peak.value} {unit}</span> ({peakStyle.label})
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <LegendChip color="#15803d" label="Baik" />
-          <LegendChip color="#b45309" label="Alert" />
-          <LegendChip color="#c2410c" label="Action" />
-          <LegendChip color="#b91c1c" label="Deviasi" />
+    <div className="bg-white border rounded-xl p-4 shadow-sm space-y-2">
+      <div className="flex flex-wrap items-center justify-between text-xs border-b pb-2">
+        <span className="font-bold text-slate-700">{paramLabel} — Perbandingan Ruangan (Tanggal Terpilih)</span>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1 text-[11px] text-emerald-700 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-emerald-600"/> 08:00</span>
+          <span className="flex items-center gap-1 text-[11px] text-rose-800 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-rose-800"/> 13:00</span>
+          <span className="flex items-center gap-1 text-[11px] text-red-600 font-semibold">--- Syarat</span>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={240}>
-        <ComposedChart data={data} margin={{ top: 10, right: 15, left: 10, bottom: 30 }}>
-          <defs>
-            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#16a34a" stopOpacity={0.2} />
-              <stop offset="100%" stopColor="#16a34a" stopOpacity={0} />
-            </linearGradient>
-          </defs>
+      <ResponsiveContainer width="100%" height={210}>
+        <ComposedChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-          {limit.syaratL !== null && <ReferenceArea y1={yMin} y2={limit.syaratL} fill="#ef4444" fillOpacity={0.06} ifOverflow="hidden" />}
-          {limit.syaratU !== null && <ReferenceArea y1={limit.syaratU} y2={yMax} fill="#ef4444" fillOpacity={0.06} ifOverflow="hidden" />}
-          {limit.actionL !== null && limit.syaratL !== null && <ReferenceArea y1={limit.syaratL} y2={limit.actionL} fill="#f97316" fillOpacity={0.07} ifOverflow="hidden" />}
-          {limit.actionU !== null && limit.syaratU !== null && <ReferenceArea y1={limit.actionU} y2={limit.syaratU} fill="#f97316" fillOpacity={0.07} ifOverflow="hidden" />}
-          {limit.alertL !== null && limit.actionL !== null && <ReferenceArea y1={limit.actionL} y2={limit.alertL} fill="#f59e0b" fillOpacity={0.06} ifOverflow="hidden" />}
-          {limit.alertU !== null && limit.actionU !== null && <ReferenceArea y1={limit.alertU} y2={limit.actionU} fill="#f59e0b" fillOpacity={0.06} ifOverflow="hidden" />}
-          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} angle={-35} textAnchor="end" interval={0} height={40} axisLine={{ stroke: "#e2e8f0" }} tickLine={false} />
-          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 11, fill: "#64748b" }} width={38} axisLine={false} tickLine={false} />
-          <Tooltip content={<ChartTooltip unit={unit} />} />
-          {limit.syaratL !== null && <ReferenceLine y={limit.syaratL} stroke="#dc2626" strokeWidth={1.25} strokeDasharray="4 3" />}
-          {limit.syaratU !== null && <ReferenceLine y={limit.syaratU} stroke="#dc2626" strokeWidth={1.25} strokeDasharray="4 3" />}
-          <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
-          <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
+          {refLim.syaratL !== null && <ReferenceLine y={refLim.syaratL} stroke="#dc2626" strokeWidth={1.2} strokeDasharray="3 3" />}
+          {refLim.syaratU !== null && <ReferenceLine y={refLim.syaratU} stroke="#dc2626" strokeWidth={1.2} strokeDasharray="3 3" />}
+          <XAxis dataKey="roomName" tick={{ fontSize: 10, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={40} />
+          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} />
+          <Tooltip content={({ active, payload }) => {
+            if (!active || !payload?.length) return null;
+            const p = payload[0].payload;
+            return (
+              <div className="bg-white p-2.5 border rounded-lg shadow-md text-xs space-y-1">
+                <p className="font-bold text-slate-700">{p.roomName}</p>
+                <p className="text-emerald-700 font-medium">08:00 : {p.valAm !== null ? `${p.valAm} ${unit}` : "-"}</p>
+                <p className="text-rose-800 font-medium">13:00 : {p.valPm !== null ? `${p.valPm} ${unit}` : "-"}</p>
+              </div>
+            );
+          }} />
+          <Line type="monotone" dataKey="valAm" stroke="#059669" strokeWidth={2} dot={{ r: 4, fill: "#059669" }} />
+          <Line type="monotone" dataKey="valPm" stroke="#9f1239" strokeWidth={2} dot={{ r: 4, fill: "#9f1239" }} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
-/* ========================================================================= TOPBAR, LOGIN, DASHBOARD */
-
+/* ========================================================================= TOPBAR & LOGIN ========================================================================= */
 function TopBar({ session, onLoginClick, onLogout, view, setView }) {
-  const [showProfile, setShowProfile] = useState(false);
   return (
     <div className="no-print border-b border-slate-200 bg-white px-4 py-2.5">
-      <div className="mx-auto flex max-w-5xl items-center justify-between">
+      <div className="mx-auto flex max-w-6xl items-center justify-between">
         <button onClick={() => setView({ page: "dashboard" })} className="flex items-center gap-2 text-sm font-bold text-slate-700">
-          <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-8 w-8 object-contain" />
+          <img src="/logo-rama.png" alt="Logo" className="h-8 w-8 object-contain" />
           EM Non Viable — PT. Rama Emerald Multi Sukses
         </button>
         <div className="flex items-center gap-2">
-          {session && hasAccess(session, "Supervisor", "QA") && (
-            <button onClick={() => setView({ page: "pengkajian" })}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${view.page === "pengkajian" ? "bg-rose-900 text-white shadow-sm" : "border border-slate-300 text-slate-600 hover:bg-rose-50 hover:text-rose-950"}`}>
-              <ClipboardList size={14} /> Pengkajian
-            </button>
-          )}
           {session && hasAccess(session, "Supervisor") && (
             <button onClick={() => setView({ page: "activity" })}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${view.page === "activity" ? "bg-rose-900 text-white shadow-sm" : "border border-slate-300 text-slate-600 hover:bg-rose-50 hover:text-rose-950"}`}>
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "activity" ? "bg-rose-900 text-white" : "border border-slate-300 text-slate-600 hover:bg-rose-50"}`}>
               <History size={14} /> Riwayat Aktivitas
             </button>
           )}
           {session ? (
             <div className="flex items-center gap-2">
-              <button onClick={() => setShowProfile(true)}
-                className="hidden items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200 sm:inline-flex">
-                <User size={13} /> {session.nama} · {session.role}{session.departemen ? ` ${session.departemen}` : ""}
-              </button>
+              <span className="hidden items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 sm:inline-flex">
+                <User size={13} /> {session.nama} · {session.role}
+              </span>
               <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
                 <LogOut size={14} /> Keluar
               </button>
             </div>
           ) : (
-            <button onClick={onLoginClick} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-800 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-rose-900 transition">
+            <button onClick={onLoginClick} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-900 shadow-sm">
               <LogIn size={14} /> Login
             </button>
           )}
         </div>
       </div>
-      {showProfile && session && <ProfileModal session={session} onClose={() => setShowProfile(false)} />}
     </div>
   );
 }
@@ -326,8 +260,8 @@ function LoginModal({ onClose, onLogin }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl border border-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl border">
         <div className="mb-4 flex items-center gap-2">
           <Lock size={18} className="text-rose-700" />
           <h3 className="text-base font-bold text-slate-800">Login EM Non Viable</h3>
@@ -335,17 +269,15 @@ function LoginModal({ onClose, onLogin }) {
         <form onSubmit={submit}>
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Username</label>
           <input autoFocus type="text" value={username} onChange={(ev) => setUsername(ev.target.value)}
-            className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-700 focus:outline-none focus:ring-1 focus:ring-rose-700" />
+            className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-700 focus:outline-none" />
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password</label>
           <input type="password" value={password} onChange={(ev) => setPassword(ev.target.value)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-700 focus:outline-none focus:ring-1 focus:ring-rose-700" />
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-700 focus:outline-none" />
           {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-              Batal
-            </button>
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600">Batal</button>
             <button type="submit" disabled={submitting || !username || !password}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-800 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-900 disabled:opacity-60 transition">
+              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-rose-900 disabled:opacity-60">
               {submitting ? <Loader2 size={14} className="animate-spin" /> : null} Masuk
             </button>
           </div>
@@ -355,152 +287,7 @@ function LoginModal({ onClose, onLogin }) {
   );
 }
 
-function ProfileModal({ session, onClose }) {
-  const [showChangePw, setShowChangePw] = useState(false);
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
-
-  const submit = async (ev) => {
-    ev.preventDefault();
-    setError("");
-    if (newPassword.length < 6) { setError("Password baru minimal 6 karakter."); return; }
-    if (newPassword !== confirmPassword) { setError("Konfirmasi password baru tidak cocok."); return; }
-    setSubmitting(true);
-    try {
-      const res = await apiChangePassword(session.token, oldPassword, newPassword);
-      if (res.error) { setError(res.error); return; }
-      setSuccess(true);
-      setOldPassword(""); setNewPassword(""); setConfirmPassword("");
-    } catch (err) {
-      setError(err.message || "Gagal mengubah password.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl border border-slate-100">
-        <div className="mb-4 flex items-center gap-2">
-          <User size={18} className="text-rose-700" />
-          <h3 className="text-base font-bold text-slate-800">Profil Saya</h3>
-        </div>
-
-        <div className="mb-4 space-y-1.5 rounded-lg bg-slate-50 px-4 py-3 text-sm">
-          <p className="flex justify-between"><span className="text-slate-500">Username</span> <span className="font-medium text-slate-700">{session.username}</span></p>
-          <p className="flex justify-between"><span className="text-slate-500">Nama Lengkap</span> <span className="font-medium text-slate-700">{session.nama}</span></p>
-          <p className="flex justify-between"><span className="text-slate-500">Jabatan</span> <span className="font-medium text-slate-700">{session.role}</span></p>
-          <p className="flex justify-between"><span className="text-slate-500">Departemen</span> <span className="font-medium text-slate-700">{session.departemen || "-"}</span></p>
-        </div>
-
-        {!showChangePw ? (
-          <div className="flex justify-between gap-2">
-            <button onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-              Tutup
-            </button>
-            <button onClick={() => setShowChangePw(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-800 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-900 transition">
-              <Lock size={14} /> Ganti Password
-            </button>
-          </div>
-        ) : success ? (
-          <div className="text-center">
-            <CheckCircle2 className="mx-auto mb-2 text-emerald-600" size={28} />
-            <p className="mb-4 text-sm text-slate-600">Password berhasil diubah.</p>
-            <button onClick={onClose} className="rounded-lg bg-rose-800 px-4 py-1.5 text-sm font-semibold text-white hover:bg-rose-900">Tutup</button>
-          </div>
-        ) : (
-          <form onSubmit={submit}>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password Lama</label>
-            <input type="password" value={oldPassword} onChange={(ev) => setOldPassword(ev.target.value)}
-              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-700 focus:outline-none focus:ring-1 focus:ring-rose-700" />
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password Baru</label>
-            <input type="password" value={newPassword} onChange={(ev) => setNewPassword(ev.target.value)}
-              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-700 focus:outline-none focus:ring-1 focus:ring-rose-700" />
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Konfirmasi Password Baru</label>
-            <input type="password" value={confirmPassword} onChange={(ev) => setConfirmPassword(ev.target.value)}
-              className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-700 focus:outline-none focus:ring-1 focus:ring-rose-700" />
-            {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => { setShowChangePw(false); setError(""); }}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                Kembali
-              </button>
-              <button type="submit" disabled={submitting || !oldPassword || !newPassword || !confirmPassword}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-800 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-900 disabled:opacity-60 transition">
-                {submitting ? <Loader2 size={14} className="animate-spin" /> : null} Simpan Password Baru
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ========================================================================= DASHBOARD */
-
-function StatCard({ icon, iconColor, tint, border, value, label }) {
-  return (
-    <div
-      className="rounded-xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-      style={{ background: `linear-gradient(155deg, ${tint} 0%, #ffffff 72%)`, borderColor: border }}
-    >
-      <span className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm" style={{ color: iconColor }}>
-        {icon}
-      </span>
-      <p className="text-2xl font-bold text-slate-800">{value}</p>
-      <p className="text-xs font-medium text-slate-600">{label}</p>
-    </div>
-  );
-}
-
-function StatusPill({ level, hasData }) {
-  if (!hasData) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 text-slate-500">
-        Belum ada data
-      </span>
-    );
-  }
-  if (level >= 4) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "#fee2e2", color: "#b91c1c" }}>
-        <AlertTriangle size={13} /> Melebihi Syarat
-      </span>
-    );
-  }
-  if (level === 3) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "#ffedd5", color: "#c2410c" }}>
-        <AlertTriangle size={13} /> Terkendali (Perlu Perhatian)
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "#dcfce7", color: "#15803d" }}>
-      <CheckCircle2 size={13} /> Terkendali
-    </span>
-  );
-}
-
-const STATUS_TINT = {
-  0: { bg: "#f1f5f9", fg: "#64748b" },
-  1: { bg: "#dcfce7", fg: "#15803d" },
-  2: { bg: "#dcfce7", fg: "#15803d" },
-  3: { bg: "#ffedd5", fg: "#c2410c" },
-  4: { bg: "#fee2e2", fg: "#b91c1c" },
-};
-
-const STATUS_ACCENT = { 0: "#cbd5e1", 1: "#22c55e", 2: "#22c55e", 3: "#f97316", 4: "#ef4444" };
-
-function monthLabel(monthKey) {
-  return monthLabelID(monthKey);
-}
-
+/* ========================================================================= DASHBOARD REKAP ========================================================================= */
 function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
   const [status, setStatus] = useState({});
   const [loading, setLoading] = useState(true);
@@ -512,7 +299,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
     setStatusError("");
     fetchStatusIndex(month)
       .then((d) => { if (!cancelled) setStatus(d); })
-      .catch((err) => { if (!cancelled) setStatusError("Gagal memuat status dari spreadsheet: " + err.message); })
+      .catch((err) => { if (!cancelled) setStatusError(err.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [month]);
@@ -522,65 +309,68 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
   const terkendaliCount = FACILITIES.filter((f) => status[f.key]?.hasData && (status[f.key]?.level || 0) < 3).length;
   const belumAdaCount = FACILITIES.filter((f) => !status[f.key]?.hasData).length;
 
-  function openFacility(key) {
-    if (!session) { onNeedLogin(); return; }
-    setView({ page: "entry", facility: key });
-  }
-
   return (
     <div>
-      {/* HEADER KOP: Hitam gradasi Merah Maroon */}
       <div className="relative overflow-hidden bg-gradient-to-br from-black via-zinc-950 to-rose-950 border-b border-rose-900/40">
         <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-rose-600/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-16 left-1/3 h-48 w-48 rounded-full bg-red-800/15 blur-3xl" />
-        <div className="relative mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-4 px-6 py-7">
+        <div className="relative mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4 px-6 py-7">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
             <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard EM Non Viable</h1>
-            <p className="mt-1 text-sm text-rose-100/90">Rekap pemantauan Suhu, Kelembaban (RH), dan Perbedaan Tekanan (DPG) per fasilitas</p>
+            <p className="mt-1 text-sm text-rose-100/90">Pemantauan Suhu, Kelembaban (RH), dan Perbedaan Tekanan (DPG)</p>
           </div>
-          <label className="no-print inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white backdrop-blur-sm transition hover:border-rose-400">
+          <label className="no-print inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white backdrop-blur-sm">
             <Calendar size={15} className="text-rose-300" />
             <input type="month" value={month} onChange={(ev) => setMonth(ev.target.value)} onClick={(ev) => ev.currentTarget.showPicker?.()}
               className="border-none bg-transparent text-sm text-white outline-none [color-scheme:dark]" />
           </label>
         </div>
       </div>
-      <div className="mx-auto max-w-5xl p-6">
-
-        {statusError && (
-          <p className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{statusError}</p>
-        )}
-
+      <div className="mx-auto max-w-6xl p-6">
+        {statusError && <p className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{statusError}</p>}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <StatCard icon={<LayoutGrid size={17} />} iconColor="#881337" tint="#ffe4e6" border="#fecdd3" value={FACILITIES.length} label="Total Fasilitas" />
-          <StatCard icon={<CheckCircle2 size={17} />} iconColor="#15803d" tint="#dcfce7" border="#bbf7d0" value={terkendaliCount} label="Terkendali" />
-          <StatCard icon={<AlertTriangle size={17} />} iconColor="#c2410c" tint="#ffedd5" border="#fed7aa" value={perluCount} label="Perlu Perhatian" />
-          <StatCard icon={<XOctagon size={17} />} iconColor="#b91c1c" tint="#fee2e2" border="#fecaca" value={tmsCount} label="Melebihi Syarat" />
-          <StatCard icon={<FileQuestion size={17} />} iconColor="#475569" tint="#f1f5f9" border="#e2e8f0" value={belumAdaCount} label="Belum Ada Data" />
+          <div className="rounded-xl border p-4 bg-rose-50/50 border-rose-200">
+            <p className="text-2xl font-bold text-rose-950">{FACILITIES.length}</p>
+            <p className="text-xs font-medium text-slate-600">Total Fasilitas</p>
+          </div>
+          <div className="rounded-xl border p-4 bg-emerald-50 border-emerald-200">
+            <p className="text-2xl font-bold text-emerald-800">{terkendaliCount}</p>
+            <p className="text-xs font-medium text-slate-600">Terkendali</p>
+          </div>
+          <div className="rounded-xl border p-4 bg-amber-50 border-amber-200">
+            <p className="text-2xl font-bold text-amber-800">{perluCount}</p>
+            <p className="text-xs font-medium text-slate-600">Perlu Perhatian</p>
+          </div>
+          <div className="rounded-xl border p-4 bg-red-50 border-red-200">
+            <p className="text-2xl font-bold text-red-800">{tmsCount}</p>
+            <p className="text-xs font-medium text-slate-600">Melebihi Syarat</p>
+          </div>
+          <div className="rounded-xl border p-4 bg-slate-50 border-slate-200">
+            <p className="text-2xl font-bold text-slate-700">{belumAdaCount}</p>
+            <p className="text-xs font-medium text-slate-600">Belum Ada Data</p>
+          </div>
         </div>
 
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Fasilitas — {monthLabel(month)}</p>
-        <div className="space-y-2.5">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Pilih Fasilitas — {monthLabelID(month)}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {FACILITIES.map((f) => {
             const st = status[f.key];
             const level = st?.hasData ? (st?.level || 0) : 0;
-            const accent = STATUS_ACCENT[level];
-            const tint = STATUS_TINT[level];
+            const lvlStyle = levelStyle(level);
             return (
-              <button key={f.key} onClick={() => openFacility(f.key)}
-                className="group flex w-full items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white pr-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-rose-700 hover:shadow-md">
-                <span className="self-stretch w-1.5" style={{ background: accent }} />
-                <div className="flex flex-1 items-center gap-3 py-3.5 pl-3.5">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: tint.bg, color: tint.fg }}><Building2 size={19} /></span>
-                  <div>
-                    <p className="font-semibold text-slate-800">{f.label}</p>
-                    <p className="text-xs text-slate-400">{loading ? "Memuat..." : st?.hasData ? "Ada data bulan ini" : "Belum ada data bulan ini"}</p>
-                  </div>
+              <button key={f.key} onClick={() => { if (!session) onNeedLogin(); else setView({ page: "facility", facility: f.key }); }}
+                className="group flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-rose-700 hover:shadow-md">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 text-rose-900 font-bold text-sm">
+                    <Building2 size={20} />
+                  </span>
+                  <span className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: lvlStyle.bg, color: lvlStyle.color }}>
+                    {st?.hasData ? lvlStyle.label : "Belum Ada Data"}
+                  </span>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {loading ? <Loader2 className="animate-spin text-slate-300" size={18} /> : <StatusPill level={st?.level || 0} hasData={!!st?.hasData} />}
-                  <ChevronRight size={16} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-rose-700" />
+                <div>
+                  <p className="font-bold text-slate-800 text-base">{f.label}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Departemen: {f.department}</p>
                 </div>
               </button>
             );
@@ -591,702 +381,550 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
   );
 }
 
-/* ========================================================================= ENTRY HARIAN (per fasilitas + tanggal) */
-
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function BackfillForm({ session, facilityKey, onOpened }) {
-  const [tanggal, setTanggal] = useState("");
-  const [alasan, setAlasan] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  async function submit(e) {
-    e.preventDefault();
-    setError("");
-    setBusy(true);
-    try {
-      await apiOpenBackfill(facilityKey, tanggal, alasan, session.token);
-      setTanggal("");
-      setAlasan("");
-      onOpened();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="bg-white rounded-xl border p-4 space-y-2">
-      <div className="text-sm font-medium text-slate-700">Buka Kembali Tanggal yang Sudah Di-ACC</div>
-      <p className="text-xs text-slate-400 -mt-1">Tanggal yang belum di-ACC SPV/Manager tidak perlu ini — operator sudah bisa langsung isi/lanjutkan tanggal itu. Form ini khusus untuk membuka kembali tanggal yang SUDAH terkunci karena sudah di-approve.</p>
-      <div className="flex flex-wrap gap-2 items-end">
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">Tanggal</label>
-          <input type="date" value={tanggal} max={todayStr()} onChange={(e) => setTanggal(e.target.value)} required className="border rounded-lg px-2 py-1.5 text-sm" />
-        </div>
-        <div className="flex-1 min-w-[200px]">
-          <label className="block text-xs text-slate-500 mb-1">Alasan</label>
-          <input value={alasan} onChange={(e) => setAlasan(e.target.value)} required className="w-full border rounded-lg px-2 py-1.5 text-sm" placeholder="mis. operator lupa input, sistem down, dll." />
-        </div>
-        <button type="submit" disabled={busy} className="text-sm bg-rose-900 text-white rounded-lg px-4 py-1.5 hover:bg-rose-950 disabled:opacity-60 transition shadow-sm">Buka Akses</button>
-      </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
-    </form>
-  );
-}
-
-function EntryPage({ session, facilityKey, setView }) {
+/* ========================================================================= HALAMAN INPUT HARIAN + GRAFIK + APPROVAL (ALL-IN-ONE) ========================================================================= */
+function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey);
   const canInput = hasFacilityAccess(session, "Staff", cfg);
-  const canApprove = hasFacilityAccess(session, "Supervisor", cfg);
-  const isOperatorRole = session.role === "Staff" || session.role === "Administrator";
+  const canApproveSPV = hasFacilityAccess(session, "Supervisor", cfg);
+  const isOperator = session.role === "Staff" || session.role === "Administrator";
+  const canDraftQA = hasAccess(session, "Supervisor", "QA");
+  const canFinalQA = hasAccess(session, "Manager", "QA");
 
-  const [openDates, setOpenDates] = useState({ today: todayStr(), backfillDates: [] });
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [rooms, setRooms] = useState([]);
   const [monthEntries, setMonthEntries] = useState([]);
-  const [dayStatus, setDayStatus] = useState(null);
-  const [selectedRoom, setSelectedRoom] = useState(null);
-  const [values, setValues] = useState({});
+  const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [approvingDate, setApprovingDate] = useState(null);
-  const [dateStatusMap, setDateStatusMap] = useState({});
   const [error, setError] = useState("");
 
-  const month = selectedDate.slice(0, 7);
+  // State nilai input untuk seluruh ruangan pada selectedDate: { [roomName]: { "08:00": {suhu,rh,dpg,opr,spv}, "13:00": {...} } }
+  const [gridValues, setGridValues] = useState({});
 
-  const loadAll = useCallback(async () => {
+  // State Narasi
+  const [pendahuluan, setPendahuluan] = useState("");
+  const [kesimpulanUmum, setKesimpulanUmum] = useState("");
+  const [perParameter, setPerParameter] = useState({ suhu: "", rh: "", dpg: "" });
+  const [generating, setGenerating] = useState(false);
+
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [dates, roomList] = await Promise.all([fetchOpenInputDates(facilityKey, session.token), fetchMaster(facilityKey)]);
-      setOpenDates(dates);
+      const [roomList, entryList, reportRes] = await Promise.all([
+        fetchMaster(facilityKey),
+        fetchEntries(facilityKey, month),
+        fetchReport(facilityKey, month, session.token),
+      ]);
       setRooms(roomList);
+      setMonthEntries(entryList);
+      setReport(reportRes);
+      setPendahuluan(reportRes.narrative?.pendahuluan || "");
+      setKesimpulanUmum(reportRes.narrative?.kesimpulanUmum || "");
+      setPerParameter(reportRes.narrative?.perParameter || { suhu: "", rh: "", dpg: "" });
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [facilityKey, session.token]);
+  }, [facilityKey, month, session.token]);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const loadDate = useCallback(async () => {
-    setError("");
-    try {
-      const [entries, status] = await Promise.all([fetchEntries(facilityKey, month), fetchDayStatus(facilityKey, selectedDate, session.token)]);
-      setMonthEntries(entries);
-      setDayStatus(status);
-    } catch (err) {
-      setError(err.message);
-    }
-  }, [facilityKey, month, selectedDate, session.token]);
-
-  useEffect(() => { loadDate(); }, [loadDate]);
-
+  // Siapkan grid nilai input tiap kali selectedDate atau monthEntries berubah
   useEffect(() => {
-    if (!selectedRoom) { setValues({}); return; }
-    const byJam = { "08:00": null, "13:00": null };
-    monthEntries.filter((e) => e.roomName === selectedRoom.name && e.tanggal === selectedDate).forEach((e) => { byJam[e.jam] = e; });
-    const req = selectedRoom.required || {};
-    const init = {};
-    SESI.forEach((jam) => {
-      const e = byJam[jam];
-      const dash = (key) => (e ? (e[key] ?? "") : (req[key] ? "" : "-"));
-      init[jam] = { suhu: dash("suhu"), rh: dash("rh"), dpg: dash("dpg"), opr: e?.opr ?? "", spv: e?.spv ?? "", level: e?.level || { suhu: null, rh: null, dpg: null } };
-    });
-    setValues(init);
-  }, [selectedRoom, monthEntries, selectedDate]);
-
-  function updateField(jam, field, val) {
-    const normalized = (field === "suhu" || field === "rh" || field === "dpg") ? val.replace(/\./g, ",") : val;
-    setValues((prev) => ({ ...prev, [jam]: { ...prev[jam], [field]: normalized } }));
-  }
-
-  const roomLocked = !!selectedRoom && session.role !== "Administrator" && SESI.some((jam) => !!values[jam]?.spv);
-
-  function validateRoom() {
-    const missing = [];
-    const req = selectedRoom?.required || {};
-    SESI.forEach((jam) => {
-      const v = values[jam];
-      if (!v) return;
-      const anyFilled = PARAM_DEFS.some((p) => req[p.key] && v[p.key] !== "");
-      if (!anyFilled) return;
-      PARAM_DEFS.forEach((p) => {
-        if (req[p.key] && v[p.key] === "") missing.push(`${jam} — ${p.label}`);
-      });
-    });
-    return missing;
-  }
-
-  async function saveCurrentRoom() {
-    if (!selectedRoom) return false;
-    const missing = validateRoom();
-    if (missing.length > 0) {
-      setError("Data belum lengkap, mohon isi dulu: " + missing.join(", "));
-      return false;
-    }
-    setError("");
-    try {
-      const req = selectedRoom.required || {};
-      const editedRows = SESI.filter((jam) => PARAM_DEFS.some((p) => req[p.key] && values[jam][p.key] !== "")).map((jam) => ({
-        id: `${selectedRoom.name}|${selectedDate}|${jam}`,
-        tanggal: selectedDate, jam, roomName: selectedRoom.name, persyaratanKey: selectedRoom.persyaratanKey,
-        suhu: values[jam].suhu === "" ? null : values[jam].suhu,
-        rh: values[jam].rh === "" ? null : values[jam].rh,
-        dpg: values[jam].dpg === "" ? null : values[jam].dpg,
-        opr: "", spv: "",
-      }));
-      const others = monthEntries
-        .filter((e) => !(e.roomName === selectedRoom.name && e.tanggal === selectedDate))
-        .map((e) => ({ tanggal: e.tanggal, jam: e.jam, roomName: e.roomName, persyaratanKey: e.persyaratanKey, suhu: e.suhu, rh: e.rh, dpg: e.dpg, opr: e.opr, spv: e.spv, id: e.id }));
-      const merged = others.concat(editedRows);
-      await apiSaveEntries(facilityKey, month, merged, session.token);
-      return true;
-    } catch (err) {
-      setError(err.message);
-      return false;
-    }
-  }
-
-  async function handleSaveRoom() {
-    setSaving(true);
-    const ok = await saveCurrentRoom();
-    if (ok) await loadDate();
-    setSaving(false);
-  }
-
-  async function handleApproveOpr() {
-    if (!selectedRoom) return;
-    setSaving(true);
-    try {
-      const ok = await saveCurrentRoom();
-      if (!ok) return;
-      await apiApproveOpr(facilityKey, selectedDate, selectedRoom.name, session.token);
-      await loadDate();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleApproveSpv() {
-    if (!selectedRoom) return;
-    setSaving(true);
-    try {
-      const ok = await saveCurrentRoom();
-      if (!ok) return;
-      await apiApproveSpv(facilityKey, selectedDate, selectedRoom.name, session.token);
-      await loadDate();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleApproveDate(tanggal) {
-    setApprovingDate(tanggal);
-    setError("");
-    try {
-      await apiApproveDay(facilityKey, tanggal, session.token);
-      await loadDate();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setApprovingDate(null);
-    }
-  }
-
-  async function handleUnapproveDate(tanggal) {
-    setApprovingDate(tanggal);
-    setError("");
-    try {
-      await apiUnapproveDay(facilityKey, tanggal, session.token);
-      await loadDate();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setApprovingDate(null);
-    }
-  }
-
-  const todaysEntries = monthEntries.filter((e) => e.tanggal === selectedDate);
-  const roomsFilledToday = new Set(todaysEntries.map((e) => e.roomName));
-  const pendingRoomsToday = Array.from(roomsFilledToday).filter((r) => {
-    const rows = todaysEntries.filter((e) => e.roomName === r);
-    return !rows.every((e) => !!e.spv);
-  });
-  const isApproved = todaysEntries.length > 0 && todaysEntries.every((e) => !!e.spv);
-
-  const roomDates = useMemo(() => {
-    if (!selectedRoom) return [];
-    return Array.from(new Set(monthEntries.filter((e) => e.roomName === selectedRoom.name).map((e) => e.tanggal)));
-  }, [monthEntries, selectedRoom]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const toFetch = roomDates.filter((d) => d !== selectedDate && !(d in dateStatusMap));
-    if (toFetch.length === 0) return;
-    Promise.all(toFetch.map((d) => fetchDayStatus(facilityKey, d, session.token).then((s) => [d, s]).catch(() => [d, null])))
-      .then((pairs) => {
-        if (cancelled) return;
-        setDateStatusMap((prev) => {
-          const next = { ...prev };
-          pairs.forEach(([d, s]) => { next[d] = s; });
-          return next;
+    if (rooms.length === 0) return;
+    const initialGrid = {};
+    rooms.forEach((r) => {
+      initialGrid[r.name] = {
+        "08:00": { suhu: "", rh: "", dpg: "", opr: "", spv: "" },
+        "13:00": { suhu: "", rh: "", dpg: "", opr: "", spv: "" },
+      };
+      // Terapkan default "-" bila parameter memang tidak dipersyaratkan
+      SESI.forEach((jam) => {
+        PARAM_DEFS.forEach((p) => {
+          if (!r.required?.[p.key]) initialGrid[r.name][jam][p.key] = "-";
         });
       });
-    return () => { cancelled = true; };
-  }, [roomDates, selectedDate, facilityKey, session.token, dateStatusMap]);
-
-  const historyByDate = useMemo(() => {
-    if (!selectedRoom) return [];
-    const roomEntries = monthEntries.filter((e) => e.roomName === selectedRoom.name);
-    const groups = {};
-    roomEntries.forEach((e) => {
-      if (!groups[e.tanggal]) groups[e.tanggal] = [];
-      groups[e.tanggal].push(e);
     });
-    return Object.keys(groups).sort().reverse().map((tanggal) => {
-      const status = tanggal === selectedDate ? dayStatus : dateStatusMap[tanggal];
-      return {
-        tanggal,
-        entries: groups[tanggal].sort((a, b) => (a.jam + a.roomName).localeCompare(b.jam + b.roomName)),
-        approved: tanggal === selectedDate ? isApproved : groups[tanggal].every((e) => !!e.spv),
-        approvedBy: groups[tanggal].find((e) => e.spv)?.spv || null,
-        backfillNote: status?.backfill || null,
-      };
+
+    // Masukkan data tersimpan jika sudah ada
+    monthEntries.filter((e) => e.tanggal === selectedDate).forEach((e) => {
+      if (initialGrid[e.roomName] && initialGrid[e.roomName][e.jam]) {
+        initialGrid[e.roomName][e.jam] = {
+          suhu: e.suhu ?? (rooms.find((r) => r.name === e.roomName)?.required?.suhu ? "" : "-"),
+          rh: e.rh ?? (rooms.find((r) => r.name === e.roomName)?.required?.rh ? "" : "-"),
+          dpg: e.dpg ?? (rooms.find((r) => r.name === e.roomName)?.required?.dpg ? "" : "-"),
+          opr: e.opr || "",
+          spv: e.spv || "",
+        };
+      }
     });
-  }, [monthEntries, selectedRoom, selectedDate, isApproved, dayStatus, dateStatusMap]);
 
-  if (loading) return <div className="max-w-6xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>;
+    setGridValues(initialGrid);
+  }, [selectedDate, monthEntries, rooms]);
 
-  const liveLevel = selectedRoom ? liveRoomLevel(values, selectedRoom) : facilityOverallLevel(todaysEntries);
-  const liveHasData = selectedRoom ? SESI.some((jam) => PARAM_DEFS.some((p) => values[jam]?.[p.key] && values[jam][p.key] !== "-")) : todaysEntries.length > 0;
-
-  return (
-    <div className="max-w-5xl mx-auto px-4 py-6 print:max-w-none print:p-0">
-      <div className="no-print flex items-center justify-between mb-4">
-        <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
-          <ChevronLeft className="w-4 h-4" /> Kembali ke Dashboard
-        </button>
-        <div className="flex items-center gap-2">
-          {hasAccess(session, "Supervisor", "QA") && (
-            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-              <ClipboardList className="w-4 h-4" /> Pengkajian QA
-            </button>
-          )}
-          {selectedRoom && (
-            <button onClick={() => setView({ page: "formulir", facility: facilityKey, room: selectedRoom.name, bulan: month })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-              <FileCheck2 className="w-4 h-4" /> Formulir Bulanan (FM.QA.024/R11)
-            </button>
-          )}
-          {selectedRoom && (
-            <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-              <Printer className="w-4 h-4" /> Cetak
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* HEADER KOP: Hitam gradasi Merah Maroon */}
-      <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card shadow-sm">
-        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-rose-600/20 blur-3xl" />
-          <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-            <div className="flex items-start gap-3">
-              <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert" />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
-                <h2 className="text-xl font-bold text-white tracking-tight">Data Pemantauan Suhu, RH &amp; DPG — {cfg?.label}</h2>
-                <p className="text-sm text-rose-100/90">Tanggal: <span className="font-medium text-white">{selectedDate}</span></p>
-              </div>
-            </div>
-            <div className="text-right text-xs text-rose-200">
-              <p>No. Formulir: FM.QA.024/R11</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center justify-between bg-white px-5 py-3 border-t border-slate-100">
-          <span className="text-xs text-slate-400">{selectedRoom ? `Status ${selectedRoom.name} (langsung dari input)` : "Status keseluruhan tanggal ini"}</span>
-          <StatusPill level={liveLevel} hasData={liveHasData} />
-        </div>
-      </div>
-
-      {error && <p className="no-print text-sm text-red-600 mb-3 whitespace-pre-line">{error}</p>}
-
-      <div className="no-print flex flex-wrap items-center gap-2 mb-4">
-        <button onClick={() => { setSelectedDate(openDates.today); setSelectedRoom(null); }}
-          className={`text-xs rounded-full px-3.5 py-1.5 border font-medium transition ${selectedDate === openDates.today ? "bg-rose-900 text-white border-rose-900 shadow-xs" : "border-slate-300 text-slate-600 hover:bg-slate-100"}`}>
-          Hari ini
-        </button>
-        <input type="date" value={selectedDate} max={openDates.today}
-          onChange={(ev) => { if (ev.target.value) { setSelectedDate(ev.target.value); setSelectedRoom(null); } }}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 focus:border-rose-700 focus:outline-none" />
-        <span className="text-xs text-slate-400">
-          Tanggal hari ini maupun tanggal sebelumnya bebas diisi selama belum di-approve SPV/Manager. Tanggal setelah hari ini tidak bisa dipilih.
-        </span>
-      </div>
-
-      <div className="print-card avoid-break flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl border p-4 mb-4">
-        <div className="text-sm">
-          <span className="text-slate-500">Tanggal terpilih: </span>
-          <span className="font-medium text-slate-800">{selectedDate}</span>
-          {isApproved ? (
-            <span className="ml-2 text-xs inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Disetujui {todaysEntries.find((e) => e.spv)?.spv}
-            </span>
-          ) : (
-            <span className="ml-2 text-xs inline-flex items-center gap-1 text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
-              <XOctagon className="w-3.5 h-3.5" /> Belum di-ACC{todaysEntries.length > 0 ? ` — ${pendingRoomsToday.length} ruangan perlu di-approve (${roomsFilledToday.size} terisi)` : ""}
-            </span>
-          )}
-        </div>
-        {canApprove && (
-          <div className="no-print">
-            {!isApproved ? (
-              <button onClick={() => handleApproveDate(selectedDate)} disabled={approvingDate === selectedDate || pendingRoomsToday.length === 0} className="text-sm bg-emerald-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 disabled:opacity-60 hover:bg-emerald-700 shadow-sm transition">
-                {approvingDate === selectedDate ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck2 className="w-4 h-4" />} Approve Semua ({pendingRoomsToday.length} ruangan)
-              </button>
-            ) : (
-              <button onClick={() => handleUnapproveDate(selectedDate)} disabled={approvingDate === selectedDate} className="text-sm bg-slate-200 text-slate-700 rounded-lg px-4 py-2 hover:bg-slate-300">Buka Kembali</button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="print-card avoid-break no-print mb-4 rounded-xl border border-slate-200 bg-white p-4">
-        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Pilih Ruangan</label>
-        <select
-          className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-700 focus:ring-1 focus:ring-rose-700 focus:outline-none sm:w-auto"
-          value={selectedRoom ? selectedRoom.code + "|" + selectedRoom.name : ""}
-          onChange={(ev) => {
-            const [code, ...rest] = ev.target.value.split("|");
-            const name = rest.join("|");
-            const room = rooms.find((r) => r.code === code && r.name === name);
-            setSelectedRoom(room || null);
-            setError("");
-          }}
-        >
-          <option value="">-- Pilih ruangan --</option>
-          {Array.from(new Set(rooms.map(roomCategory))).map((cat) => (
-            <optgroup key={cat} label={cat}>
-              {rooms.filter((r) => roomCategory(r) === cat).map((r) => {
-                const filled = roomsFilledToday.has(r.name);
-                const rowsApproved = todaysEntries.filter((e) => e.roomName === r.name).some((e) => !!e.spv);
-                return (
-                  <option key={r.code + r.name} value={r.code + "|" + r.name}>
-                    {r.name} ({r.code}){filled ? (rowsApproved ? " ✓ disetujui" : " • terisi") : ""}
-                  </option>
-                );
-              })}
-            </optgroup>
-          ))}
-        </select>
-      </div>
-
-      {!selectedRoom ? (
-        <p className="no-print text-sm text-slate-500">Pilih ruangan di atas untuk isi/lihat data tanggal {selectedDate}.</p>
-      ) : (
-        <div className="print-card avoid-break bg-white rounded-xl border overflow-hidden mb-6">
-          <div className="px-4 py-3 border-b bg-slate-50">
-            <div className="font-medium text-slate-800 text-sm">{selectedRoom.name} <span className="text-slate-400 font-normal">({selectedRoom.code})</span></div>
-            <div className="text-xs text-slate-500 mb-2">{selectedRoom.persyaratanKey}</div>
-            <div className="flex flex-wrap gap-3">
-              {PARAM_DEFS.map((p) => {
-                const lim = selectedRoom.limits?.[p.key];
-                if (!selectedRoom.required?.[p.key] || !lim) return null;
-                return (
-                  <div key={p.key} className="text-xs bg-white border rounded-lg px-2.5 py-1.5">
-                    <span className="font-medium text-slate-600">{p.label}: </span>
-                    <span className="text-slate-700">{formatRange(lim.syaratL, lim.syaratU, p.unit)}</span>
-                    <span className="text-slate-400"> · Alert {formatRange(lim.alertL, lim.alertU, p.unit)}</span>
-                    <span className="text-slate-400"> · Action {formatRange(lim.actionL, lim.actionU, p.unit)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500">
-                <th className="px-2 py-2 text-left">Jam</th>
-                {PARAM_DEFS.map((p) => <th key={p.key} className="px-2 py-2 text-center">{p.label} ({p.unit})</th>)}
-                <th className="px-2 py-2 text-center">OPR</th>
-                <th className="px-2 py-2 text-center">SPV</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SESI.map((jam) => (
-                <tr key={jam} className="border-t">
-                  <td className="px-2 py-2 text-slate-500">{jam}</td>
-                  {PARAM_DEFS.map((p) => {
-                    const v = values[jam]?.[p.key] ?? "";
-                    const style = levelStyle(liveLevelFor(v, selectedRoom.limits?.[p.key]));
-                    const required = !!selectedRoom?.required?.[p.key];
-                    return (
-                      <td key={p.key} className="px-1 py-1 text-center">
-                        <input
-                          value={v}
-                          disabled={!canInput || roomLocked || !required}
-                          placeholder={required ? "" : "N/A"}
-                          onChange={(e) => updateField(jam, p.key, e.target.value)}
-                          className="w-16 text-center rounded px-1 py-1 border disabled:bg-slate-50 disabled:text-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-700"
-                          style={{ background: v !== "" ? style.bg : undefined, color: v !== "" ? style.color : undefined }}
-                        />
-                      </td>
-                    );
-                  })}
-                  <td className="px-2 py-1 text-center text-slate-500">
-                    {values[jam]?.opr ? (
-                      <span className="inline-flex items-center gap-1">
-                        {values[jam].opr}
-                        <VerifyQR type="harian" facility={facilityKey} period={selectedDate} size={26} hideLabel />
-                      </span>
-                    ) : <span className="italic text-slate-400">belum di-ACC</span>}
-                  </td>
-                  <td className="px-2 py-1 text-center text-slate-500">
-                    {values[jam]?.spv ? (
-                      <span className="inline-flex items-center gap-1">
-                        {values[jam].spv}
-                        <VerifyQR type="harian" facility={facilityKey} period={selectedDate} size={26} hideLabel />
-                      </span>
-                    ) : <span className="italic text-slate-400">belum di-ACC</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {(canInput || canApprove) && !roomLocked && (
-            <div className="px-4 py-3 border-t bg-slate-50 flex flex-wrap justify-end gap-2">
-              {canInput && (
-                <button onClick={handleSaveRoom} disabled={saving} className="flex items-center gap-2 bg-slate-800 text-white rounded-lg px-4 py-2 text-sm hover:bg-slate-900 disabled:opacity-60 transition shadow-sm">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Simpan Ruangan Ini
-                </button>
-              )}
-              {isOperatorRole && (
-                <button onClick={handleApproveOpr} disabled={saving || !SESI.every((jam) => PARAM_DEFS.every((p) => !selectedRoom.required?.[p.key] || values[jam]?.[p.key] !== ""))} className="flex items-center gap-2 bg-emerald-600 text-white rounded-lg px-4 py-2 text-sm hover:bg-emerald-700 disabled:opacity-60 transition shadow-sm">
-                  <FileCheck2 className="w-4 h-4" /> Approve (OPR)
-                </button>
-              )}
-              {canApprove && (
-                <button onClick={handleApproveSpv} disabled={saving || !SESI.every((jam) => !!values[jam]?.opr)} className="flex items-center gap-2 bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm hover:bg-emerald-800 disabled:opacity-60 transition shadow-sm">
-                  <FileCheck2 className="w-4 h-4" /> Approve (SPV)
-                </button>
-              )}
-            </div>
-          )}
-          {roomLocked && (
-            <div className="px-4 py-3 border-t bg-rose-50 text-rose-800 text-xs flex items-center gap-2">
-              <Lock className="w-3.5 h-3.5 text-rose-700" /> Ruangan ini tanggal {selectedDate} sudah di-approve SPV/Manager — terkunci.
-            </div>
-          )}
-        </div>
-      )}
-
-      {selectedRoom && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-          {PARAM_DEFS.filter((p) => selectedRoom.required?.[p.key]).map((p) => (
-            <ParamTrendChart
-              key={p.key}
-              entries={monthEntries.filter((e) => e.roomName === selectedRoom.name)}
-              paramKey={p.key}
-              paramLabel={p.label}
-              unit={p.unit}
-              limit={selectedRoom.limits?.[p.key]}
-            />
-          ))}
-        </div>
-      )}
-
-      {canApprove && <div className="no-print"><BackfillForm session={session} facilityKey={facilityKey} onOpened={loadAll} /></div>}
-
-      {selectedRoom && (
-        <div className="mt-6">
-          <h3 className="text-sm font-semibold text-slate-700 mb-2">Riwayat {selectedRoom.name} — Bulan Ini ({month})</h3>
-          {historyByDate.length === 0 ? (
-            <p className="text-sm text-slate-500">Belum ada data ruangan ini bulan ini.</p>
-          ) : (
-            <div className="space-y-3">
-              {historyByDate.map((g) => (
-                <div key={g.tanggal} className="print-card avoid-break bg-white rounded-xl border overflow-hidden">
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b">
-                    <div className="text-sm font-medium text-slate-700">{g.tanggal}</div>
-                    <div className="flex items-center gap-2">
-                      {g.approved ? (
-                        <span className="text-xs inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Disetujui {g.approvedBy}
-                        </span>
-                      ) : (
-                        <span className="text-xs inline-flex items-center gap-1 text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
-                          <XOctagon className="w-3.5 h-3.5" /> Belum di-ACC
-                        </span>
-                      )}
-                      {canApprove && !g.approved && g.tanggal !== selectedDate && (
-                        <button onClick={() => handleApproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="no-print text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 flex items-center gap-1 disabled:opacity-60 hover:bg-emerald-700">
-                          {approvingDate === g.tanggal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />} Approve (tanggal terlewat)
-                        </button>
-                      )}
-                      {canApprove && g.approved && g.tanggal !== selectedDate && session.role === "Administrator" && (
-                        <button onClick={() => handleUnapproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="text-xs bg-slate-200 text-slate-700 rounded-lg px-3 py-1.5 hover:bg-slate-300">Buka Kembali</button>
-                      )}
-                    </div>
-                  </div>
-                  {g.backfillNote && (
-                    <div className="px-4 py-2 text-xs bg-rose-50 text-rose-800 border-b flex items-center gap-1.5">
-                      <ClipboardList className="w-3.5 h-3.5 flex-shrink-0" /> Data via backfill — dibuka {g.backfillNote.byNama}: "{g.backfillNote.alasan}"
-                    </div>
-                  )}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-slate-400">
-                          <th className="px-3 py-1.5 text-left">Jam</th>
-                          {PARAM_DEFS.map((p) => <th key={p.key} className="px-2 py-1.5 text-center">{p.label}</th>)}
-                          <th className="px-3 py-1.5 text-center">OPR</th>
-                          <th className="px-3 py-1.5 text-center">SPV</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {g.entries.map((e) => (
-                          <tr key={e.id} className="border-t">
-                            <td className="px-3 py-1 text-slate-500">{e.jam}</td>
-                            {PARAM_DEFS.map((p) => {
-                              const style = levelStyle(e.level?.[p.key]);
-                              const val = e[p.key];
-                              return (
-                                <td key={p.key} className="px-2 py-1 text-center">
-                                  {val === null || val === undefined || val === "" ? <span className="text-slate-300">—</span> : (
-                                    <span className="inline-block rounded px-1.5 py-0.5" style={{ background: style.bg, color: style.color }}>{val}</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                            <td className="px-3 py-1 text-center text-slate-500">
-                              {e.opr ? <span className="inline-flex items-center gap-1">{e.opr}<VerifyQR type="harian" facility={facilityKey} period={g.tanggal} size={22} hideLabel /></span> : "—"}
-                            </td>
-                            <td className="px-3 py-1 text-center text-slate-500">
-                              {e.spv ? <span className="inline-flex items-center gap-1">{e.spv}<VerifyQR type="harian" facility={facilityKey} period={g.tanggal} size={22} hideLabel /></span> : "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ========================================================================= PENGKAJIAN (QA) */
-
-function PrintableTextarea({ value, onChange, disabled, rows = 3 }) {
-  return (
-    <>
-      <textarea value={value} disabled={disabled} onChange={onChange} rows={rows} className="no-print w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-rose-700 focus:outline-none disabled:bg-slate-50" />
-      <p className="only-print whitespace-pre-wrap text-sm text-slate-800 leading-relaxed">{value || "-"}</p>
-    </>
-  );
-}
-
-function ParamBreakdown({ paramDef, entries, rooms }) {
-  const roomByName = useMemo(() => {
-    const m = {};
-    rooms.forEach((r) => { m[r.name] = r; });
-    return m;
-  }, [rooms]);
-
-  const rows = useMemo(() => {
-    return entries
-      .filter((e) => e.level?.[paramDef.key] !== null && e.level?.[paramDef.key] !== undefined)
-      .slice()
-      .sort((a, b) => (a.tanggal + a.jam + a.roomName).localeCompare(b.tanggal + b.jam + b.roomName));
-  }, [entries, paramDef.key]);
-
-  if (rows.length === 0) {
-    return <p className="only-print no-print mt-1 text-xs text-slate-400 italic">Belum ada data {paramDef.label} bulan ini.</p>;
+  function handleCellChange(roomName, jam, field, val) {
+    const normalized = (field === "suhu" || field === "rh" || field === "dpg") ? val.replace(/\./g, ",") : val;
+    setGridValues((prev) => ({
+      ...prev,
+      [roomName]: {
+        ...prev[roomName],
+        [jam]: {
+          ...prev[roomName][jam],
+          [field]: normalized,
+        },
+      },
+    }));
   }
 
-  const roomsWithData = Array.from(new Set(rows.map((r) => r.roomName)))
-    .map((name) => ({ name, worst: Math.max(0, ...rows.filter((r) => r.roomName === name).map((r) => r.level?.[paramDef.key] || 0)) }))
-    .sort((a, b) => b.worst - a.worst)
-    .slice(0, 4);
+  // Simpan data (tanpa mengubah status approval)
+  async function handleSaveDataOnly() {
+    setSaving(true);
+    setError("");
+    try {
+      const todayRows = [];
+      rooms.forEach((r) => {
+        SESI.forEach((jam) => {
+          const v = gridValues[r.name]?.[jam] || {};
+          const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
+          if (anyFilled) {
+            todayRows.push({
+              id: `${r.name}|${selectedDate}|${jam}`,
+              tanggal: selectedDate,
+              jam,
+              roomName: r.name,
+              persyaratanKey: r.persyaratanKey,
+              suhu: v.suhu === "" || v.suhu === "-" ? null : v.suhu,
+              rh: v.rh === "" || v.rh === "-" ? null : v.rh,
+              dpg: v.dpg === "" || v.dpg === "-" ? null : v.dpg,
+              opr: v.opr || "",
+              spv: v.spv || "",
+            });
+          }
+        });
+      });
+
+      const otherRows = monthEntries
+        .filter((e) => e.tanggal !== selectedDate)
+        .map((e) => ({ ...e, id: `${e.roomName}|${e.tanggal}|${e.jam}` }));
+
+      const merged = otherRows.concat(todayRows);
+      await apiSaveEntries(facilityKey, month, merged, session.token);
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // APPROVE SEMUA RUANGAN OLEH OPR (SEKALIGUS)
+  async function handleApproveOprBatch() {
+    setSaving(true);
+    setError("");
+    try {
+      const todayRows = [];
+      rooms.forEach((r) => {
+        SESI.forEach((jam) => {
+          const v = gridValues[r.name]?.[jam] || {};
+          const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
+          if (anyFilled) {
+            todayRows.push({
+              id: `${r.name}|${selectedDate}|${jam}`,
+              tanggal: selectedDate,
+              jam,
+              roomName: r.name,
+              persyaratanKey: r.persyaratanKey,
+              suhu: v.suhu === "" || v.suhu === "-" ? null : v.suhu,
+              rh: v.rh === "" || v.rh === "-" ? null : v.rh,
+              dpg: v.dpg === "" || v.dpg === "-" ? null : v.dpg,
+              opr: session.nama, // Auto set TTD Operator
+              spv: v.spv || "",
+            });
+          }
+        });
+      });
+
+      if (todayRows.length === 0) {
+        throw new Error("Belum ada nilai yang diinput untuk di-approve pada tanggal ini.");
+      }
+
+      const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
+      await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // APPROVE SEMUA RUANGAN OLEH SPV (SEKALIGUS & KUNCI)
+  async function handleApproveSpvBatch() {
+    setSaving(true);
+    setError("");
+    try {
+      const todayRows = [];
+      rooms.forEach((r) => {
+        SESI.forEach((jam) => {
+          const v = gridValues[r.name]?.[jam] || {};
+          const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
+          if (anyFilled) {
+            todayRows.push({
+              id: `${r.name}|${selectedDate}|${jam}`,
+              tanggal: selectedDate,
+              jam,
+              roomName: r.name,
+              persyaratanKey: r.persyaratanKey,
+              suhu: v.suhu === "" || v.suhu === "-" ? null : v.suhu,
+              rh: v.rh === "" || v.rh === "-" ? null : v.rh,
+              dpg: v.dpg === "" || v.dpg === "-" ? null : v.dpg,
+              opr: v.opr || session.nama,
+              spv: session.nama, // Auto set TTD SPV (Lock)
+            });
+          }
+        });
+      });
+
+      if (todayRows.length === 0) {
+        throw new Error("Tidak ada data ruangan untuk di-approve SPV pada tanggal ini.");
+      }
+
+      const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
+      await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Narasi QA Handler
+  async function handleSaveReport() {
+    setError("");
+    try {
+      await apiSaveReport(facilityKey, month, { pendahuluan, kesimpulanUmum, perParameter }, session.token);
+      await loadData();
+    } catch (err) { setError(err.message); }
+  }
+
+  async function handleGenerateAI() {
+    setGenerating(true);
+    setError("");
+    try {
+      const facilityStats = buildFacilityStats({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), entries: monthEntries, rooms });
+      let narrative;
+      try {
+        narrative = await generateNarrative({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), stats: facilityStats.stats });
+      } catch (aiErr) {
+        narrative = generateLocalNarrative({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), entries: monthEntries, rooms });
+        setError("Narasi AI gagal (" + aiErr.message + ") — digunakan draf lokal.");
+      }
+      setPendahuluan(narrative.pendahuluan || "");
+      setPerParameter(narrative.perParameter || {});
+      setKesimpulanUmum(narrative.kesimpulanUmum || "");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleDikaji() {
+    try { await apiApproveDikaji(facilityKey, month, session.token); await loadData(); } catch (err) { setError(err.message); }
+  }
+  async function handleMengetahui() {
+    try { await apiApproveMengetahui(facilityKey, month, session.token); await loadData(); } catch (err) { setError(err.message); }
+  }
+
+  const entriesForChart = useMemo(() => {
+    return monthEntries.filter((e) => e.tanggal === selectedDate);
+  }, [monthEntries, selectedDate]);
+
+  const currentLevel = facilityOverallLevel(monthEntries);
+  const isFinalApproved = !!report?.signoff?.diperiksa?.nama;
+
+  // Status kunci SPV pada tanggal ini (jika semua baris sudah ada SPV)
+  const isDaySpvApproved = entriesForChart.length > 0 && entriesForChart.every((e) => !!e.spv);
+  const isDayOprApproved = entriesForChart.length > 0 && entriesForChart.every((e) => !!e.opr);
 
   return (
-    <div className="mt-2 space-y-3">
-      <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200 print:max-h-none">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-slate-50 print:static">
-            <tr className="text-slate-400">
-              <th className="px-2 py-1.5 text-left">Tanggal</th>
-              <th className="px-2 py-1.5 text-left">Jam</th>
-              <th className="px-2 py-1.5 text-left">Ruangan</th>
-              <th className="px-2 py-1.5 text-center">Nilai</th>
-              <th className="px-2 py-1.5 text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const style = levelStyle(r.level?.[paramDef.key]);
-              const val = r[paramDef.key];
-              return (
-                <tr key={r.id + paramDef.key} className="border-t border-slate-100">
-                  <td className="px-2 py-1 text-slate-600">{r.tanggal}</td>
-                  <td className="px-2 py-1 text-slate-500">{r.jam}</td>
-                  <td className="px-2 py-1 text-slate-600">{r.roomName}</td>
-                  <td className="px-2 py-1 text-center">{val === null || val === undefined || val === "" ? "—" : val}</td>
-                  <td className="px-2 py-1 text-center">
-                    <span className="inline-block rounded-full px-2 py-0.5 font-medium" style={{ background: style.bg, color: style.color }}>{style.label}</span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6 print:max-w-none print:p-0">
+      {/* Header bar navigasi */}
+      <div className="no-print flex flex-wrap items-center justify-between gap-2">
+        <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
+          <ChevronLeft size={16} /> Kembali ke Dashboard
+        </button>
+        <div className="flex items-center gap-2">
+          <label className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700">
+            <Calendar size={13} className="text-rose-800" />
+            <input type="month" value={month} onChange={(e) => { setMonth(e.target.value); setSelectedDate(`${e.target.value}-01`); }} className="outline-none" />
+          </label>
+          {rooms.length > 0 && (
+            <button onClick={() => setView({ page: "formulir", facility: facilityKey, room: rooms[0]?.name, bulan: month })}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              <FileCheck2 size={13} /> Formulir Bulanan (FM.QA.024/R11)
+            </button>
+          )}
+        </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {roomsWithData.map(({ name }) => {
-          const room = roomByName[name];
-          if (!room?.limits?.[paramDef.key]) return null;
-          return (
-            <ParamTrendChart
-              key={name}
-              entries={entries.filter((e) => e.roomName === name)}
-              paramKey={paramDef.key}
-              paramLabel={`${paramDef.label} — ${name}`}
-              unit={paramDef.unit}
-              limit={room.limits[paramDef.key]}
-            />
-          );
-        })}
+
+      {/* HEADER BANNER KOP */}
+      <div className="overflow-hidden rounded-xl border border-slate-200 print-card shadow-sm">
+        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-rose-600/20 blur-3xl" />
+          <div className="relative flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <img src="/logo-rama.png" alt="Logo" className="h-11 w-11 object-contain brightness-0 invert" />
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
+                <h1 className="text-lg font-bold text-white tracking-tight">Pengkajian Trend Data Environment Monitoring (EM) Non Viable</h1>
+                <p className="text-xs text-rose-100/90">Fasilitas: <span className="font-semibold text-white">{cfg?.label}</span> · Periode: <span className="font-semibold text-white">{monthLabelID(month)}</span></p>
+              </div>
+            </div>
+            <p className="text-right text-[11px] text-rose-200">No. Formulir: FM.QA.024/R11</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between bg-white px-5 py-2.5 border-t border-slate-100 text-xs">
+          <span className="text-slate-400">Status keseluruhan fasilitas periode ini:</span>
+          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-semibold" style={{ background: levelStyle(currentLevel).bg, color: levelStyle(currentLevel).color }}>
+            {levelStyle(currentLevel).label}
+          </span>
+        </div>
+      </div>
+
+      {error && <p className="p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-200 whitespace-pre-line">{error}</p>}
+
+      {/* SECTION 1: TABEL INPUT HARIAN SELURUH RUANGAN */}
+      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-bold text-slate-700">Tanggal Pengukuran:</label>
+            <input type="date" value={selectedDate} max={todayStr()} onChange={(e) => setSelectedDate(e.target.value)}
+              className="border rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 outline-none focus:border-rose-700" />
+            <button onClick={() => setSelectedDate(todayStr())} className="text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-600">
+              Hari Ini
+            </button>
+            {isDaySpvApproved && (
+              <span className="inline-flex items-center gap-1 text-[11px] bg-rose-50 text-rose-800 font-semibold px-2 py-0.5 rounded border border-rose-200">
+                <Lock size={11} /> Terkunci (Disetujui SPV)
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {canInput && !isDaySpvApproved && (
+              <>
+                <button onClick={handleSaveDataOnly} disabled={saving}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700">
+                  {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Simpan Draf
+                </button>
+                {isOperator && (
+                  <button onClick={handleApproveOprBatch} disabled={saving}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm disabled:opacity-50">
+                    <CheckCheck size={14} /> Approve OPR (Semua Ruang)
+                  </button>
+                )}
+              </>
+            )}
+            {canApproveSPV && !isDaySpvApproved && (
+              <button onClick={handleApproveSpvBatch} disabled={saving}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-rose-900 hover:bg-rose-950 text-white shadow-sm disabled:opacity-50">
+                <FileCheck2 size={14} /> Approve SPV &amp; Kunci (Semua Ruang)
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-slate-50 text-slate-600 border-b">
+                <th className="px-3 py-2 text-left w-56">RUANGAN</th>
+                <th className="px-2 py-2 text-center w-16">JAM</th>
+                <th className="px-2 py-2 text-center w-24">SUHU (°C)</th>
+                <th className="px-2 py-2 text-center w-24">RH (%)</th>
+                <th className="px-2 py-2 text-center w-24">DPG (Pa)</th>
+                <th className="px-2 py-2 text-center w-36">OPR (TTD)</th>
+                <th className="px-2 py-2 text-center w-36">SPV (TTD)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rooms.map((r) => {
+                return SESI.map((jam, jamIdx) => {
+                  const v = gridValues[r.name]?.[jam] || {};
+                  const sLvl = liveLevelFor(v.suhu, r.limits?.suhu);
+                  const rLvl = liveLevelFor(v.rh, r.limits?.rh);
+                  const dLvl = liveLevelFor(v.dpg, r.limits?.dpg);
+                  const isLocked = isDaySpvApproved || !!v.spv;
+
+                  return (
+                    <tr key={r.code + jam} className={jamIdx === 0 ? "border-t border-slate-200" : "bg-slate-50/30"}>
+                      {jamIdx === 0 ? (
+                        <td rowSpan={2} className="px-3 py-2 align-middle font-semibold text-slate-800 border-r border-slate-100">
+                          {r.name}
+                          <span className="block text-[10px] text-slate-400 font-normal">{r.code}</span>
+                        </td>
+                      ) : null}
+                      <td className="px-2 py-1.5 text-center font-medium text-slate-500">{jam}</td>
+                      <td className="px-2 py-1.5 text-center">
+                        <input value={v.suhu ?? ""} onChange={(e) => handleCellChange(r.name, jam, "suhu", e.target.value)}
+                          placeholder={r.required?.suhu ? "" : "N/A"} disabled={isLocked || !r.required?.suhu || !canInput}
+                          className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50"
+                          style={{ background: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).bg : undefined, color: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).color : undefined }} />
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <input value={v.rh ?? ""} onChange={(e) => handleCellChange(r.name, jam, "rh", e.target.value)}
+                          placeholder={r.required?.rh ? "" : "N/A"} disabled={isLocked || !r.required?.rh || !canInput}
+                          className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50"
+                          style={{ background: v.rh && v.rh !== "-" ? levelStyle(rLvl).bg : undefined, color: v.rh && v.rh !== "-" ? levelStyle(rLvl).color : undefined }} />
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <input value={v.dpg ?? ""} onChange={(e) => handleCellChange(r.name, jam, "dpg", e.target.value)}
+                          placeholder={r.required?.dpg ? "" : "N/A"} disabled={isLocked || !r.required?.dpg || !canInput}
+                          className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50"
+                          style={{ background: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).bg : undefined, color: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).color : undefined }} />
+                      </td>
+                      <td className="px-2 py-1.5 text-center text-slate-600">
+                        {v.opr ? (
+                          <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
+                            <span className="font-medium text-[11px] truncate max-w-[80px]">{v.opr}</span>
+                            <VerifyQR type="harian" facility={facilityKey} period={selectedDate} />
+                          </div>
+                        ) : <span className="text-slate-300 italic text-[11px]">—</span>}
+                      </td>
+                      <td className="px-2 py-1.5 text-center text-slate-600">
+                        {v.spv ? (
+                          <div className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-900 px-2 py-0.5 rounded border border-rose-200">
+                            <span className="font-medium text-[11px] truncate max-w-[80px]">{v.spv}</span>
+                            <VerifyQR type="harian" facility={facilityKey} period={selectedDate} />
+                          </div>
+                        ) : <span className="text-slate-300 italic text-[11px]">—</span>}
+                      </td>
+                    </tr>
+                  );
+                });
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* SECTION 2: GRAFIK CROSS-SECTIONAL (1 HARI SELURUH RUANGAN) */}
+      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
+        <div>
+          <h2 className="text-sm font-bold text-slate-800">Grafik Perbandingan Seluruh Ruangan ({selectedDate})</h2>
+          <p className="text-xs text-slate-400">Grafik otomatis terbentuk dari data seluruh ruangan pada tanggal yang sedang dibuka</p>
+        </div>
+        <div className="space-y-4">
+          <DayParamChart entriesForDay={entriesForChart} rooms={rooms} paramKey="suhu" paramLabel="Suhu" unit="°C" />
+          <DayParamChart entriesForDay={entriesForChart} rooms={rooms} paramKey="rh" paramLabel="Kelembaban Relatif (RH)" unit="%" />
+          <DayParamChart entriesForDay={entriesForChart} rooms={rooms} paramKey="dpg" paramLabel="Perbedaan Tekanan (DPG)" unit="Pa" />
+        </div>
+      </div>
+
+      {/* SECTION 3: PEMBAHASAN & NARASI BULANAN QA */}
+      <div className="bg-white rounded-xl border p-5 shadow-sm space-y-5">
+        <div className="flex items-center justify-between border-b pb-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-800">Pembahasan &amp; Narasi Pengkajian</h2>
+            <p className="text-xs text-slate-400">Disusun oleh QA mengacu pada Protap POS.QA.025</p>
+          </div>
+          {canDraftQA && !isFinalApproved && (
+            <div className="flex items-center gap-2 no-print">
+              <button onClick={handleGenerateAI} disabled={generating}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-800 hover:bg-rose-900 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-60">
+                {generating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} Generate Narasi AI
+              </button>
+              <button onClick={handleSaveReport} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white">
+                <Save size={13} /> Simpan Draf
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Pendahuluan</label>
+          <textarea value={pendahuluan} onChange={(e) => setPendahuluan(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={2}
+            className="w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+        </div>
+
+        {PARAM_DEFS.map((p) => (
+          <div key={p.key} className="space-y-1.5 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200">
+            <label className="block text-xs font-bold text-slate-700">Hasil, Tren &amp; Kesimpulan — {p.label} ({p.unit})</label>
+            <textarea value={perParameter[p.key] || ""} onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
+              disabled={!canDraftQA || isFinalApproved} rows={3}
+              placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
+              className="w-full border rounded-lg p-2.5 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50" />
+          </div>
+        ))}
+
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Kesimpulan Umum</label>
+          <textarea value={kesimpulanUmum} onChange={(e) => setKesimpulanUmum(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={3}
+            className="w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+        </div>
+
+        {/* SECTION 4: TANDA TANGAN (SIGN-OFF QA) */}
+        <div className="pt-4 border-t space-y-3">
+          <p className="text-xs font-bold text-slate-700">Tanda Tangan Pengkajian Bulanan</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="border rounded-xl p-4 bg-slate-50/50 text-center flex flex-col justify-between min-h-[140px]">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
+              {report?.signoff?.dinilai?.nama ? (
+                <div className="space-y-1 my-auto">
+                  <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} size={54} /></div>
+                  <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
+                  <p className="text-[10px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
+                </div>
+              ) : (
+                <div className="my-auto space-y-2">
+                  <p className="text-xs italic text-slate-400">Belum disetujui</p>
+                  {canDraftQA && (
+                    <button onClick={handleDikaji} className="px-3 py-1 bg-rose-800 hover:bg-rose-900 text-white rounded text-xs font-semibold">
+                      Approve "Dikaji Oleh"
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border rounded-xl p-4 bg-slate-50/50 text-center flex flex-col justify-between min-h-[140px]">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Mengetahui (Manager QA)</p>
+              {report?.signoff?.diperiksa?.nama ? (
+                <div className="space-y-1 my-auto">
+                  <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} size={54} /></div>
+                  <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
+                  <p className="text-[10px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
+                </div>
+              ) : (
+                <div className="my-auto space-y-2">
+                  <p className="text-xs italic text-slate-400">{report?.signoff?.dinilai?.nama ? "Menunggu approval Manager QA" : "Menunggu approval 'Dikaji Oleh' terlebih dahulu"}</p>
+                  {canFinalQA && report?.signoff?.dinilai?.nama && (
+                    <button onClick={handleMengetahui} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold">
+                      Approve Final "Mengetahui"
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-/* ========================================================================= FORMULIR BULANAN (FM.QA.024/R11) — cetak per ruangan */
-
+/* ========================================================================= FORMULIR BULANAN CETAK (FM.QA.024/R11) ========================================================================= */
 function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey);
-  const [room, setRoom] = useState(null);
+  const [rooms, setRooms] = useState([]);
+  const [selectedRoom, setSelectedRoom] = useState(roomName || "");
   const [entries, setEntries] = useState([]);
   const [formulir, setFormulir] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const canKepalaBagian = cfg ? hasFacilityAccess(session, "Supervisor", cfg) : false;
@@ -1294,96 +932,53 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
     try {
       const [master, entriesRes, formulirRes] = await Promise.all([
         fetchMaster(facilityKey),
         fetchEntries(facilityKey, bulan),
-        fetchFormulirBulanan(facilityKey, bulan, roomName, session.token),
+        fetchFormulirBulanan(facilityKey, bulan, selectedRoom, session.token),
       ]);
-      const rooms = Array.isArray(master) ? master : (master.rooms || []);
-      const norm = (s) => String(s || "").trim();
-      setRoom(rooms.find((r) => norm(r.name) === norm(roomName)) || null);
+      const roomList = Array.isArray(master) ? master : (master.rooms || []);
+      setRooms(roomList);
+      const targetRoom = selectedRoom || roomList[0]?.name || "";
+      setSelectedRoom(targetRoom);
       const list = Array.isArray(entriesRes) ? entriesRes : (entriesRes.entries || []);
-      setEntries(list.filter((e) => norm(e.roomName) === norm(roomName)));
+      setEntries(list.filter((e) => String(e.roomName).trim() === String(targetRoom).trim()));
       setFormulir(formulirRes);
-    } catch (err) {
-      setError(err.message);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
     }
-  }, [facilityKey, bulan, roomName, session.token]);
+  }, [facilityKey, bulan, selectedRoom, session.token]);
 
   useEffect(() => { load(); }, [load]);
-
-  async function handleApproveKepalaBagian() {
-    setBusy(true); setError("");
-    try { await apiApproveKepalaBagian(facilityKey, bulan, roomName, session.token); await load(); }
-    catch (err) { setError(err.message); } finally { setBusy(false); }
-  }
-  async function handleUnapproveKepalaBagian() {
-    setBusy(true); setError("");
-    try { await apiUnapproveKepalaBagian(facilityKey, bulan, roomName, session.token); await load(); }
-    catch (err) { setError(err.message); } finally { setBusy(false); }
-  }
-  async function handleApproveManagerQA() {
-    setBusy(true); setError("");
-    try { await apiApproveManagerQAFormulir(facilityKey, bulan, session.token); await load(); }
-    catch (err) { setError(err.message); } finally { setBusy(false); }
-  }
-  async function handleUnapproveManagerQA() {
-    setBusy(true); setError("");
-    try { await apiUnapproveManagerQAFormulir(facilityKey, bulan, session.token); await load(); }
-    catch (err) { setError(err.message); } finally { setBusy(false); }
-  }
-
-  if (loading) return <div className="max-w-5xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>;
 
   const n = daysInMonth(bulan);
   const byDay = {};
   entries.forEach((e) => { byDay[e.tanggal + "|" + e.jam] = e; });
-  const kepalaBagianDone = !!formulir?.kepalaBagian?.nama;
-  const managerQADone = !!formulir?.managerQA?.nama;
+  const roomObj = rooms.find((r) => r.name === selectedRoom) || rooms[0];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 print:max-w-none print:p-0">
-      <div className="no-print flex items-center justify-between mb-4">
-        <button onClick={() => setView({ page: "entry", facility: facilityKey })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
-          <ChevronLeft className="w-4 h-4" /> Kembali ke {cfg?.label}
+    <div className="max-w-5xl mx-auto px-4 py-6 print:max-w-none print:p-0 space-y-4">
+      <div className="no-print flex flex-wrap items-center justify-between gap-2">
+        <button onClick={() => setView({ page: "facility", facility: facilityKey })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
+          <ChevronLeft size={16} /> Kembali ke {cfg?.label}
         </button>
         <div className="flex items-center gap-2">
-          {hasAccess(session, "Supervisor", "QA") && (
-            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: roomName })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-              <ClipboardList className="w-4 h-4" /> Pengkajian Ruangan Ini (Opsional)
-            </button>
-          )}
+          <select value={selectedRoom} onChange={(e) => setSelectedRoom(e.target.value)} className="border rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-semibold outline-none">
+            {rooms.map((r) => <option key={r.code} value={r.name}>{r.name} ({r.code})</option>)}
+          </select>
           <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-            <Printer className="w-4 h-4" /> Cetak
+            <Printer size={14} /> Cetak
           </button>
         </div>
       </div>
 
-      {/* HEADER KOP: Hitam gradasi Merah Maroon */}
-      <div className="no-print relative mb-5 overflow-hidden rounded-xl border border-slate-200 shadow-sm">
-        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-rose-600/20 blur-3xl" />
-          <div className="relative flex items-start gap-3">
-            <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-10 w-10 shrink-0 object-contain brightness-0 invert" />
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
-              <h2 className="text-lg font-bold text-white tracking-tight">Formulir Bulanan — {room?.name || roomName} ({cfg?.label})</h2>
-              <p className="text-sm text-rose-100/90">Periode: {monthLabelID(bulan)}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {error && <p className="no-print text-sm text-red-600 mb-3">{error}</p>}
-
       <div className="print-card avoid-break rounded-xl border-2 border-slate-800 bg-white p-5 text-xs">
         <div className="mb-4 flex items-start justify-between gap-4 border-b-2 border-slate-800 pb-3">
           <div className="flex items-center gap-3">
-            <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 object-contain" />
+            <img src="/logo-rama.png" alt="Logo" className="h-12 w-12 object-contain" />
             <div>
               <p className="text-[11px] font-bold text-slate-700">PT. Rama Emerald</p>
               <p className="text-[11px] font-bold text-slate-700">Multi Sukses</p>
@@ -1398,18 +993,10 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
         </div>
 
         <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <p><span className="font-semibold text-slate-600">Bulan - Tahun</span> : {monthLabelID(bulan)}</p>
             <p><span className="font-semibold text-slate-600">Gedung</span> : {cfg?.label}</p>
-            <p><span className="font-semibold text-slate-600">Nama Ruang / No. Ruang</span> : {room?.name} ({room?.code})</p>
-          </div>
-          <div className="space-y-1.5">
-            <p className="font-semibold text-slate-600">Kriteria Penerimaan:</p>
-            {PARAM_DEFS.map((p) => {
-              const lim = room?.limits?.[p.key];
-              if (!room?.required?.[p.key] || !lim) return null;
-              return <p key={p.key}>{p.label} : {formatRange(lim.syaratL, lim.syaratU, p.unit)}</p>;
-            })}
+            <p><span className="font-semibold text-slate-600">Nama Ruang / No. Ruang</span> : {roomObj?.name} ({roomObj?.code})</p>
           </div>
         </div>
 
@@ -1449,53 +1036,30 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
           </table>
         </div>
 
-        <div className="mt-6 flex items-start justify-between gap-4">
-          <p className="text-[11px] text-slate-500">Mengetahui,</p>
-        </div>
-        <div className="mt-2 grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div className="text-center">
+        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 text-center">
+          <div>
             <p className="mb-2 text-[11px] text-slate-500">(Kepala Bagian)</p>
-            {kepalaBagianDone ? (
+            {formulir?.kepalaBagian?.nama ? (
               <>
-                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={roomName} size={56} hideLabel /></div>
-                <p className="text-sm font-semibold text-slate-800">{formulir.kepalaBagian.nama}</p>
-                <p className="text-[11px] text-slate-400">{formulir.kepalaBagian.tanggal}</p>
-                {canKepalaBagian && (
-                  <button onClick={handleUnapproveKepalaBagian} disabled={busy || managerQADone} className="no-print mt-2 rounded-lg border border-slate-300 px-3 py-1 text-[11px] text-slate-600 hover:bg-slate-50 disabled:opacity-50">Buka Kembali</button>
-                )}
+                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={selectedRoom} size={50} /></div>
+                <p className="text-xs font-semibold text-slate-800">{formulir.kepalaBagian.nama}</p>
+                <p className="text-[10px] text-slate-400">{formulir.kepalaBagian.tanggal}</p>
               </>
-            ) : (
-              <>
-                <p className="mb-2 text-[11px] italic text-slate-400">Belum di-ACC</p>
-                {canKepalaBagian && (
-                  <button onClick={handleApproveKepalaBagian} disabled={busy || entries.length === 0} className="no-print inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                    <FileCheck2 size={13} /> Approve (Kepala Bagian)
-                  </button>
-                )}
-              </>
-            )}
+            ) : canKepalaBagian ? (
+              <button onClick={async () => { setBusy(true); await apiApproveKepalaBagian(facilityKey, bulan, selectedRoom, session.token); await load(); setBusy(false); }} disabled={busy} className="no-print bg-emerald-600 px-3 py-1 text-white rounded text-xs">Approve (Kepala Bagian)</button>
+            ) : <p className="italic text-slate-400">Belum di-ACC</p>}
           </div>
-          <div className="text-center">
+          <div>
             <p className="mb-2 text-[11px] text-slate-500">(Manager QA)</p>
-            {managerQADone ? (
+            {formulir?.managerQA?.nama ? (
               <>
-                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={roomName} size={56} hideLabel /></div>
-                <p className="text-sm font-semibold text-slate-800">{formulir.managerQA.nama}</p>
-                <p className="text-[11px] text-slate-400">{formulir.managerQA.tanggal}</p>
-                {session.role === "Administrator" && (
-                  <button onClick={handleUnapproveManagerQA} disabled={busy} className="no-print mt-2 rounded-lg border border-slate-300 px-3 py-1 text-[11px] text-slate-600 hover:bg-slate-50 disabled:opacity-50">Buka Kembali (Semua Ruangan)</button>
-                )}
+                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={selectedRoom} size={50} /></div>
+                <p className="text-xs font-semibold text-slate-800">{formulir.managerQA.nama}</p>
+                <p className="text-[10px] text-slate-400">{formulir.managerQA.tanggal}</p>
               </>
-            ) : (
-              <>
-                <p className="mb-2 text-[11px] italic text-slate-400">{kepalaBagianDone ? "Belum di-ACC" : "Menunggu semua ruangan di-ACC Kepala Bagian"}</p>
-                {canManagerQA && (
-                  <button onClick={handleApproveManagerQA} disabled={busy} className="no-print inline-flex items-center gap-1.5 rounded-lg bg-rose-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-950 disabled:opacity-50 transition shadow-sm">
-                    <FileCheck2 size={13} /> Approve (Manager QA) — Semua Ruangan Fasilitas Ini
-                  </button>
-                )}
-              </>
-            )}
+            ) : canManagerQA ? (
+              <button onClick={async () => { setBusy(true); await apiApproveManagerQAFormulir(facilityKey, bulan, session.token); await load(); setBusy(false); }} disabled={busy} className="no-print bg-rose-900 px-3 py-1 text-white rounded text-xs">Approve (Manager QA)</button>
+            ) : <p className="italic text-slate-400">Belum di-ACC</p>}
           </div>
         </div>
       </div>
@@ -1503,279 +1067,33 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
   );
 }
 
-function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
-  const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
-  const roomName = initialRoom || "";
-  const [report, setReport] = useState(null);
-  const [pendahuluan, setPendahuluan] = useState("");
-  const [kesimpulan, setKesimpulan] = useState("");
-  const [perParameter, setPerParameter] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [rooms, setRooms] = useState([]);
-  const [monthEntries, setMonthEntries] = useState([]);
-  const cfg = FACILITIES.find((f) => f.key === facilityKey);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [r, roomList, entries] = await Promise.all([
-        fetchReport(facilityKey, month, session.token, roomName),
-        fetchMaster(facilityKey),
-        fetchEntries(facilityKey, month),
-      ]);
-      setReport(r);
-      setPendahuluan(r.narrative?.pendahuluan || "");
-      setKesimpulan(r.narrative?.kesimpulanUmum || "");
-      setPerParameter(r.narrative?.perParameter || {});
-      setRooms(roomList);
-      setMonthEntries(roomName ? entries.filter((e) => e.roomName === roomName) : entries);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [facilityKey, month, session.token, roomName]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const canDraft = hasAccess(session, "Supervisor", "QA");
-  const canFinal = hasAccess(session, "Manager", "QA");
-  const isFinal = !!report?.signoff?.diperiksa?.nama;
-
-  async function handleSave() {
-    setError("");
-    try {
-      await apiSaveReport(facilityKey, month, { pendahuluan, kesimpulanUmum: kesimpulan, perParameter }, session.token, roomName);
-      await load();
-    } catch (err) { setError(err.message); }
-  }
-  async function handleDikaji() {
-    setError("");
-    try { await apiApproveDikaji(facilityKey, month, session.token, roomName); await load(); } catch (err) { setError(err.message); }
-  }
-  async function handleMengetahui() {
-    setError("");
-    try { await apiApproveMengetahui(facilityKey, month, session.token, roomName); await load(); } catch (err) { setError(err.message); }
-  }
-
-  async function handleGenerateAI() {
-    setGenerating(true);
-    setError("");
-    try {
-      const [roomsRaw, entriesRaw] = await Promise.all([fetchMaster(facilityKey), fetchEntries(facilityKey, month)]);
-      const roomsList = Array.isArray(roomsRaw) ? roomsRaw : (roomsRaw.rooms || []);
-      const entriesList = Array.isArray(entriesRaw) ? entriesRaw : (entriesRaw.entries || []);
-      const scopedEntries = roomName ? entriesList.filter((e) => e.roomName === roomName) : entriesList;
-      const facilityStats = buildFacilityStats({ facilityLabel: cfg.label + (roomName ? " — " + roomName : ""), monthLabel: monthLabelID(month), entries: scopedEntries, rooms: roomsList });
-      let narrative;
-      try {
-        narrative = await generateNarrative({ facilityLabel: cfg.label + (roomName ? " — " + roomName : ""), monthLabel: monthLabelID(month), stats: facilityStats.stats });
-      } catch (aiErr) {
-        narrative = generateLocalNarrative({ facilityLabel: cfg.label + (roomName ? " — " + roomName : ""), monthLabel: monthLabelID(month), entries: scopedEntries, rooms: roomsList });
-        setError("Narasi AI gagal (" + aiErr.message + ") — dipakai narasi lokal sebagai draf awal, silakan disunting.");
-      }
-      setPendahuluan(narrative.pendahuluan || "");
-      setPerParameter(narrative.perParameter || {});
-      setKesimpulan(narrative.kesimpulanUmum || "");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  return (
-    <div className="max-w-5xl mx-auto px-4 py-6 print:max-w-none print:p-0">
-      <div className="no-print flex items-center justify-between mb-4">
-        <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
-          <ChevronLeft className="w-4 h-4" /> Kembali
-        </button>
-        <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-          <Printer className="w-4 h-4" /> Cetak
-        </button>
-      </div>
-
-      {/* HEADER KOP: Hitam gradasi Merah Maroon */}
-      <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card shadow-sm">
-        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-rose-600/20 blur-3xl" />
-          <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-            <div className="flex items-start gap-3">
-              <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert" />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
-                <h2 className="text-xl font-bold text-white tracking-tight">{roomName ? "Pengkajian Ruangan (Opsional)" : "Pengkajian EM Non Viable"}</h2>
-                <p className="text-sm text-rose-100/90">
-                  Fasilitas: <span className="font-medium text-white">{cfg?.label}</span>
-                  {roomName && <> · Ruangan: <span className="font-medium text-white">{roomName}</span></>}
-                  {" "}· Periode: <span className="font-medium text-white">{monthLabelID(month)}</span>
-                </p>
-              </div>
-            </div>
-            <div className="text-right text-xs text-rose-200">
-              <p>Acuan: FM.QA.024/R11</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center justify-between bg-white px-5 py-3 border-t border-slate-100">
-          <span className="text-xs text-slate-400">Status keseluruhan periode ini</span>
-          <StatusPill level={facilityOverallLevel(monthEntries)} hasData={monthEntries.length > 0} />
-        </div>
-      </div>
-
-      {!roomName && (
-        <div className="no-print flex flex-wrap gap-2 mb-4">
-          {FACILITIES.map((f) => (
-            <button key={f.key} onClick={() => setFacilityKey(f.key)}
-              className={`text-xs rounded-full px-3.5 py-1 border font-medium transition ${facilityKey === f.key ? "bg-rose-900 text-white border-rose-900 shadow-xs" : "border-slate-300 text-slate-600 hover:bg-slate-100"}`}>
-              {f.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {error && <p className="no-print text-sm text-red-600 mb-3">{error}</p>}
-
-      {loading ? (
-        <div className="no-print text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>
-      ) : (
-        <div className="print-card bg-white rounded-xl border p-5 space-y-4 shadow-sm">
-          {canDraft && !isFinal && (
-            <div className="no-print flex justify-end">
-              <button onClick={handleGenerateAI} disabled={generating} className="text-sm bg-rose-800 text-white rounded-lg px-4 py-2 flex items-center gap-2 hover:bg-rose-900 disabled:opacity-60 transition shadow-sm">
-                {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Generate Narasi AI
-              </button>
-            </div>
-          )}
-          <div>
-            <label className="no-print block text-xs font-medium text-slate-500 mb-1">Pendahuluan</label>
-            <p className="only-print font-semibold text-sm text-slate-700 mb-1">Pendahuluan</p>
-            <PrintableTextarea value={pendahuluan} disabled={!canDraft || isFinal} onChange={(e) => setPendahuluan(e.target.value)} rows={3} />
-          </div>
-          {PARAM_DEFS.map((p) => (
-            <div key={p.key}>
-              <label className="no-print block text-xs font-medium text-slate-500 mb-1">Pembahasan {p.label}</label>
-              <p className="only-print font-semibold text-sm text-slate-700 mb-1">Pembahasan {p.label}</p>
-              <PrintableTextarea
-                value={perParameter[p.key] || ""}
-                disabled={!canDraft || isFinal}
-                onChange={(e) => setPerParameter((prev) => ({ ...prev, [p.key]: e.target.value }))}
-                rows={3}
-              />
-              <ParamBreakdown paramDef={p} entries={monthEntries} rooms={rooms} />
-            </div>
-          ))}
-          <div>
-            <label className="no-print block text-xs font-medium text-slate-500 mb-1">Kesimpulan Umum</label>
-            <p className="only-print font-semibold text-sm text-slate-700 mb-1">Kesimpulan Umum</p>
-            <PrintableTextarea value={kesimpulan} disabled={!canDraft || isFinal} onChange={(e) => setKesimpulan(e.target.value)} rows={3} />
-          </div>
-
-          <div className="no-print flex flex-wrap items-center gap-2 pt-2 border-t">
-            {canDraft && !isFinal && (
-              <button onClick={handleSave} className="text-sm bg-slate-800 text-white rounded-lg px-4 py-2 flex items-center gap-2 hover:bg-slate-900 transition shadow-sm"><Save className="w-4 h-4" /> Simpan Draf</button>
-            )}
-            {canDraft && report?.found && !report?.signoff?.dinilai?.nama && (
-              <button onClick={handleDikaji} className="text-sm bg-rose-800 text-white rounded-lg px-4 py-2 hover:bg-rose-900 transition shadow-sm">Approve "Dikaji Oleh"</button>
-            )}
-            {canFinal && report?.signoff?.dinilai?.nama && !isFinal && (
-              <button onClick={handleMengetahui} className="text-sm bg-emerald-600 text-white rounded-lg px-4 py-2 hover:bg-emerald-700 transition shadow-sm">Approve Final "Mengetahui"</button>
-            )}
-          </div>
-
-          {(report?.signoff?.dinilai?.nama || report?.signoff?.diperiksa?.nama) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t avoid-break">
-              <div className="text-center">
-                <p className="text-xs text-slate-500 mb-2">Dikaji Oleh</p>
-                {report.signoff.dinilai?.nama ? (
-                  <>
-                    <div className="flex justify-center mb-2 print:h-24"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={roomName} size={64} /></div>
-                    <p className="text-sm font-medium text-slate-800">{report.signoff.dinilai.nama}</p>
-                    <p className="text-xs text-slate-400">{report.signoff.dinilai.jabatan} — {report.signoff.dinilai.tanggal}</p>
-                  </>
-                ) : <p className="text-xs text-slate-400 italic">Belum di-ACC</p>}
-              </div>
-              <div className="text-center">
-                <p className="text-xs text-slate-500 mb-2">Mengetahui (Final)</p>
-                {report.signoff.diperiksa?.nama ? (
-                  <>
-                    <div className="flex justify-center mb-2 print:h-24"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={roomName} size={64} /></div>
-                    <p className="text-sm font-medium text-slate-800">{report.signoff.diperiksa.nama}</p>
-                    <p className="text-xs text-slate-400">{report.signoff.diperiksa.jabatan} — {report.signoff.diperiksa.tanggal}</p>
-                  </>
-                ) : <p className="text-xs text-slate-400 italic">Belum di-ACC</p>}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ========================================================================= RIWAYAT AKTIVITAS */
-
+/* ========================================================================= RIWAYAT AKTIVITAS ========================================================================= */
 function ActivityPage({ session, month, setView }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [allMonths, setAllMonths] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError("");
-    fetchActivityLog(session.token, { month: allMonths ? undefined : month })
-      .then((l) => { if (!cancelled) setLogs(l); })
-      .catch((err) => { if (!cancelled) setError(err.message || "Gagal memuat riwayat aktivitas."); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [session.token, month, allMonths]);
+    fetchActivityLog(session.token, { month })
+      .then(setLogs)
+      .catch(() => setLogs([]))
+      .finally(() => setLoading(false));
+  }, [session.token, month]);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1 mb-4">
-        <ChevronLeft className="w-4 h-4" /> Kembali
+    <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+      <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
+        <ChevronLeft size={16} /> Kembali ke Dashboard
       </button>
-
-      {/* HEADER KOP: Hitam gradasi Merah Maroon */}
-      <div className="relative mb-5 overflow-hidden rounded-xl border border-slate-200 shadow-sm">
-        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-rose-600/20 blur-3xl" />
-          <div className="relative flex items-start gap-3">
-            <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-10 w-10 shrink-0 object-contain brightness-0 invert" />
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
-              <h2 className="text-lg font-bold text-white tracking-tight">Riwayat Aktivitas</h2>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <p className="text-sm font-medium text-slate-600">{allMonths ? "Semua Bulan" : month}</p>
-        <label className="flex items-center gap-1.5 text-xs text-slate-500">
-          <input type="checkbox" checked={allMonths} onChange={(e) => setAllMonths(e.target.checked)} />
-          Tampilkan semua bulan
-        </label>
-      </div>
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
-      {loading ? (
-        <div className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>
-      ) : error ? null : (
-        <div className="bg-white rounded-xl border divide-y shadow-xs">
-          {logs.length === 0 && <p className="text-sm text-slate-500 px-4 py-6">Tidak ada aktivitas bulan ini.</p>}
+      <h2 className="text-lg font-bold text-slate-800">Riwayat Aktivitas ({monthLabelID(month)})</h2>
+      {loading ? <Loader2 size={16} className="animate-spin" /> : (
+        <div className="bg-white rounded-xl border divide-y text-xs">
           {logs.map((l, i) => (
-            <div key={i} className="px-4 py-2.5 text-xs flex flex-wrap gap-x-3 gap-y-0.5">
-              <span className="text-slate-400 w-36">{new Date(l.waktu).toLocaleString("id-ID")}</span>
-              <span className="font-medium text-slate-700">{l.nama}</span>
-              <span className="text-slate-400">{l.role}{l.departemen ? " · " + l.departemen : ""}</span>
-              <span className="text-slate-600">{l.aksi}</span>
-              {l.fasilitas && <span className="text-slate-400">{l.fasilitas}</span>}
-              {l.detail && <span className="text-slate-400">— {l.detail}</span>}
+            <div key={i} className="p-3 flex justify-between">
+              <div>
+                <span className="font-semibold text-slate-700">{l.nama}</span> ({l.role}) — <span className="text-slate-600">{l.aksi}</span>
+                {l.detail && <p className="text-slate-400 text-[11px] mt-0.5">{l.detail}</p>}
+              </div>
+              <span className="text-slate-400 text-[10px]">{new Date(l.waktu).toLocaleString("id-ID")}</span>
             </div>
           ))}
         </div>
@@ -1784,8 +1102,7 @@ function ActivityPage({ session, month, setView }) {
   );
 }
 
-/* ========================================================================= VERIFIKASI PUBLIK (/verify) */
-
+/* ========================================================================= VERIFIKASI QR PUBLIK (/verify) ========================================================================= */
 function VerifyPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const type = params.get("type");
@@ -1793,113 +1110,31 @@ function VerifyPage() {
   const roomName = params.get("roomName") || "";
   const period = type === "pengkajian" ? params.get("month") : type === "formulir" ? params.get("bulan") : params.get("tanggal");
   const facility = FACILITIES.find((f) => f.key === facilityKey);
-
-  const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!type || !facilityKey || !period || !facility) {
-        setErrorMsg("Kode QR tidak lengkap atau tidak dikenali.");
-        setLoading(false);
-        return;
-      }
-      try {
-        const res = await fetchVerify(type, facilityKey, period, roomName);
-        if (!cancelled) setData(res);
-      } catch (err) {
-        if (!cancelled) setErrorMsg(err.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  let docLabel = "";
-  let periodLabel = "";
-  let signerRows = [];
-  if (data && !data.error) {
-    if (type === "harian") {
-      docLabel = "Data Pemantauan Harian EM Non Viable (FM.QA.024)";
-      periodLabel = "Tanggal: " + fullDateID(period);
-      if (data.found) signerRows = [{ label: "Disetujui SPV/Manager", nama: data.approvedBy?.nama, tanggal: data.approvedBy?.at }];
-      if (data.backfill) signerRows.push({ label: "Dibuka via Backfill oleh", nama: data.backfill.byNama, tanggal: data.backfill.at, note: data.backfill.alasan });
-    } else if (type === "formulir") {
-      docLabel = "Formulir Bulanan EM Non Viable (FM.QA.024/R11)" + (roomName ? " — " + roomName : "");
-      periodLabel = "Periode: " + monthLabelID(period);
-      if (data.found) {
-        signerRows = [
-          { label: "Kepala Bagian", nama: data.kepalaBagian?.nama, tanggal: data.kepalaBagian?.tanggal },
-          { label: "Manager QA", nama: data.managerQA?.nama, tanggal: data.managerQA?.tanggal },
-        ];
-      }
-    } else {
-      docLabel = "Pengkajian EM Non Viable" + (roomName ? " — Ruangan: " + roomName : "");
-      periodLabel = "Periode: " + monthLabelID(period);
-      if (data.found) {
-        signerRows = [
-          { label: "Dikaji Oleh", nama: data.signoff?.dinilai?.nama, tanggal: data.signoff?.dinilai?.tanggal },
-          { label: "Mengetahui (Final)", nama: data.signoff?.diperiksa?.nama, tanggal: data.signoff?.diperiksa?.tanggal },
-        ];
-      }
-    }
-  }
-  const isValid = data?.found && signerRows.some((s) => s.nama);
+    fetchVerify(type, facilityKey, period, roomName).then(setData).finally(() => setLoading(false));
+  }, [type, facilityKey, period, roomName]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-4 flex flex-col items-center gap-1.5">
-          <h1 className="text-center text-base font-bold text-slate-800">Verifikasi Dokumen EM Non Viable</h1>
-          <p className="text-center text-xs text-slate-500">PT. Rama Emerald Multi Sukses</p>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+      <div className="w-full max-w-sm rounded-xl border bg-white p-5 text-center space-y-3 shadow-sm">
+        <CheckCircle2 size={32} className="text-emerald-600 mx-auto" />
+        <h2 className="font-bold text-slate-800">Verifikasi Dokumen Sah</h2>
+        <p className="text-xs text-slate-500">PT. Rama Emerald Multi Sukses — EM Non Viable</p>
+        <div className="bg-slate-50 p-3 rounded-lg text-left text-xs space-y-1">
+          <p><span className="text-slate-400">Fasilitas:</span> {facility?.label}</p>
+          <p><span className="text-slate-400">Periode / Tanggal:</span> {period}</p>
+          {roomName && <p><span className="text-slate-400">Ruangan:</span> {roomName}</p>}
+          {data?.approvedBy && <p><span className="text-slate-400">Disetujui Oleh:</span> {data.approvedBy.nama}</p>}
         </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          {loading ? (
-            <p className="py-4 text-center text-sm text-slate-400">Memeriksa data…</p>
-          ) : errorMsg || !facility || data?.error ? (
-            <div className="flex flex-col items-center gap-2 py-2 text-center">
-              <AlertTriangle className="text-red-500" size={28} />
-              <p className="text-sm font-semibold text-red-600">Kode tidak valid</p>
-              <p className="text-xs text-slate-500">{errorMsg || data?.error || "Dokumen tidak ditemukan di sistem."}</p>
-            </div>
-          ) : !isValid ? (
-            <div className="flex flex-col items-center gap-2 py-2 text-center">
-              <AlertTriangle className="text-amber-500" size={28} />
-              <p className="text-sm font-semibold text-amber-600">Belum ditandatangani</p>
-              <p className="text-xs text-slate-500">Dokumen ini belum di-approve di sistem.</p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-3 py-1 text-center">
-              <CheckCircle2 className="text-emerald-600" size={32} />
-              <p className="text-sm font-semibold text-emerald-700">Dokumen tercatat sah dalam sistem</p>
-              <div className="w-full space-y-1.5 rounded-lg bg-slate-50 p-3 text-left text-sm">
-                <p><span className="text-slate-400">Dokumen: </span><span className="font-medium">{docLabel}</span></p>
-                <p><span className="text-slate-400">Fasilitas: </span><span className="font-medium">{facility.label}</span></p>
-                <p><span className="text-slate-400">{periodLabel.split(": ")[0]}: </span><span className="font-medium">{periodLabel.split(": ")[1]}</span></p>
-                {signerRows.filter((s) => s.nama).map((s) => (
-                  <p key={s.label}><span className="text-slate-400">{s.label}: </span><span className="font-medium">{s.nama}</span>{s.tanggal ? <span className="text-slate-400"> ({s.tanggal})</span> : null}{s.note ? <span className="block text-xs text-slate-500 italic">"{s.note}"</span> : null}</p>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <p className="mx-auto mt-4 max-w-xs text-center text-[11px] text-slate-400">
-          Halaman ini menampilkan data langsung dari sistem EM Non Viable secara real-time, bukan dari isi file PDF yang di-scan.
-        </p>
       </div>
     </div>
   );
 }
 
-/* ========================================================================= APP ROOT */
-
+/* ========================================================================= ROOT APP ========================================================================= */
 export default function App() {
   if (typeof window !== "undefined" && window.location.pathname === "/verify") {
     return <VerifyPage />;
@@ -1909,52 +1144,15 @@ export default function App() {
   const [month, setMonth] = useState(currentMonth());
   const [showLogin, setShowLogin] = useState(false);
 
-  const canPrint = !!session && session.role !== "Tamu";
-
-  useEffect(() => {
-    const needsAuthPages = ["entry", "pengkajian", "activity"];
-    if (needsAuthPages.includes(view.page) && !session) setView({ page: "dashboard" });
-  }, [session, view.page]);
-
-  if (checking) {
-    return <div className="min-h-screen flex items-center justify-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin" /></div>;
-  }
+  if (checking) return <div className="min-h-screen flex items-center justify-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin" /></div>;
 
   return (
-    <div className={`min-h-screen bg-slate-50 ${!canPrint ? "print-blocked" : ""}`}>
-      <div className="print-only-notice">
-        Dokumen ini tidak bisa dicetak oleh akun Tamu atau publik tanpa login. Hubungi personil QC/QA untuk salinan resmi.
-      </div>
-      <style>{`
-        .only-print { display: none; }
-        .print-only-notice { display: none; }
-        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        @media print {
-          .no-print { display: none !important; }
-          .only-print { display: block !important; }
-          .print-card { box-shadow: none !important; border: 1px solid #cbd5e1 !important; page-break-inside: avoid; break-inside: avoid; }
-          .avoid-break { page-break-inside: avoid; break-inside: avoid; }
-          .print-blocked > *:not(.print-only-notice) { display: none !important; }
-          .print-blocked .print-only-notice {
-            display: block !important;
-            padding: 5cm 2cm;
-            text-align: center;
-            font-size: 14px;
-            color: #334155;
-          }
-        }
-        @page {
-          margin: 1.5cm 1.5cm 2cm 1.5cm;
-        }
-      `}</style>
+    <div className="min-h-screen bg-slate-50">
       <TopBar session={session} onLoginClick={() => setShowLogin(true)} onLogout={logout} view={view} setView={setView} />
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={login} />}
-      {view.page === "dashboard" && (
-        <Dashboard month={month} setMonth={setMonth} setView={setView} session={session} onNeedLogin={() => setShowLogin(true)} />
-      )}
-      {view.page === "entry" && session && <EntryPage session={session} facilityKey={view.facility} setView={setView} />}
+      {view.page === "dashboard" && <Dashboard month={month} setMonth={setMonth} setView={setView} session={session} onNeedLogin={() => setShowLogin(true)} />}
+      {view.page === "facility" && session && <FacilityIntegratedPage session={session} facilityKey={view.facility} month={month} setMonth={setMonth} setView={setView} />}
       {view.page === "formulir" && session && <FormulirBulananPrint session={session} facilityKey={view.facility} roomName={view.room} bulan={view.bulan || month} setView={setView} />}
-      {view.page === "pengkajian" && session && <PengkajianPage session={session} month={month} setView={setView} initialFacility={view.facility} initialRoom={view.room} />}
       {view.page === "activity" && session && <ActivityPage session={session} month={month} setView={setView} />}
     </div>
   );
