@@ -1,14 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, ResponsiveContainer,
+  ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ReferenceLine, ReferenceArea, ResponsiveContainer,
 } from "recharts";
 import {
   LogIn, LogOut, User, Loader2, Building2, ChevronLeft,
   Lock, History, Save, FileCheck2, ClipboardList,
   Printer, Sparkles, Calendar, Trash2, CheckCheck, CheckCircle2,
-  Filter,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
@@ -163,7 +162,36 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
   );
 }
 
-/* ========================================================================= GRAFIK CROSS-SECTIONAL ========================================================================= */
+/* ========================================================================= HELPER GRAFIK BERWARNA ========================================================================= */
+function ChartDot({ cx, cy, payload }) {
+  if (cx == null || cy == null) return null;
+  const style = levelStyle(payload.level);
+  return <circle cx={cx} cy={cy} r={4} fill={style.color} stroke="#fff" strokeWidth={1.5} />;
+}
+
+function ChartTooltip({ active, payload, unit }) {
+  if (!active || !payload || !payload.length) return null;
+  const p = payload[0].payload;
+  const style = levelStyle(p.level);
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg space-y-0.5">
+      <p className="font-semibold text-slate-700">{p.label}</p>
+      <p className="text-sm font-bold" style={{ color: style.color }}>{p.value} {unit}</p>
+      <p className="font-medium text-[11px]" style={{ color: style.color }}>{style.label}</p>
+    </div>
+  );
+}
+
+function LegendChip({ color, label }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-200">
+      <span className="h-2 w-2 rounded-full" style={{ background: color }} />
+      {label}
+    </span>
+  );
+}
+
+/* ========================================================================= 1. GRAFIK HARIAN (SELURUH RUANGAN) ========================================================================= */
 function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, paramLabel, unit }) {
   const data = useMemo(() => {
     return activeRoomNames.map((name) => {
@@ -174,15 +202,11 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
       const vPm = toNumberSafe(rowPm?.[paramKey]);
       const lim = rObj?.limits?.[paramKey];
 
-      return {
-        roomName: name,
-        code: rObj?.code || "",
-        valAm: vAm,
-        valPm: vPm,
-        syaratL: lim?.syaratL ?? null,
-        syaratU: lim?.syaratU ?? null,
-      };
-    }).filter((d) => d.valAm !== null || d.valPm !== null);
+      const points = [];
+      if (vAm !== null) points.push({ label: `${name} (08:00)`, roomName: name, jam: "08:00", value: vAm, level: liveLevelFor(vAm, lim, paramKey), lim });
+      if (vPm !== null) points.push({ label: `${name} (13:00)`, roomName: name, jam: "13:00", value: vPm, level: liveLevelFor(vPm, lim, paramKey), lim });
+      return points;
+    }).flat();
   }, [activeRoomNames, rooms, currentDayEntries, paramKey]);
 
   if (data.length === 0) {
@@ -193,50 +217,56 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
     );
   }
 
-  const refLim = data[0] || {};
-  const allVals = data.flatMap((d) => [d.valAm, d.valPm, d.syaratL, d.syaratU]).filter((v) => v !== null && v !== undefined);
+  const peak = data.reduce((a, b) => (b.level > a.level ? b : a), data[0]);
+  const refLim = peak?.lim || rooms[0]?.limits?.[paramKey] || {};
+  const allVals = data.map((d) => d.value).concat([refLim.syaratL, refLim.syaratU, refLim.alertL, refLim.alertU, refLim.actionL, refLim.actionU]).filter((v) => v !== null && v !== undefined);
   const minVal = Math.min(...allVals, 0);
   const maxVal = Math.max(...allVals, 10);
   const yMin = minVal - (maxVal - minVal) * 0.1;
   const yMax = maxVal + (maxVal - minVal) * 0.1;
+  const gradId = `dayGrad-${paramKey}`;
 
   return (
-    <div className="bg-white border rounded-xl p-4 shadow-sm space-y-2">
-      <div className="flex flex-wrap items-center justify-between text-xs border-b pb-2">
-        <span className="font-bold text-slate-700">{paramLabel} — Perbandingan Ruangan Terisi</span>
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1 text-[11px] text-emerald-700 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-emerald-600"/> 08:00</span>
-          <span className="flex items-center gap-1 text-[11px] text-rose-800 font-medium"><span className="w-2.5 h-2.5 rounded-full bg-rose-800"/> 13:00</span>
-          <span className="flex items-center gap-1 text-[11px] text-red-600 font-semibold">--- Syarat</span>
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print-card avoid-break">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5 bg-slate-50/50">
+        <div>
+          <p className="text-xs font-bold text-slate-800">{paramLabel} — Perbandingan Ruangan</p>
+          <p className="text-[11px] text-slate-500">
+            Tertinggi: <span className="font-semibold text-slate-800">{peak.value} {unit}</span> ({peak.roomName})
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <LegendChip color="#15803d" label="Terkendali" />
+          {refLim.alertU !== null && <LegendChip color="#b45309" label={`Alert ${refLim.alertU}`} />}
+          {refLim.actionU !== null && <LegendChip color="#c2410c" label={`Action ${refLim.actionU}`} />}
+          {refLim.syaratU !== null && <LegendChip color="#b91c1c" label={`Syarat ${refLim.syaratU}`} />}
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={210}>
-        <ComposedChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+      <ResponsiveContainer width="100%" height={230}>
+        <ComposedChart data={data} margin={{ top: 15, right: 15, left: -10, bottom: 35 }}>
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#16a34a" stopOpacity={0.2} />
+              <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-          {refLim.syaratL !== null && <ReferenceLine y={refLim.syaratL} stroke="#dc2626" strokeWidth={1.2} strokeDasharray="3 3" />}
-          {refLim.syaratU !== null && <ReferenceLine y={refLim.syaratU} stroke="#dc2626" strokeWidth={1.2} strokeDasharray="3 3" />}
-          <XAxis dataKey="roomName" tick={{ fontSize: 10, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={40} />
-          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} />
-          <Tooltip content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const p = payload[0].payload;
-            return (
-              <div className="bg-white p-2.5 border rounded-lg shadow-md text-xs space-y-1">
-                <p className="font-bold text-slate-700">{p.roomName}</p>
-                <p className="text-emerald-700 font-medium">08:00 : {p.valAm !== null ? `${p.valAm} ${unit}` : "-"}</p>
-                <p className="text-rose-800 font-medium">13:00 : {p.valPm !== null ? `${p.valPm} ${unit}` : "-"}</p>
-              </div>
-            );
-          }} />
-          <Line type="monotone" dataKey="valAm" stroke="#059669" strokeWidth={2} dot={{ r: 4, fill: "#059669" }} />
-          <Line type="monotone" dataKey="valPm" stroke="#9f1239" strokeWidth={2} dot={{ r: 4, fill: "#9f1239" }} />
+          {refLim.alertU !== null && <ReferenceLine y={refLim.alertU} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
+          {refLim.actionU !== null && <ReferenceLine y={refLim.actionU} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
+          {refLim.syaratU !== null && <ReferenceLine y={refLim.syaratU} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+          {refLim.syaratL !== null && <ReferenceLine y={refLim.syaratL} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={45} />
+          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={40} />
+          <Tooltip content={<ChartTooltip unit={unit} />} />
+          <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
+          <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
-/* ========================================================================= GRAFIK TREN BULANAN ========================================================================= */
+/* ========================================================================= 2. GRAFIK TREN BULANAN (GLOBAL & PER RUANGAN) ========================================================================= */
 function RoomMonthlyTrendChart({ entriesData, paramKey, paramLabel, unit, limit, isGlobal = false }) {
   const data = useMemo(() => {
     return entriesData.map((e) => {
@@ -246,36 +276,55 @@ function RoomMonthlyTrendChart({ entriesData, paramKey, paramLabel, unit, limit,
         label: isGlobal ? `${e.tanggal.slice(-2)} (${e.roomName})` : `${e.tanggal.slice(-2)}/${e.jam}`,
         value: v,
         level: e.level?.[paramKey] ?? 0,
+        roomName: e.roomName,
       };
     }).filter(Boolean);
   }, [entriesData, paramKey, isGlobal]);
 
   if (data.length === 0) return null;
 
+  const peak = data.reduce((a, b) => (b.level > a.level ? b : a), data[0]);
+  const allVals = data.map((d) => d.value).concat([limit?.syaratL, limit?.syaratU, limit?.alertL, limit?.alertU, limit?.actionL, limit?.actionU]).filter((v) => v !== null && v !== undefined);
+  const minVal = Math.min(...allVals, 0);
+  const maxVal = Math.max(...allVals, 10);
+  const yMin = minVal - (maxVal - minVal) * 0.1;
+  const yMax = maxVal + (maxVal - minVal) * 0.1;
+  const gradId = `monthGrad-${paramKey}-${isGlobal ? "global" : "room"}`;
+
   return (
-    <div className="bg-white border rounded-xl p-4 shadow-sm space-y-2">
-      <div className="flex justify-between items-center text-xs font-semibold text-slate-700 border-b pb-2">
-        <span>{paramLabel} — Tren 1 Bulan</span>
-        <span className="text-slate-400 font-normal">{data.length} Titik</span>
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print-card avoid-break">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5 bg-slate-50/50">
+        <div>
+          <p className="text-xs font-bold text-slate-800">{paramLabel} — {isGlobal ? "Tren Global Fasilitas" : "Tren 1 Bulan"}</p>
+          <p className="text-[11px] text-slate-500">
+            Tertinggi: <span className="font-semibold text-slate-800">{peak.value} {unit}</span> ({peak.roomName})
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <LegendChip color="#15803d" label="Terkendali" />
+          {limit?.alertU !== null && limit?.alertU !== undefined && <LegendChip color="#b45309" label={`Alert ${limit.alertU}`} />}
+          {limit?.actionU !== null && limit?.actionU !== undefined && <LegendChip color="#c2410c" label={`Action ${limit.actionU}`} />}
+          {limit?.syaratU !== null && limit?.syaratU !== undefined && <LegendChip color="#b91c1c" label={`Syarat ${limit.syaratU}`} />}
+        </div>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
-        <ComposedChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+      <ResponsiveContainer width="100%" height={230}>
+        <ComposedChart data={data} margin={{ top: 15, right: 15, left: -10, bottom: 35 }}>
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#16a34a" stopOpacity={0.2} />
+              <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-          {limit?.syaratL !== null && limit?.syaratL !== undefined && <ReferenceLine y={limit.syaratL} stroke="#dc2626" strokeWidth={1} strokeDasharray="3 3" />}
-          {limit?.syaratU !== null && limit?.syaratU !== undefined && <ReferenceLine y={limit.syaratU} stroke="#dc2626" strokeWidth={1} strokeDasharray="3 3" />}
-          <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#64748b" }} angle={-35} textAnchor="end" interval="preserveStartEnd" height={35} />
-          <YAxis tick={{ fontSize: 10, fill: "#64748b" }} />
-          <Tooltip content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const p = payload[0].payload;
-            return (
-              <div className="bg-white p-2 border rounded shadow text-xs">
-                <p className="font-semibold text-slate-700">{p.label}</p>
-                <p className="text-rose-800 font-bold">{p.value} {unit}</p>
-              </div>
-            );
-          }} />
-          <Line type="monotone" dataKey="value" stroke="#be123c" strokeWidth={2} dot={{ r: 3, fill: "#be123c" }} />
+          {limit?.alertU !== null && limit?.alertU !== undefined && <ReferenceLine y={limit.alertU} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
+          {limit?.actionU !== null && limit?.actionU !== undefined && <ReferenceLine y={limit.actionU} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
+          {limit?.syaratU !== null && limit?.syaratU !== undefined && <ReferenceLine y={limit.syaratU} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+          {limit?.syaratL !== null && limit?.syaratL !== undefined && <ReferenceLine y={limit.syaratL} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+          <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#64748b" }} angle={-35} textAnchor="end" interval="preserveStartEnd" height={40} />
+          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={40} />
+          <Tooltip content={<ChartTooltip unit={unit} />} />
+          <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
+          <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -1173,7 +1222,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   );
 }
 
-/* ========================================================================= HALAMAN PENGKAJIAN QA (GLOBAL & PER RUANGAN DENGAN TABEL DATA & GRAFIK) ========================================================================= */
+/* ========================================================================= HALAMAN PENGKAJIAN QA RESMI ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoom || "");
@@ -1695,7 +1744,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
   );
 }
 
-/* ========================================================================= HALAMAN RIWAYAT AKTIVITAS (DENGAN FILTER FLEKSIBEL) ========================================================================= */
+/* ========================================================================= HALAMAN RIWAYAT AKTIVITAS ========================================================================= */
 function ActivityPage({ session, month, setView }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
