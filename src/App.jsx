@@ -7,7 +7,7 @@ import {
 import {
   LogIn, LogOut, User, Loader2, Building2, ChevronLeft,
   Lock, History, Save, FileCheck2,
-  Printer, Sparkles, Calendar, Trash2, CheckCheck,
+  Printer, Sparkles, Calendar, Trash2, CheckCheck, CheckCircle2,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
@@ -16,6 +16,8 @@ import {
   fetchActivityLog, fetchVerify, generateNarrative,
   fetchFormulirBulanan, approveKepalaBagian as apiApproveKepalaBagian,
   approveManagerQAFormulir as apiApproveManagerQAFormulir,
+  approveOpr as apiApproveOpr, approveSpv as apiApproveSpv,
+  approveDay as apiApproveDay,
 } from "./api.js";
 import { useAuth, hasAccess, hasFacilityAccess } from "./auth.js";
 import { buildFacilityStats, generateLocalNarrative, fullDateID, monthLabelID } from "./narrativeGenerator.js";
@@ -397,7 +399,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
   );
 }
 
-/* ========================================================================= HALAMAN INTEGRATED (DYNAMIC RUANGAN) ========================================================================= */
+/* ========================================================================= HALAMAN INTEGRATED ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey);
   const canInput = hasFacilityAccess(session, "Staff", cfg);
@@ -412,6 +414,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [busyRow, setBusyRow] = useState(null);
   const [error, setError] = useState("");
 
   const [activeRoomNames, setActiveRoomNames] = useState([]);
@@ -446,7 +449,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Otomatis memunculkan seluruh ruangan yang sudah ada isinya di tanggal terpilih
+  // Siapkan baris aktif & nilai saat tanggal berubah
   useEffect(() => {
     if (rooms.length === 0) return;
 
@@ -454,7 +457,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       new Set(monthEntries.filter((e) => e.tanggal === selectedDate).map((e) => e.roomName))
     ).filter(Boolean);
 
-    // Tampilkan ruangan yang sudah berisi. Jika hari ini kosong, default kosong (bisa dipilih lewat dropdown atas)
     setActiveRoomNames(existingRoomsToday);
 
     const initialGrid = {};
@@ -509,39 +511,43 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }));
   }
 
-  // Simpan Draf
+  // Helper: format payload hari ini
+  function buildTodayPayload() {
+    const todayRows = [];
+    activeRoomNames.forEach((rName) => {
+      const rObj = rooms.find((r) => r.name === rName);
+      SESI.forEach((jam) => {
+        const v = gridValues[rName]?.[jam] || {};
+        const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
+        if (anyFilled) {
+          const sVal = !rObj?.required?.suhu ? (v.suhu || "-") : v.suhu;
+          const rVal = !rObj?.required?.rh ? (v.rh || "-") : v.rh;
+          const dVal = !rObj?.required?.dpg ? (v.dpg || "-") : v.dpg;
+
+          todayRows.push({
+            id: `${rName}|${selectedDate}|${jam}`,
+            tanggal: selectedDate,
+            jam,
+            roomName: rName,
+            persyaratanKey: rObj?.persyaratanKey || "",
+            suhu: sVal === "" ? null : sVal,
+            rh: rVal === "" ? null : rVal,
+            dpg: dVal === "" ? null : dVal,
+            opr: v.opr || "",
+            spv: v.spv || "",
+          });
+        }
+      });
+    });
+    return todayRows;
+  }
+
+  // 1. Simpan Draf
   async function handleSaveDataOnly() {
     setSaving(true);
     setError("");
     try {
-      const todayRows = [];
-      activeRoomNames.forEach((rName) => {
-        const rObj = rooms.find((r) => r.name === rName);
-        SESI.forEach((jam) => {
-          const v = gridValues[rName]?.[jam] || {};
-          const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
-          if (anyFilled) {
-            // Pastikan parameter non-required otomatis diberi tanda "-" jika kosong
-            const sVal = !rObj?.required?.suhu ? (v.suhu || "-") : v.suhu;
-            const rVal = !rObj?.required?.rh ? (v.rh || "-") : v.rh;
-            const dVal = !rObj?.required?.dpg ? (v.dpg || "-") : v.dpg;
-
-            todayRows.push({
-              id: `${rName}|${selectedDate}|${jam}`,
-              tanggal: selectedDate,
-              jam,
-              roomName: rName,
-              persyaratanKey: rObj?.persyaratanKey || "",
-              suhu: sVal === "" ? null : sVal,
-              rh: rVal === "" ? null : rVal,
-              dpg: dVal === "" ? null : dVal,
-              opr: v.opr || "",
-              spv: v.spv || "",
-            });
-          }
-        });
-      });
-
+      const todayRows = buildTodayPayload();
       const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
       await loadData();
@@ -552,44 +558,22 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  // APPROVE OPR BATCH (SEMUA RUANG TERPILIH)
+  // 2. APPROVE OPR BATCH (SEMUA RUANG)
   async function handleApproveOprBatch() {
     setSaving(true);
     setError("");
     try {
-      const todayRows = [];
-      activeRoomNames.forEach((rName) => {
-        const rObj = rooms.find((r) => r.name === rName);
-        SESI.forEach((jam) => {
-          const v = gridValues[rName]?.[jam] || {};
-          const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
-          if (anyFilled) {
-            const sVal = !rObj?.required?.suhu ? (v.suhu || "-") : v.suhu;
-            const rVal = !rObj?.required?.rh ? (v.rh || "-") : v.rh;
-            const dVal = !rObj?.required?.dpg ? (v.dpg || "-") : v.dpg;
-
-            todayRows.push({
-              id: `${rName}|${selectedDate}|${jam}`,
-              tanggal: selectedDate,
-              jam,
-              roomName: rName,
-              persyaratanKey: rObj?.persyaratanKey || "",
-              suhu: sVal === "" ? null : sVal,
-              rh: rVal === "" ? null : rVal,
-              dpg: dVal === "" ? null : dVal,
-              opr: session.nama,
-              spv: v.spv || "",
-            });
-          }
-        });
-      });
-
-      if (todayRows.length === 0) {
-        throw new Error("Belum ada nilai yang diinput untuk di-approve pada tanggal ini.");
-      }
+      const todayRows = buildTodayPayload();
+      if (todayRows.length === 0) throw new Error("Belum ada nilai yang diisi pada tanggal ini.");
 
       const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
+
+      // Panggil approval OPR untuk semua ruangan yang memiliki data lengkap
+      const uniqueRooms = Array.from(new Set(todayRows.map((r) => r.roomName)));
+      for (const rName of uniqueRooms) {
+        await apiApproveOpr(facilityKey, selectedDate, rName, session.token);
+      }
       await loadData();
     } catch (err) {
       setError(err.message);
@@ -598,49 +582,58 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  // APPROVE SPV BATCH (SEMUA RUANG TERPILIH & KUNCI)
+  // 3. APPROVE SPV BATCH (SEMUA RUANG & KUNCI)
   async function handleApproveSpvBatch() {
     setSaving(true);
     setError("");
     try {
-      const todayRows = [];
-      activeRoomNames.forEach((rName) => {
-        const rObj = rooms.find((r) => r.name === rName);
-        SESI.forEach((jam) => {
-          const v = gridValues[rName]?.[jam] || {};
-          const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
-          if (anyFilled) {
-            const sVal = !rObj?.required?.suhu ? (v.suhu || "-") : v.suhu;
-            const rVal = !rObj?.required?.rh ? (v.rh || "-") : v.rh;
-            const dVal = !rObj?.required?.dpg ? (v.dpg || "-") : v.dpg;
-
-            todayRows.push({
-              id: `${rName}|${selectedDate}|${jam}`,
-              tanggal: selectedDate,
-              jam,
-              roomName: rName,
-              persyaratanKey: rObj?.persyaratanKey || "",
-              suhu: sVal === "" ? null : sVal,
-              rh: rVal === "" ? null : rVal,
-              dpg: dVal === "" ? null : dVal,
-              opr: v.opr || session.nama,
-              spv: session.nama,
-            });
-          }
-        });
-      });
-
-      if (todayRows.length === 0) {
-        throw new Error("Tidak ada data ruangan untuk di-approve SPV.");
-      }
+      const todayRows = buildTodayPayload();
+      if (todayRows.length === 0) throw new Error("Tidak ada data ruangan untuk di-approve SPV.");
 
       const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
+
+      // Panggil approval bulk harian di backend
+      await apiApproveDay(facilityKey, selectedDate, session.token);
       await loadData();
     } catch (err) {
       setError(err.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  // 4. APPROVE OPR SATUAN (PARSIAL PER RUANGAN)
+  async function handleApproveOprSingle(roomName) {
+    setBusyRow(roomName + "|opr");
+    setError("");
+    try {
+      const todayRows = buildTodayPayload();
+      const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
+      await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
+      await apiApproveOpr(facilityKey, selectedDate, roomName, session.token);
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyRow(null);
+    }
+  }
+
+  // 5. APPROVE SPV SATUAN (PARSIAL PER RUANGAN & KUNCI)
+  async function handleApproveSpvSingle(roomName) {
+    setBusyRow(roomName + "|spv");
+    setError("");
+    try {
+      const todayRows = buildTodayPayload();
+      const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
+      await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
+      await apiApproveSpv(facilityKey, selectedDate, roomName, session.token);
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyRow(null);
     }
   }
 
@@ -758,7 +751,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       {/* SECTION 1: TABEL INPUT PEMILIHAN RUANGAN */}
       <div className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
-        {/* PANEL ATAS: Tanggal, Dropdown Tambah Ruangan & Tombol Batch Action */}
+        {/* PANEL ATAS */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1.5">
@@ -770,7 +763,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               </button>
             </div>
 
-            {/* DROPDOWN TAMBAH RUANGAN (DI ATAS) */}
             {canInput && !isDaySpvApproved && unselectedRooms.length > 0 && (
               <div className="flex items-center gap-2">
                 <select
@@ -827,7 +819,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
         </div>
 
-        {/* Tabel Data (Nama Ruangan Statis Tanpa Dropdown di Tiap Baris) */}
+        {/* Tabel Data */}
         {activeRoomNames.length === 0 ? (
           <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed text-slate-500 text-xs space-y-1">
             <p className="font-semibold text-slate-700">Belum ada ruangan yang diinput pada tanggal {selectedDate}.</p>
@@ -855,12 +847,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   const st = roomStatusToday[rName];
                   const labelSuffix = st === "spv" ? "✓ Disetujui SPV" : st === "opr" ? "• Diapprove OPR" : st === "filled" ? "• Terisi" : "";
 
+                  const hasOprApproved = SESI.every((jam) => !!gridValues[rName]?.[jam]?.opr);
+                  const hasSpvApproved = SESI.every((jam) => !!gridValues[rName]?.[jam]?.spv);
+                  const isLocked = isDaySpvApproved || hasSpvApproved;
+
                   return SESI.map((jam, jamIdx) => {
                     const v = gridValues[rName]?.[jam] || {};
                     const sLvl = liveLevelFor(v.suhu, rObj.limits?.suhu);
                     const rLvl = liveLevelFor(v.rh, rObj.limits?.rh);
                     const dLvl = liveLevelFor(v.dpg, rObj.limits?.dpg);
-                    const isLocked = isDaySpvApproved || !!v.spv;
 
                     return (
                       <tr key={rObj.code + jam} className={jamIdx === 0 ? "border-t border-slate-200" : "bg-slate-50/30"}>
@@ -893,22 +888,47 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                             className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium"
                             style={{ background: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).bg : undefined, color: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).color : undefined }} />
                         </td>
+                        
+                        {/* KOLOM OPR DENGAN TOMBOL APPROVE PARSIAL */}
                         <td className="px-2 py-1.5 text-center text-slate-600">
                           {v.opr ? (
                             <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
                               <span className="font-medium text-[11px] truncate max-w-[80px]">{v.opr}</span>
                               <VerifyQR type="harian" facility={facilityKey} period={selectedDate} />
                             </div>
-                          ) : <span className="text-slate-300 italic text-[11px]">—</span>}
+                          ) : isOperator && !isLocked ? (
+                            <button
+                              onClick={() => handleApproveOprSingle(rName)}
+                              disabled={busyRow === rName + "|opr"}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs disabled:opacity-50"
+                            >
+                              {busyRow === rName + "|opr" ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />} Approve
+                            </button>
+                          ) : (
+                            <span className="text-slate-300 italic text-[11px]">—</span>
+                          )}
                         </td>
+
+                        {/* KOLOM SPV DENGAN TOMBOL APPROVE PARSIAL */}
                         <td className="px-2 py-1.5 text-center text-slate-600">
                           {v.spv ? (
                             <div className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-900 px-2 py-0.5 rounded border border-rose-200">
                               <span className="font-medium text-[11px] truncate max-w-[80px]">{v.spv}</span>
                               <VerifyQR type="harian" facility={facilityKey} period={selectedDate} />
                             </div>
-                          ) : <span className="text-slate-300 italic text-[11px]">—</span>}
+                          ) : canApproveSPV && !isLocked && hasOprApproved ? (
+                            <button
+                              onClick={() => handleApproveSpvSingle(rName)}
+                              disabled={busyRow === rName + "|spv"}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded bg-rose-800 hover:bg-rose-900 text-white shadow-xs disabled:opacity-50"
+                            >
+                              {busyRow === rName + "|spv" ? <Loader2 size={10} className="animate-spin" /> : <FileCheck2 size={10} />} Approve
+                            </button>
+                          ) : (
+                            <span className="text-slate-300 italic text-[11px]">—</span>
+                          )}
                         </td>
+
                         {jamIdx === 0 ? (
                           <td rowSpan={2} className="px-2 py-1.5 text-center align-middle">
                             {!isLocked && (
