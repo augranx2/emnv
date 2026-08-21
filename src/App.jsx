@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import {
-  LogIn, LogOut, User, Loader2, Building2, ChevronLeft, ChevronRight,
-  Lock, CheckCircle2, XOctagon, History, Save, FileCheck2,
-  Printer, Sparkles, Calendar, Plus, Trash2, CheckCheck,
+  LogIn, LogOut, User, Loader2, Building2, ChevronLeft,
+  Lock, History, Save, FileCheck2,
+  Printer, Sparkles, Calendar, Trash2, CheckCheck,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
@@ -146,7 +146,7 @@ function VerifyQR({ type, facility, period, roomName, size = 26, hideLabel = tru
   );
 }
 
-/* ========================================================================= GRAFIK CROSS-SECTIONAL (RUANGAN TERPILIH) ========================================================================= */
+/* ========================================================================= GRAFIK CROSS-SECTIONAL ========================================================================= */
 function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, paramLabel, unit }) {
   const data = useMemo(() => {
     return activeRoomNames.map((name) => {
@@ -171,7 +171,7 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
   if (data.length === 0) {
     return (
       <div className="p-4 bg-slate-50 rounded-xl border border-dashed text-center text-xs text-slate-400">
-        Belum ada data {paramLabel} yang tersimpan untuk ruangan terpilih.
+        Belum ada data {paramLabel} yang tersimpan untuk ruangan pada tanggal ini.
       </div>
     );
   }
@@ -397,7 +397,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
   );
 }
 
-/* ========================================================================= HALAMAN INTEGRATED (DYNAMIC ROOM SELECTOR EM VIABLE STYLE) ========================================================================= */
+/* ========================================================================= HALAMAN INTEGRATED (DYNAMIC RUANGAN) ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey);
   const canInput = hasFacilityAccess(session, "Staff", cfg);
@@ -414,12 +414,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Daftar nama ruangan yang sedang ditampilkan di tabel input
   const [activeRoomNames, setActiveRoomNames] = useState([]);
-  // Nilai input: { [roomName]: { "08:00": {suhu,rh,dpg,opr,spv}, "13:00": {...} } }
   const [gridValues, setGridValues] = useState({});
 
-  // Narasi State
   const [pendahuluan, setPendahuluan] = useState("");
   const [kesimpulanUmum, setKesimpulanUmum] = useState("");
   const [perParameter, setPerParameter] = useState({ suhu: "", rh: "", dpg: "" });
@@ -449,20 +446,17 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Siapkan baris aktif saat tanggal berganti atau saat data termuat
+  // Otomatis memunculkan seluruh ruangan yang sudah ada isinya di tanggal terpilih
   useEffect(() => {
     if (rooms.length === 0) return;
 
-    // Cari ruangan yang sudah punya entri di tanggal ini
     const existingRoomsToday = Array.from(
       new Set(monthEntries.filter((e) => e.tanggal === selectedDate).map((e) => e.roomName))
     ).filter(Boolean);
 
-    // Jika belum ada data sama sekali hari ini, default tampilkan ruangan pertama
-    const initialActive = existingRoomsToday.length > 0 ? existingRoomsToday : [rooms[0]?.name].filter(Boolean);
-    setActiveRoomNames(initialActive);
+    // Tampilkan ruangan yang sudah berisi. Jika hari ini kosong, default kosong (bisa dipilih lewat dropdown atas)
+    setActiveRoomNames(existingRoomsToday);
 
-    // Bangun state nilai
     const initialGrid = {};
     rooms.forEach((r) => {
       initialGrid[r.name] = {
@@ -478,10 +472,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
     monthEntries.filter((e) => e.tanggal === selectedDate).forEach((e) => {
       if (initialGrid[e.roomName] && initialGrid[e.roomName][e.jam]) {
+        const rObj = rooms.find((r) => r.name === e.roomName);
         initialGrid[e.roomName][e.jam] = {
-          suhu: e.suhu ?? (rooms.find((r) => r.name === e.roomName)?.required?.suhu ? "" : "-"),
-          rh: e.rh ?? (rooms.find((r) => r.name === e.roomName)?.required?.rh ? "" : "-"),
-          dpg: e.dpg ?? (rooms.find((r) => r.name === e.roomName)?.required?.dpg ? "" : "-"),
+          suhu: e.suhu ?? (rObj?.required?.suhu ? "" : "-"),
+          rh: e.rh ?? (rObj?.required?.rh ? "" : "-"),
+          dpg: e.dpg ?? (rObj?.required?.dpg ? "" : "-"),
           opr: e.opr || "",
           spv: e.spv || "",
         };
@@ -491,19 +486,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setGridValues(initialGrid);
   }, [selectedDate, monthEntries, rooms]);
 
-  // Tambah ruangan baru ke tabel
   function handleAddRoom(roomName) {
     if (!roomName || activeRoomNames.includes(roomName)) return;
     setActiveRoomNames((prev) => [...prev, roomName]);
   }
 
-  // Ganti pilihan ruangan pada baris yang ada
-  function handleChangeActiveRoom(oldRoomName, newRoomName) {
-    if (!newRoomName || oldRoomName === newRoomName) return;
-    setActiveRoomNames((prev) => prev.map((name) => (name === oldRoomName ? newRoomName : name)));
-  }
-
-  // Hapus baris ruangan dari tampilan
   function handleRemoveActiveRoom(roomName) {
     setActiveRoomNames((prev) => prev.filter((name) => name !== roomName));
   }
@@ -534,15 +521,20 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           const v = gridValues[rName]?.[jam] || {};
           const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
           if (anyFilled) {
+            // Pastikan parameter non-required otomatis diberi tanda "-" jika kosong
+            const sVal = !rObj?.required?.suhu ? (v.suhu || "-") : v.suhu;
+            const rVal = !rObj?.required?.rh ? (v.rh || "-") : v.rh;
+            const dVal = !rObj?.required?.dpg ? (v.dpg || "-") : v.dpg;
+
             todayRows.push({
               id: `${rName}|${selectedDate}|${jam}`,
               tanggal: selectedDate,
               jam,
               roomName: rName,
               persyaratanKey: rObj?.persyaratanKey || "",
-              suhu: v.suhu === "" || v.suhu === "-" ? null : v.suhu,
-              rh: v.rh === "" || v.rh === "-" ? null : v.rh,
-              dpg: v.dpg === "" || v.dpg === "-" ? null : v.dpg,
+              suhu: sVal === "" ? null : sVal,
+              rh: rVal === "" ? null : rVal,
+              dpg: dVal === "" ? null : dVal,
               opr: v.opr || "",
               spv: v.spv || "",
             });
@@ -560,7 +552,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  // APPROVE OPR BATCH (SEMUA RUANGAN TERPILIH)
+  // APPROVE OPR BATCH (SEMUA RUANG TERPILIH)
   async function handleApproveOprBatch() {
     setSaving(true);
     setError("");
@@ -572,15 +564,19 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           const v = gridValues[rName]?.[jam] || {};
           const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
           if (anyFilled) {
+            const sVal = !rObj?.required?.suhu ? (v.suhu || "-") : v.suhu;
+            const rVal = !rObj?.required?.rh ? (v.rh || "-") : v.rh;
+            const dVal = !rObj?.required?.dpg ? (v.dpg || "-") : v.dpg;
+
             todayRows.push({
               id: `${rName}|${selectedDate}|${jam}`,
               tanggal: selectedDate,
               jam,
               roomName: rName,
               persyaratanKey: rObj?.persyaratanKey || "",
-              suhu: v.suhu === "" || v.suhu === "-" ? null : v.suhu,
-              rh: v.rh === "" || v.rh === "-" ? null : v.rh,
-              dpg: v.dpg === "" || v.dpg === "-" ? null : v.dpg,
+              suhu: sVal === "" ? null : sVal,
+              rh: rVal === "" ? null : rVal,
+              dpg: dVal === "" ? null : dVal,
               opr: session.nama,
               spv: v.spv || "",
             });
@@ -589,7 +585,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       });
 
       if (todayRows.length === 0) {
-        throw new Error("Belum ada nilai yang diinput untuk di-approve.");
+        throw new Error("Belum ada nilai yang diinput untuk di-approve pada tanggal ini.");
       }
 
       const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
@@ -602,7 +598,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  // APPROVE SPV BATCH (SEMUA RUANGAN TERPILIH & KUNCI)
+  // APPROVE SPV BATCH (SEMUA RUANG TERPILIH & KUNCI)
   async function handleApproveSpvBatch() {
     setSaving(true);
     setError("");
@@ -614,15 +610,19 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           const v = gridValues[rName]?.[jam] || {};
           const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
           if (anyFilled) {
+            const sVal = !rObj?.required?.suhu ? (v.suhu || "-") : v.suhu;
+            const rVal = !rObj?.required?.rh ? (v.rh || "-") : v.rh;
+            const dVal = !rObj?.required?.dpg ? (v.dpg || "-") : v.dpg;
+
             todayRows.push({
               id: `${rName}|${selectedDate}|${jam}`,
               tanggal: selectedDate,
               jam,
               roomName: rName,
               persyaratanKey: rObj?.persyaratanKey || "",
-              suhu: v.suhu === "" || v.suhu === "-" ? null : v.suhu,
-              rh: v.rh === "" || v.rh === "-" ? null : v.rh,
-              dpg: v.dpg === "" || v.dpg === "-" ? null : v.dpg,
+              suhu: sVal === "" ? null : sVal,
+              rh: rVal === "" ? null : rVal,
+              dpg: dVal === "" ? null : dVal,
               opr: v.opr || session.nama,
               spv: session.nama,
             });
@@ -690,7 +690,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const isFinalApproved = !!report?.signoff?.diperiksa?.nama;
   const isDaySpvApproved = currentDayEntries.length > 0 && currentDayEntries.every((e) => !!e.spv);
 
-  // Status mapping per ruangan di tanggal ini (untuk badge dropdown)
   const roomStatusToday = useMemo(() => {
     const map = {};
     rooms.forEach((r) => {
@@ -708,7 +707,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     return map;
   }, [rooms, currentDayEntries]);
 
-  // Daftar ruangan yang belum tampil di tabel
   const unselectedRooms = rooms.filter((r) => !activeRoomNames.includes(r.name));
 
   return (
@@ -758,16 +756,46 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       {error && <p className="p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-200 whitespace-pre-line">{error}</p>}
 
-      {/* SECTION 1: TABEL INPUT PEMILIHAN RUANGAN (EM VIABLE STYLE) */}
-      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
+      {/* SECTION 1: TABEL INPUT PEMILIHAN RUANGAN */}
+      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
+        {/* PANEL ATAS: Tanggal, Dropdown Tambah Ruangan & Tombol Batch Action */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-bold text-slate-700">Tanggal:</label>
-            <input type="date" value={selectedDate} max={todayStr()} onChange={(e) => setSelectedDate(e.target.value)}
-              className="border rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 outline-none focus:border-rose-700" />
-            <button onClick={() => setSelectedDate(todayStr())} className="text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-600">
-              Hari Ini
-            </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs font-bold text-slate-700">Tanggal:</label>
+              <input type="date" value={selectedDate} max={todayStr()} onChange={(e) => setSelectedDate(e.target.value)}
+                className="border rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 outline-none focus:border-rose-700" />
+              <button onClick={() => setSelectedDate(todayStr())} className="text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-600">
+                Hari Ini
+              </button>
+            </div>
+
+            {/* DROPDOWN TAMBAH RUANGAN (DI ATAS) */}
+            {canInput && !isDaySpvApproved && unselectedRooms.length > 0 && (
+              <div className="flex items-center gap-2">
+                <select
+                  value=""
+                  onChange={(e) => handleAddRoom(e.target.value)}
+                  className="border border-rose-300 bg-rose-50/50 hover:bg-rose-50 rounded-lg px-3 py-1 text-xs text-rose-950 font-semibold outline-none transition"
+                >
+                  <option value="">+ Tambah Ruangan Lain...</option>
+                  {Array.from(new Set(unselectedRooms.map(roomCategory))).map((cat) => (
+                    <optgroup key={cat} label={cat}>
+                      {unselectedRooms.filter((r) => roomCategory(r) === cat).map((r) => {
+                        const st = roomStatusToday[r.name];
+                        const labelSuffix = st === "spv" ? " ✓ disetujui" : st === "opr" ? " • diapprove OPR" : st === "filled" ? " • terisi" : "";
+                        return (
+                          <option key={r.code + r.name} value={r.name}>
+                            {r.code} — {r.name}{labelSuffix}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {isDaySpvApproved && (
               <span className="inline-flex items-center gap-1 text-[11px] bg-rose-50 text-rose-800 font-semibold px-2 py-0.5 rounded border border-rose-200">
                 <Lock size={11} /> Terkunci (Disetujui SPV)
@@ -799,189 +827,159 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
         </div>
 
-        {/* Tabel Data */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-slate-50 text-slate-600 border-b">
-                <th className="px-3 py-2 text-left min-w-[220px]">PILIH RUANGAN</th>
-                <th className="px-2 py-2 text-center w-16">JAM</th>
-                <th className="px-2 py-2 text-center w-24">SUHU (°C)</th>
-                <th className="px-2 py-2 text-center w-24">RH (%)</th>
-                <th className="px-2 py-2 text-center w-24">DPG (Pa)</th>
-                <th className="px-2 py-2 text-center w-36">OPR (TTD)</th>
-                <th className="px-2 py-2 text-center w-36">SPV (TTD)</th>
-                <th className="px-2 py-2 text-center w-10">AKSI</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {activeRoomNames.map((rName) => {
-                const rObj = rooms.find((r) => r.name === rName);
-                if (!rObj) return null;
+        {/* Tabel Data (Nama Ruangan Statis Tanpa Dropdown di Tiap Baris) */}
+        {activeRoomNames.length === 0 ? (
+          <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed text-slate-500 text-xs space-y-1">
+            <p className="font-semibold text-slate-700">Belum ada ruangan yang diinput pada tanggal {selectedDate}.</p>
+            <p className="text-slate-400">Silakan klik dropdown <b>"+ Tambah Ruangan Lain..."</b> di atas untuk mulai mengisi data ruangan.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-slate-600 border-b">
+                  <th className="px-3 py-2 text-left min-w-[220px]">RUANGAN</th>
+                  <th className="px-2 py-2 text-center w-16">JAM</th>
+                  <th className="px-2 py-2 text-center w-24">SUHU (°C)</th>
+                  <th className="px-2 py-2 text-center w-24">RH (%)</th>
+                  <th className="px-2 py-2 text-center w-24">DPG (Pa)</th>
+                  <th className="px-2 py-2 text-center w-36">OPR (TTD)</th>
+                  <th className="px-2 py-2 text-center w-36">SPV (TTD)</th>
+                  <th className="px-2 py-2 text-center w-10">AKSI</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {activeRoomNames.map((rName) => {
+                  const rObj = rooms.find((r) => r.name === rName);
+                  if (!rObj) return null;
+                  const st = roomStatusToday[rName];
+                  const labelSuffix = st === "spv" ? "✓ Disetujui SPV" : st === "opr" ? "• Diapprove OPR" : st === "filled" ? "• Terisi" : "";
 
-                return SESI.map((jam, jamIdx) => {
-                  const v = gridValues[rName]?.[jam] || {};
-                  const sLvl = liveLevelFor(v.suhu, rObj.limits?.suhu);
-                  const rLvl = liveLevelFor(v.rh, rObj.limits?.rh);
-                  const dLvl = liveLevelFor(v.dpg, rObj.limits?.dpg);
-                  const isLocked = isDaySpvApproved || !!v.spv;
+                  return SESI.map((jam, jamIdx) => {
+                    const v = gridValues[rName]?.[jam] || {};
+                    const sLvl = liveLevelFor(v.suhu, rObj.limits?.suhu);
+                    const rLvl = liveLevelFor(v.rh, rObj.limits?.rh);
+                    const dLvl = liveLevelFor(v.dpg, rObj.limits?.dpg);
+                    const isLocked = isDaySpvApproved || !!v.spv;
 
-                  return (
-                    <tr key={rObj.code + jam} className={jamIdx === 0 ? "border-t border-slate-200" : "bg-slate-50/30"}>
-                      {jamIdx === 0 ? (
-                        <td rowSpan={2} className="px-3 py-2 align-middle border-r border-slate-100">
-                          <select
-                            value={rName}
-                            disabled={isLocked}
-                            onChange={(e) => handleChangeActiveRoom(rName, e.target.value)}
-                            className="w-full border rounded px-2 py-1.5 font-semibold text-slate-800 outline-none focus:border-rose-700 bg-white"
-                          >
-                            {Array.from(new Set(rooms.map(roomCategory))).map((cat) => (
-                              <optgroup key={cat} label={cat}>
-                                {rooms.filter((r) => roomCategory(r) === cat).map((r) => {
-                                  const st = roomStatusToday[r.name];
-                                  const labelSuffix = st === "spv" ? " ✓ disetujui" : st === "opr" ? " • diapprove OPR" : st === "filled" ? " • terisi" : "";
-                                  return (
-                                    <option key={r.code + r.name} value={r.name}>
-                                      {r.code} — {r.name}{labelSuffix}
-                                    </option>
-                                  );
-                                })}
-                              </optgroup>
-                            ))}
-                          </select>
-                        </td>
-                      ) : null}
-                      <td className="px-2 py-1.5 text-center font-medium text-slate-500">{jam}</td>
-                      <td className="px-2 py-1.5 text-center">
-                        <input value={v.suhu ?? ""} onChange={(e) => handleCellChange(rName, jam, "suhu", e.target.value)}
-                          placeholder={rObj.required?.suhu ? "" : "N/A"} disabled={isLocked || !rObj.required?.suhu || !canInput}
-                          className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50"
-                          style={{ background: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).bg : undefined, color: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).color : undefined }} />
-                      </td>
-                      <td className="px-2 py-1.5 text-center">
-                        <input value={v.rh ?? ""} onChange={(e) => handleCellChange(rName, jam, "rh", e.target.value)}
-                          placeholder={rObj.required?.rh ? "" : "N/A"} disabled={isLocked || !rObj.required?.rh || !canInput}
-                          className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50"
-                          style={{ background: v.rh && v.rh !== "-" ? levelStyle(rLvl).bg : undefined, color: v.rh && v.rh !== "-" ? levelStyle(rLvl).color : undefined }} />
-                      </td>
-                      <td className="px-2 py-1.5 text-center">
-                        <input value={v.dpg ?? ""} onChange={(e) => handleCellChange(rName, jam, "dpg", e.target.value)}
-                          placeholder={rObj.required?.dpg ? "" : "N/A"} disabled={isLocked || !rObj.required?.dpg || !canInput}
-                          className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50"
-                          style={{ background: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).bg : undefined, color: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).color : undefined }} />
-                      </td>
-                      <td className="px-2 py-1.5 text-center text-slate-600">
-                        {v.opr ? (
-                          <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
-                            <span className="font-medium text-[11px] truncate max-w-[80px]">{v.opr}</span>
-                            <VerifyQR type="harian" facility={facilityKey} period={selectedDate} />
-                          </div>
-                        ) : <span className="text-slate-300 italic text-[11px]">—</span>}
-                      </td>
-                      <td className="px-2 py-1.5 text-center text-slate-600">
-                        {v.spv ? (
-                          <div className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-900 px-2 py-0.5 rounded border border-rose-200">
-                            <span className="font-medium text-[11px] truncate max-w-[80px]">{v.spv}</span>
-                            <VerifyQR type="harian" facility={facilityKey} period={selectedDate} />
-                          </div>
-                        ) : <span className="text-slate-300 italic text-[11px]">—</span>}
-                      </td>
-                      {jamIdx === 0 ? (
-                        <td rowSpan={2} className="px-2 py-1.5 text-center align-middle">
-                          {!isLocked && activeRoomNames.length > 1 && (
-                            <button onClick={() => handleRemoveActiveRoom(rName)} className="text-slate-400 hover:text-red-600 p-1" title="Hapus dari daftar input">
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </td>
-                      ) : null}
-                    </tr>
-                  );
-                });
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Dropdown Tambah Ruangan Baru */}
-        {canInput && !isDaySpvApproved && unselectedRooms.length > 0 && (
-          <div className="pt-2 flex items-center gap-2">
-            <select
-              value=""
-              onChange={(e) => handleAddRoom(e.target.value)}
-              className="border border-dashed border-rose-300 bg-rose-50/40 rounded-lg px-3 py-1.5 text-xs text-rose-900 font-semibold outline-none hover:bg-rose-50"
-            >
-              <option value="">+ Tambah Ruangan Lain...</option>
-              {Array.from(new Set(unselectedRooms.map(roomCategory))).map((cat) => (
-                <optgroup key={cat} label={cat}>
-                  {unselectedRooms.filter((r) => roomCategory(r) === cat).map((r) => {
-                    const st = roomStatusToday[r.name];
-                    const labelSuffix = st === "spv" ? " ✓ disetujui" : st === "opr" ? " • diapprove OPR" : st === "filled" ? " • terisi" : "";
                     return (
-                      <option key={r.code + r.name} value={r.name}>
-                        {r.code} — {r.name}{labelSuffix}
-                      </option>
+                      <tr key={rObj.code + jam} className={jamIdx === 0 ? "border-t border-slate-200" : "bg-slate-50/30"}>
+                        {jamIdx === 0 ? (
+                          <td rowSpan={2} className="px-3 py-2 align-middle border-r border-slate-100">
+                            <div className="font-bold text-slate-800 text-sm">{rObj.code} — {rObj.name}</div>
+                            {labelSuffix && (
+                              <span className={`inline-block mt-0.5 text-[10px] font-medium px-1.5 py-0.2 rounded ${st === "spv" ? "bg-rose-50 text-rose-800" : st === "opr" ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
+                                {labelSuffix}
+                              </span>
+                            )}
+                          </td>
+                        ) : null}
+                        <td className="px-2 py-1.5 text-center font-medium text-slate-500">{jam}</td>
+                        <td className="px-2 py-1.5 text-center">
+                          <input value={v.suhu ?? ""} onChange={(e) => handleCellChange(rName, jam, "suhu", e.target.value)}
+                            placeholder={rObj.required?.suhu ? "" : "N/A"} disabled={isLocked || !rObj.required?.suhu || !canInput}
+                            className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium"
+                            style={{ background: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).bg : undefined, color: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).color : undefined }} />
+                        </td>
+                        <td className="px-2 py-1.5 text-center">
+                          <input value={v.rh ?? ""} onChange={(e) => handleCellChange(rName, jam, "rh", e.target.value)}
+                            placeholder={rObj.required?.rh ? "" : "N/A"} disabled={isLocked || !rObj.required?.rh || !canInput}
+                            className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium"
+                            style={{ background: v.rh && v.rh !== "-" ? levelStyle(rLvl).bg : undefined, color: v.rh && v.rh !== "-" ? levelStyle(rLvl).color : undefined }} />
+                        </td>
+                        <td className="px-2 py-1.5 text-center">
+                          <input value={v.dpg ?? ""} onChange={(e) => handleCellChange(rName, jam, "dpg", e.target.value)}
+                            placeholder={rObj.required?.dpg ? "" : "N/A"} disabled={isLocked || !rObj.required?.dpg || !canInput}
+                            className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium"
+                            style={{ background: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).bg : undefined, color: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).color : undefined }} />
+                        </td>
+                        <td className="px-2 py-1.5 text-center text-slate-600">
+                          {v.opr ? (
+                            <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
+                              <span className="font-medium text-[11px] truncate max-w-[80px]">{v.opr}</span>
+                              <VerifyQR type="harian" facility={facilityKey} period={selectedDate} />
+                            </div>
+                          ) : <span className="text-slate-300 italic text-[11px]">—</span>}
+                        </td>
+                        <td className="px-2 py-1.5 text-center text-slate-600">
+                          {v.spv ? (
+                            <div className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-900 px-2 py-0.5 rounded border border-rose-200">
+                              <span className="font-medium text-[11px] truncate max-w-[80px]">{v.spv}</span>
+                              <VerifyQR type="harian" facility={facilityKey} period={selectedDate} />
+                            </div>
+                          ) : <span className="text-slate-300 italic text-[11px]">—</span>}
+                        </td>
+                        {jamIdx === 0 ? (
+                          <td rowSpan={2} className="px-2 py-1.5 text-center align-middle">
+                            {!isLocked && (
+                              <button onClick={() => handleRemoveActiveRoom(rName)} className="text-slate-400 hover:text-red-600 p-1" title="Hapus baris ini">
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </td>
+                        ) : null}
+                      </tr>
                     );
-                  })}
-                </optgroup>
-              ))}
-            </select>
-            <span className="text-[11px] text-slate-400">Pilih ruangan tambahan yang ingin diisi pada tanggal ini</span>
+                  });
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
-      {/* SECTION 2: CARD PERSYARATAN & LIMIT (EM VIABLE STYLE) */}
-      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
-        <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit (Ruangan Terpilih)</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500 border-b">
-                <th className="px-3 py-1.5">PARAMETER</th>
-                <th className="px-3 py-1.5">RUANGAN</th>
-                <th className="px-3 py-1.5">SYARAT</th>
-                <th className="px-3 py-1.5">ALERT LIMIT</th>
-                <th className="px-3 py-1.5">ACTION LIMIT</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {activeRoomNames.map((rName) => {
-                const rObj = rooms.find((r) => r.name === rName);
-                if (!rObj) return null;
+      {/* SECTION 2: CARD PERSYARATAN & LIMIT */}
+      {activeRoomNames.length > 0 && (
+        <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit (Ruangan Terpilih)</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 border-b">
+                  <th className="px-3 py-1.5">PARAMETER</th>
+                  <th className="px-3 py-1.5">RUANGAN</th>
+                  <th className="px-3 py-1.5">SYARAT</th>
+                  <th className="px-3 py-1.5">ALERT LIMIT</th>
+                  <th className="px-3 py-1.5">ACTION LIMIT</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {activeRoomNames.map((rName) => {
+                  const rObj = rooms.find((r) => r.name === rName);
+                  if (!rObj) return null;
 
-                return PARAM_DEFS.map((p) => {
-                  const lim = rObj.limits?.[p.key];
-                  if (!rObj.required?.[p.key] || !lim) return null;
+                  return PARAM_DEFS.map((p) => {
+                    const lim = rObj.limits?.[p.key];
+                    if (!rObj.required?.[p.key] || !lim) return null;
 
-                  return (
-                    <tr key={rName + p.key}>
-                      <td className="px-3 py-1 font-semibold text-slate-700">{p.label}</td>
-                      <td className="px-3 py-1 text-slate-600">{rName}</td>
-                      <td className="px-3 py-1 text-slate-800">{formatRange(lim.syaratL, lim.syaratU, p.unit)}</td>
-                      <td className="px-3 py-1 text-amber-700">{formatRange(lim.alertL, lim.alertU, p.unit)}</td>
-                      <td className="px-3 py-1 text-orange-700">{formatRange(lim.actionL, lim.actionU, p.unit)}</td>
-                    </tr>
-                  );
-                });
-              })}
-            </tbody>
-          </table>
+                    return (
+                      <tr key={rName + p.key}>
+                        <td className="px-3 py-1 font-semibold text-slate-700">{p.label}</td>
+                        <td className="px-3 py-1 text-slate-600">{rName}</td>
+                        <td className="px-3 py-1 text-slate-800">{formatRange(lim.syaratL, lim.syaratU, p.unit)}</td>
+                        <td className="px-3 py-1 text-amber-700">{formatRange(lim.alertL, lim.alertU, p.unit)}</td>
+                        <td className="px-3 py-1 text-orange-700">{formatRange(lim.actionL, lim.actionU, p.unit)}</td>
+                      </tr>
+                    );
+                  });
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"/> Terkendali</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"/> Alert</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-500"/> Action</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500"/> Melebihi Syarat</span>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-500">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"/> Terkendali</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"/> Alert</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-500"/> Action</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500"/> Melebihi Syarat</span>
-        </div>
-      </div>
+      )}
 
-      {/* SECTION 3: GRAFIK CROSS-SECTIONAL (1 HARI SELURUH RUANGAN) */}
+      {/* SECTION 3: GRAFIK CROSS-SECTIONAL (1 HARI SELURUH RUANGAN TERPILIH) */}
       <div className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
         <div>
           <h2 className="text-sm font-bold text-slate-800">Grafik Perbandingan Ruangan Terisi ({selectedDate})</h2>
-          <p className="text-xs text-slate-400">Grafik terbentuk otomatis dari ruangan yang sedang dipilih &amp; diinput</p>
+          <p className="text-xs text-slate-400">Grafik terbentuk otomatis dari ruangan yang terisi pada tanggal yang sedang dibuka</p>
         </div>
         <div className="space-y-4">
           <DayParamChart activeRoomNames={activeRoomNames} rooms={rooms} currentDayEntries={currentDayEntries} paramKey="suhu" paramLabel="Suhu" unit="°C" />
@@ -1280,8 +1278,7 @@ function VerifyPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-sm rounded-xl border bg-white p-5 text-center space-y-3 shadow-sm">
-        <CheckCircle2 size={32} className="text-emerald-600 mx-auto" />
-        <h2 className="font-bold text-slate-800">Verifikasi Dokumen Sah</h2>
+        <h2 className="font-bold text-slate-800 text-base">Verifikasi Dokumen Sah</h2>
         <p className="text-xs text-slate-500">PT. Rama Emerald Multi Sukses — EM Non Viable</p>
         <div className="bg-slate-50 p-3 rounded-lg text-left text-xs space-y-1">
           <p><span className="text-slate-400">Fasilitas:</span> {facility?.label}</p>
