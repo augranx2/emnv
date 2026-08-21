@@ -133,11 +133,25 @@ function buildVerifyUrl(params) {
   return `${window.location.origin}/verify?${qs}`;
 }
 
-function VerifyQR({ type, facility, period, roomName, size = 26, hideLabel = true }) {
+function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerName, size = 26, hideLabel = true }) {
   const params = { type, facility };
-  if (type === "pengkajian") { params.month = period; if (roomName) params.roomName = roomName; }
-  else if (type === "formulir") { params.bulan = period; params.roomName = roomName; }
-  else { params.type = "harian"; params.tanggal = period; }
+  if (type === "pengkajian") {
+    params.month = period;
+    if (roomName) params.roomName = roomName;
+    if (signerRole) params.role = signerRole;
+  } else if (type === "formulir") {
+    params.bulan = period;
+    params.roomName = roomName;
+    if (signerRole) params.role = signerRole;
+  } else {
+    params.type = "harian";
+    params.tanggal = period;
+    if (roomName) params.roomName = roomName;
+    if (jam) params.jam = jam;
+    if (signerRole) params.role = signerRole;
+  }
+  if (signerName) params.name = signerName;
+
   const url = buildVerifyUrl(params);
 
   return (
@@ -511,7 +525,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }));
   }
 
-  // Helper: format payload hari ini
   function buildTodayPayload() {
     const todayRows = [];
     activeRoomNames.forEach((rName) => {
@@ -569,7 +582,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
 
-      // Panggil approval OPR untuk semua ruangan yang memiliki data lengkap
       const uniqueRooms = Array.from(new Set(todayRows.map((r) => r.roomName)));
       for (const rName of uniqueRooms) {
         await apiApproveOpr(facilityKey, selectedDate, rName, session.token);
@@ -593,7 +605,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
 
-      // Panggil approval bulk harian di backend
       await apiApproveDay(facilityKey, selectedDate, session.token);
       await loadData();
     } catch (err) {
@@ -603,7 +614,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  // 4. APPROVE OPR SATUAN (PARSIAL PER RUANGAN)
+  // 4. APPROVE OPR SATUAN (PARSIAL)
   async function handleApproveOprSingle(roomName) {
     setBusyRow(roomName + "|opr");
     setError("");
@@ -620,7 +631,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  // 5. APPROVE SPV SATUAN (PARSIAL PER RUANGAN & KUNCI)
+  // 5. APPROVE SPV SATUAN (PARSIAL & KUNCI)
   async function handleApproveSpvSingle(roomName) {
     setBusyRow(roomName + "|spv");
     setError("");
@@ -888,13 +899,13 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                             className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium"
                             style={{ background: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).bg : undefined, color: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).color : undefined }} />
                         </td>
-                        
-                        {/* KOLOM OPR DENGAN TOMBOL APPROVE PARSIAL */}
+
+                        {/* KOLOM OPR */}
                         <td className="px-2 py-1.5 text-center text-slate-600">
                           {v.opr ? (
                             <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
                               <span className="font-medium text-[11px] truncate max-w-[80px]">{v.opr}</span>
-                              <VerifyQR type="harian" facility={facilityKey} period={selectedDate} />
+                              <VerifyQR type="harian" facility={facilityKey} period={selectedDate} roomName={rName} jam={jam} signerRole="OPR" signerName={v.opr} />
                             </div>
                           ) : isOperator && !isLocked ? (
                             <button
@@ -909,12 +920,12 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                           )}
                         </td>
 
-                        {/* KOLOM SPV DENGAN TOMBOL APPROVE PARSIAL */}
+                        {/* KOLOM SPV */}
                         <td className="px-2 py-1.5 text-center text-slate-600">
                           {v.spv ? (
                             <div className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-900 px-2 py-0.5 rounded border border-rose-200">
                               <span className="font-medium text-[11px] truncate max-w-[80px]">{v.spv}</span>
-                              <VerifyQR type="harian" facility={facilityKey} period={selectedDate} />
+                              <VerifyQR type="harian" facility={facilityKey} period={selectedDate} roomName={rName} jam={jam} signerRole="SPV" signerName={v.spv} />
                             </div>
                           ) : canApproveSPV && !isLocked && hasOprApproved ? (
                             <button
@@ -995,7 +1006,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       )}
 
-      {/* SECTION 3: GRAFIK CROSS-SECTIONAL (1 HARI SELURUH RUANGAN TERPILIH) */}
+      {/* SECTION 3: GRAFIK CROSS-SECTIONAL */}
       <div className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
         <div>
           <h2 className="text-sm font-bold text-slate-800">Grafik Perbandingan Ruangan Terisi ({selectedDate})</h2>
@@ -1008,7 +1019,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* SECTION 4: PEMBAHASAN & NARASI BULANAN QA */}
+      {/* SECTION 4: PEMBAHASAN & NARASI QA */}
       <div className="bg-white rounded-xl border p-5 shadow-sm space-y-5">
         <div className="flex items-center justify-between border-b pb-3">
           <div>
@@ -1058,7 +1069,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
               {report?.signoff?.dinilai?.nama ? (
                 <div className="space-y-1 my-auto">
-                  <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} size={54} /></div>
+                  <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Dikaji Oleh" signerName={report.signoff.dinilai.nama} size={54} /></div>
                   <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
                   <p className="text-[10px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
                 </div>
@@ -1078,7 +1089,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Mengetahui (Manager QA)</p>
               {report?.signoff?.diperiksa?.nama ? (
                 <div className="space-y-1 my-auto">
-                  <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} size={54} /></div>
+                  <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Mengetahui" signerName={report.signoff.diperiksa.nama} size={54} /></div>
                   <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
                   <p className="text-[10px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
                 </div>
@@ -1220,7 +1231,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
             <p className="mb-2 text-[11px] text-slate-500">(Kepala Bagian)</p>
             {formulir?.kepalaBagian?.nama ? (
               <>
-                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={selectedRoom} size={50} /></div>
+                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={selectedRoom} signerRole="Kepala Bagian" signerName={formulir.kepalaBagian.nama} size={50} /></div>
                 <p className="text-xs font-semibold text-slate-800">{formulir.kepalaBagian.nama}</p>
                 <p className="text-[10px] text-slate-400">{formulir.kepalaBagian.tanggal}</p>
               </>
@@ -1232,7 +1243,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
             <p className="mb-2 text-[11px] text-slate-500">(Manager QA)</p>
             {formulir?.managerQA?.nama ? (
               <>
-                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={selectedRoom} size={50} /></div>
+                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={selectedRoom} signerRole="Manager QA" signerName={formulir.managerQA.nama} size={50} /></div>
                 <p className="text-xs font-semibold text-slate-800">{formulir.managerQA.nama}</p>
                 <p className="text-[10px] text-slate-400">{formulir.managerQA.tanggal}</p>
               </>
@@ -1281,31 +1292,71 @@ function ActivityPage({ session, month, setView }) {
   );
 }
 
-/* ========================================================================= VERIFIKASI QR PUBLIK (/verify) ========================================================================= */
+/* ========================================================================= HALAMAN VERIFIKASI DOKUMEN ELEGAN (/verify) ========================================================================= */
 function VerifyPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const type = params.get("type");
   const facilityKey = params.get("facility");
   const roomName = params.get("roomName") || "";
+  const jam = params.get("jam") || "";
+  const role = params.get("role") || "";
+  const nameOverride = params.get("name") || "";
   const period = type === "pengkajian" ? params.get("month") : type === "formulir" ? params.get("bulan") : params.get("tanggal");
   const facility = FACILITIES.find((f) => f.key === facilityKey);
   const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchVerify(type, facilityKey, period, roomName).then(setData);
+    fetchVerify(type, facilityKey, period, roomName).then(setData).finally(() => setLoading(false));
   }, [type, facilityKey, period, roomName]);
 
+  const docTitle = type === "pengkajian"
+    ? "Pengkajian Trend Data EM Non Viable (POS.QA.025)"
+    : type === "formulir"
+    ? `Formulir Pemantauan Bulanan (FM.QA.024/R11)${roomName ? ` — ${roomName}` : ""}`
+    : `Data Pemantauan Harian (FM.QA.024/R11)${roomName ? ` — ${roomName}` : ""}${jam ? ` (${jam})` : ""}`;
+
+  const signerDisplay = nameOverride || (
+    role === "OPR"
+      ? (data?.approvedBy?.opr || "Operator Terdaftar")
+      : (data?.approvedBy?.nama || data?.approvedBy?.spv || "Supervisor / Manager")
+  );
+
+  const roleLabel = role === "OPR" ? "Diinput & Disetujui Oleh (OPR)" : (role || "Disetujui Oleh");
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-      <div className="w-full max-w-sm rounded-xl border bg-white p-5 text-center space-y-3 shadow-sm">
-        <h2 className="font-bold text-slate-800 text-base">Verifikasi Dokumen Sah</h2>
-        <p className="text-xs text-slate-500">PT. Rama Emerald Multi Sukses — EM Non Viable</p>
-        <div className="bg-slate-50 p-3 rounded-lg text-left text-xs space-y-1">
-          <p><span className="text-slate-400">Fasilitas:</span> {facility?.label}</p>
-          <p><span className="text-slate-400">Periode / Tanggal:</span> {period}</p>
-          {roomName && <p><span className="text-slate-400">Ruangan:</span> {roomName}</p>}
-          {data?.approvedBy && <p><span className="text-slate-400">Disetujui Oleh:</span> {data.approvedBy.nama}</p>}
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <div className="w-full max-w-sm flex flex-col items-center space-y-4">
+        {/* LOGO PERUSAHAAN */}
+        <div className="flex flex-col items-center gap-1.5 text-center">
+          <img src="/logo-rama.png" alt="PT. Rama Emerald Multi Sukses" className="h-16 w-16 object-contain" />
+          <h1 className="text-base font-bold text-slate-800">Verifikasi Dokumen EM Non Viable</h1>
+          <p className="text-xs text-slate-500">PT. Rama Emerald Multi Sukses</p>
         </div>
+
+        {/* CARD DOKUMEN SAH */}
+        <div className="w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm text-center space-y-4">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mx-auto">
+            <CheckCircle2 size={32} />
+          </div>
+          <h2 className="text-sm font-bold text-emerald-800">Dokumen tercatat sah dalam sistem</h2>
+
+          {loading ? (
+            <div className="flex justify-center p-4"><Loader2 size={18} className="animate-spin text-slate-400" /></div>
+          ) : (
+            <div className="bg-slate-50/80 rounded-xl p-4 text-left text-xs space-y-2 border border-slate-100">
+              <p><span className="text-slate-400">Dokumen:</span> <span className="font-semibold text-slate-800">{docTitle}</span></p>
+              <p><span className="text-slate-400">Fasilitas:</span> <span className="font-semibold text-slate-800">{facility?.label || facilityKey}</span></p>
+              <p><span className="text-slate-400">Periode / Tanggal:</span> <span className="font-semibold text-slate-800">{period}</span></p>
+              <p><span className="text-slate-400">{roleLabel}:</span> <span className="font-bold text-slate-900">{signerDisplay}</span></p>
+              <p><span className="text-slate-400">Status Keabsahan:</span> <span className="font-semibold text-emerald-700">Terverifikasi Digital</span></p>
+            </div>
+          )}
+        </div>
+
+        <p className="text-[10px] text-slate-400 text-center max-w-xs leading-relaxed">
+          Halaman ini menampilkan data langsung dari sistem database EM Non Viable secara real-time.
+        </p>
       </div>
     </div>
   );
