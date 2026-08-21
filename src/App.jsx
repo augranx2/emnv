@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, Line, Area, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ReferenceArea, ResponsiveContainer,
 } from "recharts";
 import {
@@ -276,6 +276,65 @@ function ParamTrendChart({ entries, paramKey, paramLabel, unit, limit }) {
   );
 }
 
+/* ========================================================================= GRAFIK PERBANDINGAN ANTAR-RUANGAN (1 HARI)
+   Beda dari ParamTrendChart (tren 1 ruangan sepanjang bulan): chart ini
+   membandingkan SEMUA ruangan pada SATU tanggal yang sama — dipakai di
+   halaman input harian (EntryPage) supaya kelihatan sekilas ruangan mana
+   yang bermasalah pada hari itu. Karena tiap ruangan bisa punya batas
+   Syarat/Alert/Action yang berbeda-beda, warna tiap batang mengikuti level
+   status ruangan itu sendiri (bukan satu pita acuan bersama). */
+function DayCompareTooltip({ active, payload, label, unit }) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
+      <p className="mb-1 font-semibold text-slate-600">{label}</p>
+      {payload.map((p) => {
+        const level = p.dataKey === "pagi" ? p.payload.pagiLevel : p.payload.siangLevel;
+        const style = levelStyle(level);
+        return (
+          <p key={p.dataKey} className="flex items-center justify-between gap-3">
+            <span className="text-slate-400">{p.dataKey === "pagi" ? "08:00" : "13:00"}</span>
+            <span className="font-semibold" style={{ color: style.color }}>
+              {p.value === null || p.value === undefined ? "—" : `${p.value} ${unit}`}
+            </span>
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+function DayCompareChart({ paramLabel, unit, rows }) {
+  if (!rows || rows.length === 0) return null;
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print-card avoid-break">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-b border-slate-100 px-4 py-2.5">
+        <p className="text-xs font-semibold text-slate-600">{paramLabel} — Perbandingan Seluruh Ruangan ({unit})</p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <LegendChip color="#15803d" label="Baik" />
+          <LegendChip color="#b45309" label="Alert" />
+          <LegendChip color="#c2410c" label="Action" />
+          <LegendChip color="#b91c1c" label="Deviasi" />
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={Math.max(160, rows.length * 34)}>
+        <ComposedChart data={rows} layout="vertical" margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+          <XAxis type="number" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={{ stroke: "#e2e8f0" }} tickLine={false} />
+          <YAxis type="category" dataKey="room" tick={{ fontSize: 10, fill: "#475569" }} width={130} axisLine={false} tickLine={false} />
+          <Tooltip content={<DayCompareTooltip unit={unit} />} />
+          <Bar dataKey="pagi" name="08:00" radius={[0, 3, 3, 0]} barSize={10} isAnimationActive={false}>
+            {rows.map((r, i) => <Cell key={`p-${i}`} fill={chartDotColor(r.pagiLevel)} />)}
+          </Bar>
+          <Bar dataKey="siang" name="13:00" radius={[0, 3, 3, 0]} barSize={10} isAnimationActive={false}>
+            {rows.map((r, i) => <Cell key={`s-${i}`} fill={chartDotColor(r.siangLevel)} />)}
+          </Bar>
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 /* ========================================================================= TOPBAR, LOGIN, DASHBOARD */
 
 function TopBar({ session, onLoginClick, onLogout, view, setView }) {
@@ -290,13 +349,13 @@ function TopBar({ session, onLoginClick, onLogout, view, setView }) {
         <div className="flex items-center gap-2">
           {session && hasAccess(session, "Supervisor", "QA") && (
             <button onClick={() => setView({ page: "pengkajian" })}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "pengkajian" ? "bg-amber-800 text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "pengkajian" ? "bg-gradient-to-r from-black to-maroon-800 text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
               <ClipboardList size={14} /> Pengkajian
             </button>
           )}
           {session && hasAccess(session, "Supervisor") && (
             <button onClick={() => setView({ page: "activity" })}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "activity" ? "bg-amber-800 text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "activity" ? "bg-gradient-to-r from-black to-maroon-800 text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
               <History size={14} /> Riwayat Aktivitas
             </button>
           )}
@@ -311,7 +370,7 @@ function TopBar({ session, onLoginClick, onLogout, view, setView }) {
               </button>
             </div>
           ) : (
-            <button onClick={onLoginClick} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700">
+            <button onClick={onLoginClick} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-black to-maroon-700 px-3 py-1.5 text-xs font-semibold text-white hover:to-maroon-600">
               <LogIn size={14} /> Login
             </button>
           )}
@@ -346,23 +405,23 @@ function LoginModal({ onClose, onLogin }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center gap-2">
-          <Lock size={18} className="text-amber-600" />
+          <Lock size={18} className="text-maroon-700" />
           <h3 className="text-base font-bold text-slate-800">Login EM Non Viable</h3>
         </div>
         <form onSubmit={submit}>
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Username</label>
           <input autoFocus type="text" value={username} onChange={(ev) => setUsername(ev.target.value)}
-            className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none" />
+            className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-maroon-500 focus:outline-none" />
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password</label>
           <input type="password" value={password} onChange={(ev) => setPassword(ev.target.value)}
-            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none" />
+            className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-maroon-500 focus:outline-none" />
           {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
               Batal
             </button>
             <button type="submit" disabled={submitting || !username || !password}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60">
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-black to-maroon-700 px-3 py-1.5 text-sm font-semibold text-white hover:to-maroon-600 disabled:opacity-60">
               {submitting ? <Loader2 size={14} className="animate-spin" /> : null} Masuk
             </button>
           </div>
@@ -403,7 +462,7 @@ function ProfileModal({ session, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center gap-2">
-          <User size={18} className="text-amber-600" />
+          <User size={18} className="text-maroon-700" />
           <h3 className="text-base font-bold text-slate-800">Profil Saya</h3>
         </div>
 
@@ -419,7 +478,7 @@ function ProfileModal({ session, onClose }) {
             <button onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
               Tutup
             </button>
-            <button onClick={() => setShowChangePw(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700">
+            <button onClick={() => setShowChangePw(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-black to-maroon-700 px-3 py-1.5 text-sm font-semibold text-white hover:to-maroon-600">
               <Lock size={14} /> Ganti Password
             </button>
           </div>
@@ -427,19 +486,19 @@ function ProfileModal({ session, onClose }) {
           <div className="text-center">
             <CheckCircle2 className="mx-auto mb-2 text-emerald-600" size={28} />
             <p className="mb-4 text-sm text-slate-600">Password berhasil diubah.</p>
-            <button onClick={onClose} className="rounded-lg bg-amber-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-amber-700">Tutup</button>
+            <button onClick={onClose} className="rounded-lg bg-gradient-to-r from-black to-maroon-700 px-4 py-1.5 text-sm font-semibold text-white hover:to-maroon-600">Tutup</button>
           </div>
         ) : (
           <form onSubmit={submit}>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password Lama</label>
             <input type="password" value={oldPassword} onChange={(ev) => setOldPassword(ev.target.value)}
-              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none" />
+              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-maroon-500 focus:outline-none" />
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Password Baru</label>
             <input type="password" value={newPassword} onChange={(ev) => setNewPassword(ev.target.value)}
-              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none" />
+              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-maroon-500 focus:outline-none" />
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Konfirmasi Password Baru</label>
             <input type="password" value={confirmPassword} onChange={(ev) => setConfirmPassword(ev.target.value)}
-              className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none" />
+              className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-maroon-500 focus:outline-none" />
             {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => { setShowChangePw(false); setError(""); }}
@@ -447,7 +506,7 @@ function ProfileModal({ session, onClose }) {
                 Kembali
               </button>
               <button type="submit" disabled={submitting || !oldPassword || !newPassword || !confirmPassword}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60">
+                className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-black to-maroon-700 px-3 py-1.5 text-sm font-semibold text-white hover:to-maroon-600 disabled:opacity-60">
                 {submitting ? <Loader2 size={14} className="animate-spin" /> : null} Simpan Password Baru
               </button>
             </div>
@@ -546,17 +605,17 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
 
   return (
     <div>
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-stone-900 to-amber-950">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-amber-500/20 blur-3xl" />
+      <div className="relative overflow-hidden bg-gradient-to-br from-black via-maroon-950 to-maroon-800">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-maroon-500/25 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-16 left-1/3 h-48 w-48 rounded-full bg-indigo-400/10 blur-3xl" />
         <div className="relative mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-4 px-6 py-7">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">PT. Rama Emerald Multi Sukses — QA</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-maroon-200">PT. Rama Emerald Multi Sukses — QA</p>
             <h1 className="text-2xl font-bold text-white">Dashboard EM Non Viable</h1>
-            <p className="mt-1 text-sm text-amber-100">Rekap pemantauan Suhu, Kelembaban (RH), dan Perbedaan Tekanan (DPG) per fasilitas</p>
+            <p className="mt-1 text-sm text-maroon-50">Rekap pemantauan Suhu, Kelembaban (RH), dan Perbedaan Tekanan (DPG) per fasilitas</p>
           </div>
           <label className="no-print inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm text-white backdrop-blur-sm">
-            <Calendar size={15} className="text-amber-200" />
+            <Calendar size={15} className="text-maroon-100" />
             <input type="month" value={month} onChange={(ev) => setMonth(ev.target.value)} onClick={(ev) => ev.currentTarget.showPicker?.()}
               className="border-none bg-transparent text-sm text-white outline-none [color-scheme:dark]" />
           </label>
@@ -585,7 +644,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
             const tint = STATUS_TINT[level];
             return (
               <button key={f.key} onClick={() => openFacility(f.key)}
-                className="group flex w-full items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white pr-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-md">
+                className="group flex w-full items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white pr-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-maroon-400 hover:shadow-md">
                 <span className="self-stretch w-1.5" style={{ background: accent }} />
                 <div className="flex flex-1 items-center gap-3 py-3.5 pl-3.5">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: tint.bg, color: tint.fg }}><Building2 size={19} /></span>
@@ -596,7 +655,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {loading ? <Loader2 className="animate-spin text-slate-300" size={18} /> : <StatusPill level={st?.level || 0} hasData={!!st?.hasData} />}
-                  <ChevronRight size={16} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-amber-500" />
+                  <ChevronRight size={16} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-maroon-500" />
                 </div>
               </button>
             );
@@ -671,12 +730,13 @@ function EntryPage({ session, facilityKey, setView }) {
   const [rooms, setRooms] = useState([]);
   const [monthEntries, setMonthEntries] = useState([]);
   const [dayStatus, setDayStatus] = useState(null);
-  const [selectedRoom, setSelectedRoom] = useState(null);
-  const [values, setValues] = useState({}); // { "08:00": {suhu,rh,dpg}, "13:00": {...} }
+  // values sekarang menampung SEMUA ruangan sekaligus untuk tanggal
+  // terpilih — { [roomName]: { "08:00": {suhu,rh,dpg,opr,spv}, "13:00": {...} } }
+  // — beda dari versi lama yang cuma menyimpan 1 ruangan yang sedang dipilih.
+  const [values, setValues] = useState({});
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingRoom, setSavingRoom] = useState(null); // nama ruangan yang sedang disimpan/approve
   const [approvingDate, setApprovingDate] = useState(null);
-  const [dateStatusMap, setDateStatusMap] = useState({});
   const [error, setError] = useState("");
 
   const month = selectedDate.slice(0, 7);
@@ -710,81 +770,95 @@ function EntryPage({ session, facilityKey, setView }) {
 
   useEffect(() => { loadDate(); }, [loadDate]);
 
+  // Bangun ulang nilai form untuk SEMUA ruangan setiap kali tanggal/ruangan
+  // master/data bulan berubah — supaya seluruh ruangan langsung terlihat
+  // isiannya begitu tanggal dipilih, tanpa perlu memilih ruangan satu-satu.
   useEffect(() => {
-    if (!selectedRoom) { setValues({}); return; }
-    const byJam = { "08:00": null, "13:00": null };
-    monthEntries.filter((e) => e.roomName === selectedRoom.name && e.tanggal === selectedDate).forEach((e) => { byJam[e.jam] = e; });
-    const req = selectedRoom.required || {};
-    const init = {};
-    SESI.forEach((jam) => {
-      const e = byJam[jam];
-      const dash = (key) => (e ? (e[key] ?? "") : (req[key] ? "" : "-"));
-      init[jam] = { suhu: dash("suhu"), rh: dash("rh"), dpg: dash("dpg"), opr: e?.opr ?? "", spv: e?.spv ?? "", level: e?.level || { suhu: null, rh: null, dpg: null } };
+    const initAll = {};
+    rooms.forEach((r) => {
+      const req = r.required || {};
+      const byJam = { "08:00": null, "13:00": null };
+      monthEntries.filter((e) => e.roomName === r.name && e.tanggal === selectedDate).forEach((e) => { byJam[e.jam] = e; });
+      const init = {};
+      SESI.forEach((jam) => {
+        const e = byJam[jam];
+        const dash = (key) => (e ? (e[key] ?? "") : (req[key] ? "" : "-"));
+        init[jam] = { suhu: dash("suhu"), rh: dash("rh"), dpg: dash("dpg"), opr: e?.opr ?? "", spv: e?.spv ?? "" };
+      });
+      initAll[r.name] = init;
     });
-    setValues(init);
-  }, [selectedRoom, monthEntries, selectedDate]);
+    setValues(initAll);
+  }, [rooms, monthEntries, selectedDate]);
 
-  function updateField(jam, field, val) {
+  function updateField(roomName, jam, field, val) {
     // Angka Indonesia pakai koma sebagai desimal — kalau operator ngetik
     // titik, otomatis dijadikan koma juga (tetap konsisten tampilannya).
     // "-" tetap boleh diketik apa adanya — dipakai kalau parameter itu
     // wajib tapi alat pemantaunya memang tidak tersedia di ruangan itu.
     const normalized = (field === "suhu" || field === "rh" || field === "dpg") ? val.replace(/\./g, ",") : val;
-    setValues((prev) => ({ ...prev, [jam]: { ...prev[jam], [field]: normalized } }));
+    setValues((prev) => ({
+      ...prev,
+      [roomName]: { ...prev[roomName], [jam]: { ...prev[roomName]?.[jam], [field]: normalized } },
+    }));
   }
 
   // Ruangan+tanggal ini terkunci HANYA kalau SPV sudah approve (kolom SPV
   // terisi di salah satu sesi) — approve OPR TIDAK mengunci, operator masih
   // boleh mengubah nilai & approve ulang selama SPV belum approve.
-  const roomLocked = !!selectedRoom && session.role !== "Administrator" && SESI.some((jam) => !!values[jam]?.spv);
+  function isRoomLocked(roomName) {
+    if (session.role === "Administrator") return false;
+    return SESI.some((jam) => !!values[roomName]?.[jam]?.spv);
+  }
 
-  // Validasi kelengkapan: parameter yang WAJIB (selectedRoom.required, dari
+  // Validasi kelengkapan: parameter yang WAJIB (room.required, dari
   // Limit_Persyaratan — sudah diketahui sejak awal, TIDAK bergantung ada/
   // tidaknya data tersimpan) tidak boleh kosong kalau sesi itu sudah mulai
   // diisi. Nilai "-" dihitung SUDAH terisi (dipakai kalau alat pemantau
   // untuk parameter itu memang tidak tersedia).
-  function validateRoom() {
+  function validateRoom(room) {
     const missing = [];
-    const req = selectedRoom?.required || {};
+    const req = room.required || {};
+    const v = values[room.name] || {};
     SESI.forEach((jam) => {
-      const v = values[jam];
-      if (!v) return;
-      const anyFilled = PARAM_DEFS.some((p) => req[p.key] && v[p.key] !== "");
+      const jv = v[jam];
+      if (!jv) return;
+      const anyFilled = PARAM_DEFS.some((p) => req[p.key] && jv[p.key] !== "");
       if (!anyFilled) return;
       PARAM_DEFS.forEach((p) => {
-        if (req[p.key] && v[p.key] === "") missing.push(`${jam} — ${p.label}`);
+        if (req[p.key] && jv[p.key] === "") missing.push(`${jam} — ${p.label}`);
       });
     });
     return missing;
   }
 
-  // Menyimpan nilai ruangan yang sedang dipilih. Dipakai langsung oleh
-  // tombol "Simpan Ruangan Ini", TAPI juga dipanggil otomatis oleh tombol
-  // Approve (OPR)/Approve (SPV) — supaya operator tidak perlu klik Simpan
-  // dulu sebelum bisa approve; klik Approve = simpan + approve sekaligus.
-  async function saveCurrentRoom() {
-    if (!selectedRoom) return false;
-    const missing = validateRoom();
+  // Menyimpan nilai 1 ruangan (dipanggil langsung oleh tombol "Simpan", TAPI
+  // juga dipanggil otomatis oleh tombol Approve OPR/SPV — supaya operator
+  // tidak perlu klik Simpan dulu sebelum bisa approve; klik Approve = simpan
+  // + approve sekaligus). Ruangan lain yang tidak disentuh tetap aman karena
+  // di-merge dari monthEntries apa adanya.
+  async function saveRoomEntries(room) {
+    const missing = validateRoom(room);
     if (missing.length > 0) {
-      setError("Data belum lengkap, mohon isi dulu: " + missing.join(", "));
+      setError(`Data ${room.name} belum lengkap, mohon isi dulu: ` + missing.join(", "));
       return false;
     }
     setError("");
     try {
-      const req = selectedRoom.required || {};
-      const editedRows = SESI.filter((jam) => PARAM_DEFS.some((p) => req[p.key] && values[jam][p.key] !== "")).map((jam) => ({
+      const req = room.required || {};
+      const v = values[room.name] || {};
+      const editedRows = SESI.filter((jam) => PARAM_DEFS.some((p) => req[p.key] && v[jam][p.key] !== "")).map((jam) => ({
         // ID STABIL berbasis konten (ruangan|tanggal|jam) — bukan index baris
         // — supaya baris lain yang tidak disentuh tidak salah kedeteksi
         // "terhapus" gara-gara posisi baris di sheet berubah tiap simpan.
-        id: `${selectedRoom.name}|${selectedDate}|${jam}`,
-        tanggal: selectedDate, jam, roomName: selectedRoom.name, persyaratanKey: selectedRoom.persyaratanKey,
-        suhu: values[jam].suhu === "" ? null : values[jam].suhu,
-        rh: values[jam].rh === "" ? null : values[jam].rh,
-        dpg: values[jam].dpg === "" ? null : values[jam].dpg,
+        id: `${room.name}|${selectedDate}|${jam}`,
+        tanggal: selectedDate, jam, roomName: room.name, persyaratanKey: room.persyaratanKey,
+        suhu: v[jam].suhu === "" ? null : v[jam].suhu,
+        rh: v[jam].rh === "" ? null : v[jam].rh,
+        dpg: v[jam].dpg === "" ? null : v[jam].dpg,
         opr: "", spv: "",
       }));
       const others = monthEntries
-        .filter((e) => !(e.roomName === selectedRoom.name && e.tanggal === selectedDate))
+        .filter((e) => !(e.roomName === room.name && e.tanggal === selectedDate))
         .map((e) => ({ tanggal: e.tanggal, jam: e.jam, roomName: e.roomName, persyaratanKey: e.persyaratanKey, suhu: e.suhu, rh: e.rh, dpg: e.dpg, opr: e.opr, spv: e.spv, id: e.id }));
       const merged = others.concat(editedRows);
       await apiSaveEntries(facilityKey, month, merged, session.token);
@@ -795,40 +869,38 @@ function EntryPage({ session, facilityKey, setView }) {
     }
   }
 
-  async function handleSaveRoom() {
-    setSaving(true);
-    const ok = await saveCurrentRoom();
+  async function handleSaveRoom(room) {
+    setSavingRoom(room.name);
+    const ok = await saveRoomEntries(room);
     if (ok) await loadDate();
-    setSaving(false);
+    setSavingRoom(null);
   }
 
-  async function handleApproveOpr() {
-    if (!selectedRoom) return;
-    setSaving(true);
+  async function handleApproveOpr(room) {
+    setSavingRoom(room.name);
     try {
-      const ok = await saveCurrentRoom();
+      const ok = await saveRoomEntries(room);
       if (!ok) return;
-      await apiApproveOpr(facilityKey, selectedDate, selectedRoom.name, session.token);
+      await apiApproveOpr(facilityKey, selectedDate, room.name, session.token);
       await loadDate();
     } catch (err) {
       setError(err.message);
     } finally {
-      setSaving(false);
+      setSavingRoom(null);
     }
   }
 
-  async function handleApproveSpv() {
-    if (!selectedRoom) return;
-    setSaving(true);
+  async function handleApproveSpv(room) {
+    setSavingRoom(room.name);
     try {
-      const ok = await saveCurrentRoom();
+      const ok = await saveRoomEntries(room);
       if (!ok) return;
-      await apiApproveSpv(facilityKey, selectedDate, selectedRoom.name, session.token);
+      await apiApproveSpv(facilityKey, selectedDate, room.name, session.token);
       await loadDate();
     } catch (err) {
       setError(err.message);
     } finally {
-      setSaving(false);
+      setSavingRoom(null);
     }
   }
 
@@ -870,59 +942,64 @@ function EntryPage({ session, facilityKey, setView }) {
   });
   // Status "sudah di-ACC" untuk tanggal terpilih — dihitung dari data (semua
   // baris tanggal itu sudah punya SPV), bukan dari flag terpisah, supaya
-  // konsisten dengan approve per-ruangan yang sekarang tersedia.
+  // konsisten dengan approve per-ruangan yang tersedia.
   const isApproved = todaysEntries.length > 0 && todaysEntries.every((e) => !!e.spv);
+  // Semua ruangan master fasilitas ini sudah ada datanya hari ini —
+  // dipakai untuk menampilkan grafik perbandingan seluruh ruangan.
+  const allRoomsFilled = rooms.length > 0 && rooms.every((r) => roomsFilledToday.has(r.name));
 
-  // Riwayat bulan ini KHUSUS ruangan yang sedang dipilih (tidak semua
-  // ruangan) — dikelompokkan per tanggal, terbaru dulu.
-  const roomDates = useMemo(() => {
-    if (!selectedRoom) return [];
-    return Array.from(new Set(monthEntries.filter((e) => e.roomName === selectedRoom.name).map((e) => e.tanggal)));
-  }, [monthEntries, selectedRoom]);
+  // Ruangan dikelompokkan per kategori (sama seperti pengelompokan
+  // "Kelas" di EM Viable) supaya tabel input tidak jadi satu daftar panjang
+  // tanpa struktur.
+  const groupedRooms = useMemo(() => {
+    const cats = Array.from(new Set(rooms.map(roomCategory)));
+    return cats.map((cat) => ({ cat, items: rooms.filter((r) => roomCategory(r) === cat) }));
+  }, [rooms]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const toFetch = roomDates.filter((d) => d !== selectedDate && !(d in dateStatusMap));
-    if (toFetch.length === 0) return;
-    Promise.all(toFetch.map((d) => fetchDayStatus(facilityKey, d, session.token).then((s) => [d, s]).catch(() => [d, null])))
-      .then((pairs) => {
-        if (cancelled) return;
-        setDateStatusMap((prev) => {
-          const next = { ...prev };
-          pairs.forEach(([d, s]) => { next[d] = s; });
-          return next;
-        });
+  // Data grafik perbandingan antar-ruangan untuk tanggal terpilih — dibangun
+  // dari data YANG SUDAH TERSIMPAN (todaysEntries, lengkap dengan level dari
+  // server), bukan dari isian yang sedang diketik, supaya grafik tidak
+  // "kedip-kedip" saat operator masih mengisi form.
+  const compareData = useMemo(() => {
+    const byRoomJam = {};
+    todaysEntries.forEach((e) => {
+      byRoomJam[e.roomName] = byRoomJam[e.roomName] || {};
+      byRoomJam[e.roomName][e.jam] = e;
+    });
+    const numOf = (e, key) => {
+      if (!e) return null;
+      const raw = e[key];
+      if (raw === null || raw === undefined || raw === "" || raw === "-") return null;
+      const n = Number(String(raw).replace(",", "."));
+      return Number.isNaN(n) ? null : n;
+    };
+    const out = {};
+    PARAM_DEFS.forEach((p) => {
+      out[p.key] = rooms.filter((r) => r.required?.[p.key]).map((r) => {
+        const pagi = byRoomJam[r.name]?.["08:00"];
+        const siang = byRoomJam[r.name]?.["13:00"];
+        return {
+          room: r.name,
+          pagi: numOf(pagi, p.key),
+          pagiLevel: pagi?.level?.[p.key] ?? null,
+          siang: numOf(siang, p.key),
+          siangLevel: siang?.level?.[p.key] ?? null,
+        };
       });
-    return () => { cancelled = true; };
-  }, [roomDates, selectedDate, facilityKey, session.token, dateStatusMap]);
-
-  const historyByDate = useMemo(() => {
-    if (!selectedRoom) return [];
-    const roomEntries = monthEntries.filter((e) => e.roomName === selectedRoom.name);
-    const groups = {};
-    roomEntries.forEach((e) => {
-      if (!groups[e.tanggal]) groups[e.tanggal] = [];
-      groups[e.tanggal].push(e);
     });
-    return Object.keys(groups).sort().reverse().map((tanggal) => {
-      const status = tanggal === selectedDate ? dayStatus : dateStatusMap[tanggal];
-      return {
-        tanggal,
-        entries: groups[tanggal].sort((a, b) => (a.jam + a.roomName).localeCompare(b.jam + b.roomName)),
-        approved: tanggal === selectedDate ? isApproved : groups[tanggal].every((e) => !!e.spv),
-        approvedBy: groups[tanggal].find((e) => e.spv)?.spv || null,
-        backfillNote: status?.backfill || null,
-      };
-    });
-  }, [monthEntries, selectedRoom, selectedDate, isApproved, dayStatus, dateStatusMap]);
+    return out;
+  }, [todaysEntries, rooms]);
 
   if (loading) return <div className="max-w-6xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Memuat…</div>;
 
-  const liveLevel = selectedRoom ? liveRoomLevel(values, selectedRoom) : facilityOverallLevel(todaysEntries);
-  const liveHasData = selectedRoom ? SESI.some((jam) => PARAM_DEFS.some((p) => values[jam]?.[p.key] && values[jam][p.key] !== "-")) : todaysEntries.length > 0;
+  // Status keseluruhan LIVE — dihitung dari isian semua ruangan saat ini
+  // (bukan cuma data tersimpan), supaya badge status langsung berubah SAAT
+  // MENGETIK di ruangan manapun, konsisten dengan filosofi liveLevelFor.
+  const liveLevel = rooms.length > 0 ? rooms.reduce((max, r) => Math.max(max, liveRoomLevel(values[r.name] || {}, r)), 0) : facilityOverallLevel(todaysEntries);
+  const liveHasData = rooms.some((r) => SESI.some((jam) => PARAM_DEFS.some((p) => values[r.name]?.[jam]?.[p.key] && values[r.name][jam][p.key] !== "-"))) || todaysEntries.length > 0;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 print:max-w-none print:p-0">
+    <div className="max-w-6xl mx-auto px-4 py-6 print:max-w-none print:p-0">
       <div className="no-print flex items-center justify-between mb-4">
         <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
           <ChevronLeft className="w-4 h-4" /> Kembali ke Dashboard
@@ -933,38 +1010,31 @@ function EntryPage({ session, facilityKey, setView }) {
               <ClipboardList className="w-4 h-4" /> Pengkajian QA
             </button>
           )}
-          {selectedRoom && (
-            <button onClick={() => setView({ page: "formulir", facility: facilityKey, room: selectedRoom.name, bulan: month })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-              <FileCheck2 className="w-4 h-4" /> Formulir Bulanan (FM.QA.024/R11)
-            </button>
-          )}
-          {selectedRoom && (
-            <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-              <Printer className="w-4 h-4" /> Cetak
-            </button>
-          )}
+          <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <Printer className="w-4 h-4" /> Cetak
+          </button>
         </div>
       </div>
 
       <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card">
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-stone-900 to-amber-950 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-amber-500/20 blur-3xl" />
+        <div className="relative overflow-hidden bg-gradient-to-r from-black via-maroon-950 to-maroon-800 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-maroon-500/25 blur-3xl" />
           <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div className="flex items-start gap-3">
               <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">PT. Rama Emerald Multi Sukses — QA</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-maroon-200">PT. Rama Emerald Multi Sukses — QA</p>
                 <h2 className="text-xl font-bold text-white">Data Pemantauan Suhu, RH &amp; DPG — {cfg?.label}</h2>
-                <p className="text-sm text-amber-100">Tanggal: <span className="font-medium text-white">{selectedDate}</span></p>
+                <p className="text-sm text-maroon-50">Tanggal: <span className="font-medium text-white">{selectedDate}</span> · Seluruh Ruangan ({rooms.length})</p>
               </div>
             </div>
-            <div className="text-right text-xs text-amber-200">
+            <div className="text-right text-xs text-maroon-100">
               <p>No. Formulir: FM.QA.024/R11</p>
             </div>
           </div>
         </div>
         <div className="flex items-center justify-between bg-white px-5 py-3">
-          <span className="text-xs text-slate-400">{selectedRoom ? `Status ${selectedRoom.name} (langsung dari input)` : "Status keseluruhan tanggal ini"}</span>
+          <span className="text-xs text-slate-400">Status keseluruhan tanggal ini ({roomsFilledToday.size}/{rooms.length} ruangan terisi)</span>
           <StatusPill level={liveLevel} hasData={liveHasData} />
         </div>
       </div>
@@ -972,12 +1042,12 @@ function EntryPage({ session, facilityKey, setView }) {
       {error && <p className="no-print text-sm text-red-600 mb-3 whitespace-pre-line">{error}</p>}
 
       <div className="no-print flex flex-wrap items-center gap-2 mb-4">
-        <button onClick={() => { setSelectedDate(openDates.today); setSelectedRoom(null); }}
-          className={`text-xs rounded-full px-3 py-1.5 border ${selectedDate === openDates.today ? "bg-amber-800 text-white border-amber-800" : "border-slate-300 text-slate-600"}`}>
+        <button onClick={() => setSelectedDate(openDates.today)}
+          className={`text-xs rounded-full px-3 py-1.5 border ${selectedDate === openDates.today ? "bg-gradient-to-r from-black to-maroon-800 text-white border-maroon-800" : "border-slate-300 text-slate-600"}`}>
           Hari ini
         </button>
         <input type="date" value={selectedDate} max={openDates.today}
-          onChange={(ev) => { if (ev.target.value) { setSelectedDate(ev.target.value); setSelectedRoom(null); } }}
+          onChange={(ev) => { if (ev.target.value) setSelectedDate(ev.target.value); }}
           className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600" />
         <span className="text-xs text-slate-400">
           Tanggal hari ini maupun tanggal sebelumnya bebas diisi selama belum di-approve SPV/Manager. Tanggal setelah hari ini tidak bisa dipilih.
@@ -1011,230 +1081,157 @@ function EntryPage({ session, facilityKey, setView }) {
         )}
       </div>
 
-      <div className="print-card avoid-break no-print mb-4 rounded-xl border border-slate-200 bg-white p-4">
-        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Pilih Ruangan</label>
-        <select
-          className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none sm:w-auto"
-          value={selectedRoom ? selectedRoom.code + "|" + selectedRoom.name : ""}
-          onChange={(ev) => {
-            const [code, ...rest] = ev.target.value.split("|");
-            const name = rest.join("|");
-            const room = rooms.find((r) => r.code === code && r.name === name);
-            setSelectedRoom(room || null);
-            setError("");
-          }}
-        >
-          <option value="">-- Pilih ruangan --</option>
-          {Array.from(new Set(rooms.map(roomCategory))).map((cat) => (
-            <optgroup key={cat} label={cat}>
-              {rooms.filter((r) => roomCategory(r) === cat).map((r) => {
-                const filled = roomsFilledToday.has(r.name);
-                const rowsApproved = todaysEntries.filter((e) => e.roomName === r.name).some((e) => !!e.spv);
-                return (
-                  <option key={r.code + r.name} value={r.code + "|" + r.name}>
-                    {r.name} ({r.code}){filled ? (rowsApproved ? " ✓ disetujui" : " • terisi") : ""}
-                  </option>
-                );
-              })}
-            </optgroup>
+      {/* ================= TABEL INPUT SEMUA RUANGAN, DIKELOMPOKKAN PER KATEGORI ================= */}
+      {rooms.length === 0 ? (
+        <p className="no-print text-sm text-slate-500 mb-6">Belum ada master ruangan untuk fasilitas ini.</p>
+      ) : (
+        <div className="space-y-4 mb-6">
+          {groupedRooms.map(({ cat, items }) => (
+            <div key={cat} className="print-card avoid-break bg-white rounded-xl border overflow-hidden">
+              <div className="px-4 py-2.5 border-b bg-slate-50">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{cat}</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-400 text-[10px] uppercase">
+                      <th rowSpan={2} className="px-2 py-1.5 text-left align-bottom min-w-[160px]">Ruangan</th>
+                      <th colSpan={3} className="px-2 py-1 text-center border-l">08:00</th>
+                      <th colSpan={3} className="px-2 py-1 text-center border-l">13:00</th>
+                      <th rowSpan={2} className="px-2 py-1.5 text-center align-bottom border-l">OPR</th>
+                      <th rowSpan={2} className="px-2 py-1.5 text-center align-bottom">SPV</th>
+                      <th rowSpan={2} className="no-print px-2 py-1.5 text-center align-bottom">Aksi</th>
+                    </tr>
+                    <tr className="bg-slate-50 text-slate-400 text-[10px] uppercase">
+                      {SESI.map((jam) => PARAM_DEFS.map((p, i) => (
+                        <th key={jam + p.key} className={`px-1 py-1 text-center font-normal ${i === 0 ? "border-l" : ""}`}>{p.label}</th>
+                      )))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((r) => {
+                      const roomValues = values[r.name] || {};
+                      const locked = isRoomLocked(r.name);
+                      const busy = savingRoom === r.name;
+                      const oprName = roomValues["08:00"]?.opr || roomValues["13:00"]?.opr || "";
+                      const spvName = roomValues["08:00"]?.spv || roomValues["13:00"]?.spv || "";
+                      const canApproveOprHere = SESI.every((jam) => PARAM_DEFS.every((p) => !r.required?.[p.key] || roomValues[jam]?.[p.key] !== ""));
+                      const canApproveSpvHere = SESI.every((jam) => !!roomValues[jam]?.opr);
+                      return (
+                        <tr key={r.code + r.name} className="border-t border-slate-100 align-top">
+                          <td className="px-2 py-2">
+                            <div className="font-medium text-slate-700">{r.name}</div>
+                            <div className="text-[10px] text-slate-400 mb-1">{r.code}</div>
+                            <div className="flex flex-col gap-0.5">
+                              {PARAM_DEFS.filter((p) => r.required?.[p.key] && r.limits?.[p.key]).map((p) => (
+                                <span key={p.key} className="text-[9px] text-slate-400">
+                                  {p.label}: {formatRange(r.limits[p.key].syaratL, r.limits[p.key].syaratU, p.unit)}
+                                </span>
+                              ))}
+                            </div>
+                            <button onClick={() => setView({ page: "formulir", facility: facilityKey, room: r.name, bulan: month })}
+                              className="no-print mt-1 text-[10px] text-maroon-700 hover:underline">
+                              Formulir Bulanan
+                            </button>
+                          </td>
+                          {SESI.map((jam) => PARAM_DEFS.map((p, i) => {
+                            const v = roomValues[jam]?.[p.key] ?? "";
+                            const required = !!r.required?.[p.key];
+                            const style = levelStyle(liveLevelFor(v, r.limits?.[p.key]));
+                            return (
+                              <td key={jam + p.key} className={`px-1 py-1 text-center ${i === 0 ? "border-l" : ""}`}>
+                                <input
+                                  value={v}
+                                  disabled={!canInput || locked || !required}
+                                  placeholder={required ? "" : "N/A"}
+                                  onChange={(e) => updateField(r.name, jam, p.key, e.target.value)}
+                                  className="w-14 text-center rounded px-1 py-1 border disabled:bg-slate-50 disabled:text-slate-300"
+                                  style={{ background: v !== "" ? style.bg : undefined, color: v !== "" ? style.color : undefined }}
+                                />
+                              </td>
+                            );
+                          }))}
+                          <td className="px-2 py-2 text-center text-slate-500 border-l">
+                            {oprName ? (
+                              <span className="inline-flex items-center gap-1">
+                                {oprName}
+                                <VerifyQR type="harian" facility={facilityKey} period={selectedDate} size={24} hideLabel />
+                              </span>
+                            ) : <span className="italic text-slate-400">belum di-ACC</span>}
+                          </td>
+                          <td className="px-2 py-2 text-center text-slate-500">
+                            {spvName ? (
+                              <span className="inline-flex items-center gap-1">
+                                {spvName}
+                                <VerifyQR type="harian" facility={facilityKey} period={selectedDate} size={24} hideLabel />
+                              </span>
+                            ) : <span className="italic text-slate-400">belum di-ACC</span>}
+                          </td>
+                          <td className="no-print px-2 py-2">
+                            {locked ? (
+                              <span className="inline-flex items-center justify-center gap-1 whitespace-nowrap text-[10px] text-maroon-700">
+                                <Lock size={11} /> Terkunci
+                              </span>
+                            ) : (canInput || canApprove) ? (
+                              <div className="flex flex-wrap items-center justify-center gap-1">
+                                {canInput && (
+                                  <button onClick={() => handleSaveRoom(r)} disabled={busy} title="Simpan"
+                                    className="inline-flex items-center justify-center rounded-md bg-slate-800 text-white p-1.5 disabled:opacity-60">
+                                    {busy ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                  </button>
+                                )}
+                                {isOperatorRole && (
+                                  <button onClick={() => handleApproveOpr(r)} disabled={busy || !canApproveOprHere} title="Approve (OPR)"
+                                    className="inline-flex items-center justify-center rounded-md bg-emerald-600 text-white p-1.5 disabled:opacity-60">
+                                    <FileCheck2 size={12} />
+                                  </button>
+                                )}
+                                {canApprove && (
+                                  <button onClick={() => handleApproveSpv(r)} disabled={busy || !canApproveSpvHere} title="Approve (SPV)"
+                                    className="inline-flex items-center justify-center rounded-md bg-emerald-700 text-white p-1.5 disabled:opacity-60">
+                                    <FileCheck2 size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ))}
-        </select>
+        </div>
+      )}
+
+      {/* ================= GRAFIK PERBANDINGAN SELURUH RUANGAN (1 HARI) ================= */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-slate-700">Grafik Suhu, RH &amp; DPG — Seluruh Ruangan ({selectedDate})</h3>
+          {!allRoomsFilled && rooms.length > 0 && (
+            <span className="text-xs text-slate-400">{roomsFilledToday.size}/{rooms.length} ruangan sudah diisi</span>
+          )}
+        </div>
+        {rooms.length === 0 ? (
+          <p className="text-sm text-slate-500">Belum ada master ruangan untuk fasilitas ini.</p>
+        ) : !allRoomsFilled ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
+            <TrendingUp className="mx-auto mb-2 text-slate-300" size={26} />
+            <p className="text-sm text-slate-500">Grafik perbandingan akan muncul di sini setelah seluruh {rooms.length} ruangan diisi datanya untuk tanggal {selectedDate}.</p>
+            <p className="mt-1 text-xs text-slate-400">Saat ini baru {roomsFilledToday.size} ruangan yang terisi.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {PARAM_DEFS.map((p) => (
+              <DayCompareChart key={p.key} paramLabel={p.label} unit={p.unit} rows={compareData[p.key]} />
+            ))}
+          </div>
+        )}
       </div>
 
-      {!selectedRoom ? (
-        <p className="no-print text-sm text-slate-500">Pilih ruangan di atas untuk isi/lihat data tanggal {selectedDate}.</p>
-      ) : (
-        <div className="print-card avoid-break bg-white rounded-xl border overflow-hidden mb-6">
-          <div className="px-4 py-3 border-b bg-slate-50">
-            <div className="font-medium text-slate-800 text-sm">{selectedRoom.name} <span className="text-slate-400 font-normal">({selectedRoom.code})</span></div>
-            <div className="text-xs text-slate-500 mb-2">{selectedRoom.persyaratanKey}</div>
-            <div className="flex flex-wrap gap-3">
-              {PARAM_DEFS.map((p) => {
-                const lim = selectedRoom.limits?.[p.key];
-                if (!selectedRoom.required?.[p.key] || !lim) return null;
-                return (
-                  <div key={p.key} className="text-xs bg-white border rounded-lg px-2.5 py-1.5">
-                    <span className="font-medium text-slate-600">{p.label}: </span>
-                    <span className="text-slate-700">{formatRange(lim.syaratL, lim.syaratU, p.unit)}</span>
-                    <span className="text-slate-400"> · Alert {formatRange(lim.alertL, lim.alertU, p.unit)}</span>
-                    <span className="text-slate-400"> · Action {formatRange(lim.actionL, lim.actionU, p.unit)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500">
-                <th className="px-2 py-2 text-left">Jam</th>
-                {PARAM_DEFS.map((p) => <th key={p.key} className="px-2 py-2 text-center">{p.label} ({p.unit})</th>)}
-                <th className="px-2 py-2 text-center">OPR</th>
-                <th className="px-2 py-2 text-center">SPV</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SESI.map((jam) => (
-                <tr key={jam} className="border-t">
-                  <td className="px-2 py-2 text-slate-500">{jam}</td>
-                  {PARAM_DEFS.map((p) => {
-                    const v = values[jam]?.[p.key] ?? "";
-                    const style = levelStyle(liveLevelFor(v, selectedRoom.limits?.[p.key]));
-                    const required = !!selectedRoom?.required?.[p.key];
-                    return (
-                      <td key={p.key} className="px-1 py-1 text-center">
-                        <input
-                          value={v}
-                          disabled={!canInput || roomLocked || !required}
-                          placeholder={required ? "" : "N/A"}
-                          onChange={(e) => updateField(jam, p.key, e.target.value)}
-                          className="w-16 text-center rounded px-1 py-1 border disabled:bg-slate-50 disabled:text-slate-300"
-                          style={{ background: v !== "" ? style.bg : undefined, color: v !== "" ? style.color : undefined }}
-                        />
-                      </td>
-                    );
-                  })}
-                  <td className="px-2 py-1 text-center text-slate-500">
-                    {values[jam]?.opr ? (
-                      <span className="inline-flex items-center gap-1">
-                        {values[jam].opr}
-                        <VerifyQR type="harian" facility={facilityKey} period={selectedDate} size={26} hideLabel />
-                      </span>
-                    ) : <span className="italic text-slate-400">belum di-ACC</span>}
-                  </td>
-                  <td className="px-2 py-1 text-center text-slate-500">
-                    {values[jam]?.spv ? (
-                      <span className="inline-flex items-center gap-1">
-                        {values[jam].spv}
-                        <VerifyQR type="harian" facility={facilityKey} period={selectedDate} size={26} hideLabel />
-                      </span>
-                    ) : <span className="italic text-slate-400">belum di-ACC</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {(canInput || canApprove) && !roomLocked && (
-            <div className="px-4 py-3 border-t bg-slate-50 flex flex-wrap justify-end gap-2">
-              {canInput && (
-                <button onClick={handleSaveRoom} disabled={saving} className="flex items-center gap-2 bg-slate-800 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Simpan Ruangan Ini
-                </button>
-              )}
-              {isOperatorRole && (
-                <button onClick={handleApproveOpr} disabled={saving || !SESI.every((jam) => PARAM_DEFS.every((p) => !selectedRoom.required?.[p.key] || values[jam]?.[p.key] !== ""))} className="flex items-center gap-2 bg-emerald-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
-                  <FileCheck2 className="w-4 h-4" /> Approve (OPR)
-                </button>
-              )}
-              {canApprove && (
-                <button onClick={handleApproveSpv} disabled={saving || !SESI.every((jam) => !!values[jam]?.opr)} className="flex items-center gap-2 bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-60">
-                  <FileCheck2 className="w-4 h-4" /> Approve (SPV)
-                </button>
-              )}
-            </div>
-          )}
-          {roomLocked && (
-            <div className="px-4 py-3 border-t bg-amber-50 text-amber-700 text-xs flex items-center gap-2">
-              <Lock className="w-3.5 h-3.5" /> Ruangan ini tanggal {selectedDate} sudah di-approve SPV/Manager — terkunci.
-            </div>
-          )}
-        </div>
-      )}
-
-      {selectedRoom && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-          {PARAM_DEFS.filter((p) => selectedRoom.required?.[p.key]).map((p) => (
-            <ParamTrendChart
-              key={p.key}
-              entries={monthEntries.filter((e) => e.roomName === selectedRoom.name)}
-              paramKey={p.key}
-              paramLabel={p.label}
-              unit={p.unit}
-              limit={selectedRoom.limits?.[p.key]}
-            />
-          ))}
-        </div>
-      )}
-
       {canApprove && <div className="no-print"><BackfillForm session={session} facilityKey={facilityKey} onOpened={loadAll} /></div>}
-
-      {selectedRoom && (
-        <div className="mt-6">
-          <h3 className="text-sm font-semibold text-slate-700 mb-2">Riwayat {selectedRoom.name} — Bulan Ini ({month})</h3>
-          {historyByDate.length === 0 ? (
-            <p className="text-sm text-slate-500">Belum ada data ruangan ini bulan ini.</p>
-          ) : (
-            <div className="space-y-3">
-              {historyByDate.map((g) => (
-                <div key={g.tanggal} className="print-card avoid-break bg-white rounded-xl border overflow-hidden">
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b">
-                    <div className="text-sm font-medium text-slate-700">{g.tanggal}</div>
-                    <div className="flex items-center gap-2">
-                      {g.approved ? (
-                        <span className="text-xs inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Disetujui {g.approvedBy}
-                        </span>
-                      ) : (
-                        <span className="text-xs inline-flex items-center gap-1 text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">
-                          <XOctagon className="w-3.5 h-3.5" /> Belum di-ACC
-                        </span>
-                      )}
-                      {canApprove && !g.approved && g.tanggal !== selectedDate && (
-                        <button onClick={() => handleApproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="no-print text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 flex items-center gap-1 disabled:opacity-60">
-                          {approvingDate === g.tanggal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />} Approve (tanggal terlewat)
-                        </button>
-                      )}
-                      {canApprove && g.approved && g.tanggal !== selectedDate && session.role === "Administrator" && (
-                        <button onClick={() => handleUnapproveDate(g.tanggal)} disabled={approvingDate === g.tanggal} className="text-xs bg-slate-200 text-slate-700 rounded-lg px-3 py-1.5">Buka Kembali</button>
-                      )}
-                    </div>
-                  </div>
-                  {g.backfillNote && (
-                    <div className="px-4 py-2 text-xs bg-amber-50 text-amber-700 border-b flex items-center gap-1.5">
-                      <ClipboardList className="w-3.5 h-3.5 flex-shrink-0" /> Data via backfill — dibuka {g.backfillNote.byNama}: "{g.backfillNote.alasan}"
-                    </div>
-                  )}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-slate-400">
-                          <th className="px-3 py-1.5 text-left">Jam</th>
-                          {PARAM_DEFS.map((p) => <th key={p.key} className="px-2 py-1.5 text-center">{p.label}</th>)}
-                          <th className="px-3 py-1.5 text-center">OPR</th>
-                          <th className="px-3 py-1.5 text-center">SPV</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {g.entries.map((e) => (
-                          <tr key={e.id} className="border-t">
-                            <td className="px-3 py-1 text-slate-500">{e.jam}</td>
-                            {PARAM_DEFS.map((p) => {
-                              const style = levelStyle(e.level?.[p.key]);
-                              const val = e[p.key];
-                              return (
-                                <td key={p.key} className="px-2 py-1 text-center">
-                                  {val === null || val === undefined || val === "" ? <span className="text-slate-300">—</span> : (
-                                    <span className="inline-block rounded px-1.5 py-0.5" style={{ background: style.bg, color: style.color }}>{val}</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                            <td className="px-3 py-1 text-center text-slate-500">
-                              {e.opr ? <span className="inline-flex items-center gap-1">{e.opr}<VerifyQR type="harian" facility={facilityKey} period={g.tanggal} size={22} hideLabel /></span> : "—"}
-                            </td>
-                            <td className="px-3 py-1 text-center text-slate-500">
-                              {e.spv ? <span className="inline-flex items-center gap-1">{e.spv}<VerifyQR type="harian" facility={facilityKey} period={g.tanggal} size={22} hideLabel /></span> : "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -1414,14 +1411,14 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
       </div>
 
       <div className="no-print relative mb-5 overflow-hidden rounded-xl border border-slate-200">
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-stone-900 to-amber-950 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-amber-500/20 blur-3xl" />
+        <div className="relative overflow-hidden bg-gradient-to-r from-black via-maroon-950 to-maroon-800 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-maroon-500/25 blur-3xl" />
           <div className="relative flex items-start gap-3">
             <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-10 w-10 shrink-0 object-contain brightness-0 invert" />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">PT. Rama Emerald Multi Sukses — QA</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-maroon-200">PT. Rama Emerald Multi Sukses — QA</p>
               <h2 className="text-lg font-bold text-white">Formulir Bulanan — {room?.name || roomName} ({cfg?.label})</h2>
-              <p className="text-sm text-amber-100">Periode: {monthLabelID(bulan)}</p>
+              <p className="text-sm text-maroon-50">Periode: {monthLabelID(bulan)}</p>
             </div>
           </div>
         </div>
@@ -1540,7 +1537,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
               <>
                 <p className="mb-2 text-[11px] italic text-slate-400">{kepalaBagianDone ? "Belum di-ACC" : "Menunggu semua ruangan di-ACC Kepala Bagian"}</p>
                 {canManagerQA && (
-                  <button onClick={handleApproveManagerQA} disabled={busy} className="no-print inline-flex items-center gap-1.5 rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50">
+                  <button onClick={handleApproveManagerQA} disabled={busy} className="no-print inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-black to-maroon-800 px-3 py-1.5 text-xs font-semibold text-white hover:to-maroon-700 disabled:opacity-50">
                     <FileCheck2 size={13} /> Approve (Manager QA) — Semua Ruangan Fasilitas Ini
                   </button>
                 )}
@@ -1653,22 +1650,22 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       </div>
 
       <div className="mb-5 overflow-hidden rounded-xl border border-slate-200 print-card">
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-stone-900 to-amber-950 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-amber-500/20 blur-3xl" />
+        <div className="relative overflow-hidden bg-gradient-to-r from-black via-maroon-950 to-maroon-800 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-maroon-500/25 blur-3xl" />
           <div className="relative flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div className="flex items-start gap-3">
               <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-12 w-12 shrink-0 object-contain brightness-0 invert" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">PT. Rama Emerald Multi Sukses — QA</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-maroon-200">PT. Rama Emerald Multi Sukses — QA</p>
                 <h2 className="text-xl font-bold text-white">{roomName ? "Pengkajian Ruangan (Opsional)" : "Pengkajian EM Non Viable"}</h2>
-                <p className="text-sm text-amber-100">
+                <p className="text-sm text-maroon-50">
                   Fasilitas: <span className="font-medium text-white">{cfg?.label}</span>
                   {roomName && <> · Ruangan: <span className="font-medium text-white">{roomName}</span></>}
                   {" "}· Periode: <span className="font-medium text-white">{monthLabelID(month)}</span>
                 </p>
               </div>
             </div>
-            <div className="text-right text-xs text-amber-200">
+            <div className="text-right text-xs text-maroon-100">
               <p>Acuan: FM.QA.024/R11</p>
             </div>
           </div>
@@ -1683,7 +1680,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         <div className="no-print flex flex-wrap gap-2 mb-4">
           {FACILITIES.map((f) => (
             <button key={f.key} onClick={() => setFacilityKey(f.key)}
-              className={`text-xs rounded-full px-3 py-1 border ${facilityKey === f.key ? "bg-amber-800 text-white border-amber-800" : "border-slate-300 text-slate-600"}`}>
+              className={`text-xs rounded-full px-3 py-1 border ${facilityKey === f.key ? "bg-gradient-to-r from-black to-maroon-800 text-white border-maroon-800" : "border-slate-300 text-slate-600"}`}>
               {f.label}
             </button>
           ))}
@@ -1698,7 +1695,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         <div className="print-card bg-white rounded-xl border p-5 space-y-4">
           {canDraft && !isFinal && (
             <div className="no-print flex justify-end">
-              <button onClick={handleGenerateAI} disabled={generating} className="text-sm bg-amber-600 text-white rounded-lg px-4 py-2 flex items-center gap-2 hover:bg-amber-700 disabled:opacity-60">
+              <button onClick={handleGenerateAI} disabled={generating} className="text-sm bg-gradient-to-r from-black to-maroon-700 text-white rounded-lg px-4 py-2 flex items-center gap-2 hover:to-maroon-600 disabled:opacity-60">
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Generate Narasi AI
               </button>
             </div>
@@ -1732,7 +1729,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               <button onClick={handleSave} className="text-sm bg-slate-800 text-white rounded-lg px-4 py-2 flex items-center gap-2"><Save className="w-4 h-4" /> Simpan Draf</button>
             )}
             {canDraft && report?.found && !report?.signoff?.dinilai?.nama && (
-              <button onClick={handleDikaji} className="text-sm bg-amber-700 text-white rounded-lg px-4 py-2 hover:bg-amber-800">Approve "Dikaji Oleh"</button>
+              <button onClick={handleDikaji} className="text-sm bg-gradient-to-r from-black to-maroon-800 text-white rounded-lg px-4 py-2 hover:to-maroon-700">Approve "Dikaji Oleh"</button>
             )}
             {canFinal && report?.signoff?.dinilai?.nama && !isFinal && (
               <button onClick={handleMengetahui} className="text-sm bg-emerald-600 text-white rounded-lg px-4 py-2">Approve Final "Mengetahui"</button>
@@ -1795,12 +1792,12 @@ function ActivityPage({ session, month, setView }) {
       </button>
 
       <div className="relative mb-5 overflow-hidden rounded-xl border border-slate-200">
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-stone-900 to-amber-950 px-5 py-4">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-amber-500/20 blur-3xl" />
+        <div className="relative overflow-hidden bg-gradient-to-r from-black via-maroon-950 to-maroon-800 px-5 py-4">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-maroon-500/25 blur-3xl" />
           <div className="relative flex items-start gap-3">
             <img src="/logo-rama.png" alt="Logo PT. Rama Emerald Multi Sukses" className="h-10 w-10 shrink-0 object-contain brightness-0 invert" />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">PT. Rama Emerald Multi Sukses — QA</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-maroon-200">PT. Rama Emerald Multi Sukses — QA</p>
               <h2 className="text-lg font-bold text-white">Riwayat Aktivitas</h2>
             </div>
           </div>
