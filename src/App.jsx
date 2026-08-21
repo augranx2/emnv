@@ -571,7 +571,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  // 2. APPROVE OPR BATCH (SEMUA RUANG)
+  // 2. APPROVE OPR BATCH (SEMUA RUANG YANG BELUM DI-ACC OPR)
   async function handleApproveOprBatch() {
     setSaving(true);
     setError("");
@@ -594,7 +594,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  // 3. APPROVE SPV BATCH (SEMUA RUANG & KUNCI)
+  // 3. APPROVE SPV BATCH (SEMUA RUANG YANG BELUM DI-ACC SPV)
   async function handleApproveSpvBatch() {
     setSaving(true);
     setError("");
@@ -692,8 +692,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   const currentLevel = facilityOverallLevel(monthEntries);
   const isFinalApproved = !!report?.signoff?.diperiksa?.nama;
-  const isDaySpvApproved = currentDayEntries.length > 0 && currentDayEntries.every((e) => !!e.spv);
 
+  // Status mapping per ruangan di tanggal ini
   const roomStatusToday = useMemo(() => {
     const map = {};
     rooms.forEach((r) => {
@@ -711,6 +711,18 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     return map;
   }, [rooms, currentDayEntries]);
 
+  // Kunci total 1 hari HANYA berlaku jika SELURUH ruangan di master sheet (100%) sudah terisi & di-approve SPV
+  const isFacilityFullySpvApproved = useMemo(() => {
+    if (rooms.length === 0) return false;
+    return rooms.every((r) => roomStatusToday[r.name] === "spv");
+  }, [rooms, roomStatusToday]);
+
+  // Apakah masih ada ruangan aktif di tabel yang belum di-approve SPV
+  const hasUnapprovedRoomsInActive = useMemo(() => {
+    return activeRoomNames.some((rName) => roomStatusToday[rName] !== "spv");
+  }, [activeRoomNames, roomStatusToday]);
+
+  // Ruangan yang belum dimasukkan ke tabel
   const unselectedRooms = rooms.filter((r) => !activeRoomNames.includes(r.name));
 
   return (
@@ -774,7 +786,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               </button>
             </div>
 
-            {canInput && !isDaySpvApproved && unselectedRooms.length > 0 && (
+            {/* Dropdown Tambah Ruangan selalu aktif selama masih ada ruangan di gedung yang belum dipilih */}
+            {canInput && unselectedRooms.length > 0 && (
               <div className="flex items-center gap-2">
                 <select
                   value=""
@@ -799,15 +812,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               </div>
             )}
 
-            {isDaySpvApproved && (
+            {isFacilityFullySpvApproved && (
               <span className="inline-flex items-center gap-1 text-[11px] bg-rose-50 text-rose-800 font-semibold px-2 py-0.5 rounded border border-rose-200">
-                <Lock size={11} /> Terkunci (Disetujui SPV)
+                <Lock size={11} /> Seluruh Ruangan Terkunci (Disetujui SPV)
               </span>
             )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {canInput && !isDaySpvApproved && (
+            {canInput && hasUnapprovedRoomsInActive && (
               <>
                 <button onClick={handleSaveDataOnly} disabled={saving}
                   className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700">
@@ -821,7 +834,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                 )}
               </>
             )}
-            {canApproveSPV && !isDaySpvApproved && (
+            {canApproveSPV && hasUnapprovedRoomsInActive && (
               <button onClick={handleApproveSpvBatch} disabled={saving || activeRoomNames.length === 0}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-rose-900 hover:bg-rose-950 text-white shadow-sm disabled:opacity-50">
                 <FileCheck2 size={14} /> Approve SPV &amp; Kunci (Semua)
@@ -859,8 +872,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   const labelSuffix = st === "spv" ? "✓ Disetujui SPV" : st === "opr" ? "• Diapprove OPR" : st === "filled" ? "• Terisi" : "";
 
                   const hasOprApproved = SESI.every((jam) => !!gridValues[rName]?.[jam]?.opr);
-                  const hasSpvApproved = SESI.every((jam) => !!gridValues[rName]?.[jam]?.spv);
-                  const isLocked = isDaySpvApproved || hasSpvApproved;
+                  const isLocked = st === "spv"; // Kunci HANYA ruangan ini jika SPV sudah approve
 
                   return SESI.map((jam, jamIdx) => {
                     const v = gridValues[rName]?.[jam] || {};
@@ -1006,7 +1018,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       )}
 
-      {/* SECTION 3: GRAFIK CROSS-SECTIONAL */}
+      {/* SECTION 3: GRAFIK CROSS-SECTIONAL (1 HARI SELURUH RUANGAN TERPILIH) */}
       <div className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
         <div>
           <h2 className="text-sm font-bold text-slate-800">Grafik Perbandingan Ruangan Terisi ({selectedDate})</h2>
@@ -1019,7 +1031,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* SECTION 4: PEMBAHASAN & NARASI QA */}
+      {/* SECTION 4: PEMBAHASAN & NARASI BULANAN QA */}
       <div className="bg-white rounded-xl border p-5 shadow-sm space-y-5">
         <div className="flex items-center justify-between border-b pb-3">
           <div>
