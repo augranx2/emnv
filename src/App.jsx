@@ -8,6 +8,7 @@ import {
   LogIn, LogOut, User, Loader2, Building2, ChevronLeft,
   Lock, History, Save, FileCheck2, ClipboardList,
   Printer, Sparkles, Calendar, Trash2, CheckCheck, CheckCircle2,
+  Filter,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
@@ -790,7 +791,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               <FileCheck2 size={13} /> Formulir Bulanan (FM.QA.024/R11)
             </button>
           )}
-          {/* Tombol Cetak Evaluasi Harian */}
           <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
             <Printer size={13} /> Cetak Harian
           </button>
@@ -1258,7 +1258,6 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
     }
   }
 
-  // Ruangan yang relevan untuk tabel persyaratan
   const displayedRooms = useMemo(() => {
     if (selectedRoomName) return rooms.filter((r) => r.name === selectedRoomName);
     const roomsInData = Array.from(new Set(monthEntries.map((e) => e.roomName)));
@@ -1333,7 +1332,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
       {error && <p className="p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-200">{error}</p>}
 
-      {/* 1. TABEL REKAP NILAI DATA (MENAMPILKAN SELURUH DATA CAKUPAN) */}
+      {/* 1. TABEL REKAP NILAI DATA */}
       <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
         <div className="flex justify-between items-center border-b pb-2">
           <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">
@@ -1436,7 +1435,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
       )}
 
-      {/* 3. GRAFIK TREN BULANAN (GLOBAL MAUPUN RUANGAN) */}
+      {/* 3. GRAFIK TREN BULANAN */}
       <div className="space-y-4">
         <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">Grafik Tren Pengukuran Periode {monthLabelID(month)}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1696,33 +1695,83 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
   );
 }
 
-/* ========================================================================= RIWAYAT AKTIVITAS ========================================================================= */
+/* ========================================================================= HALAMAN RIWAYAT AKTIVITAS (DENGAN FILTER FLEKSIBEL) ========================================================================= */
 function ActivityPage({ session, month, setView }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState(month || currentMonth());
+  const [allMonths, setAllMonths] = useState(true);
+  const [filterFacility, setFilterFacility] = useState("");
 
-  useEffect(() => {
-    fetchActivityLog(session.token, { month })
-      .then(setLogs)
+  const loadLogs = useCallback(() => {
+    setLoading(true);
+    fetchActivityLog(session.token, { month: allMonths ? undefined : selectedMonth, facility: filterFacility || undefined })
+      .then((data) => {
+        setLogs(Array.isArray(data) ? data : []);
+      })
       .catch(() => setLogs([]))
       .finally(() => setLoading(false));
-  }, [session.token, month]);
+  }, [session.token, allMonths, selectedMonth, filterFacility]);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
-      <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
-        <ChevronLeft size={16} /> Kembali ke Dashboard
-      </button>
-      <h2 className="text-lg font-bold text-slate-800">Riwayat Aktivitas ({monthLabelID(month)})</h2>
-      {loading ? <Loader2 size={16} className="animate-spin" /> : (
-        <div className="bg-white rounded-xl border divide-y text-xs">
+    <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
+          <ChevronLeft size={16} /> Kembali ke Dashboard
+        </button>
+        <button onClick={loadLogs} className="text-xs text-rose-800 hover:underline font-semibold">
+          Refresh Log
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border shadow-xs">
+        <div>
+          <h2 className="text-base font-bold text-slate-800">Riwayat Aktivitas &amp; Audit Trail</h2>
+          <p className="text-xs text-slate-400">Rekam jejak seluruh aksi login, input, ubah data, dan approval</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+            <input type="checkbox" checked={allMonths} onChange={(e) => setAllMonths(e.target.checked)} className="rounded" />
+            Tampilkan Semua Periode
+          </label>
+
+          {!allMonths && (
+            <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
+              className="border rounded-lg px-2.5 py-1 text-xs text-slate-700 outline-none" />
+          )}
+
+          <select value={filterFacility} onChange={(e) => setFilterFacility(e.target.value)} className="border rounded-lg px-2.5 py-1 text-xs text-slate-700 outline-none font-medium">
+            <option value="">Semua Fasilitas</option>
+            {FACILITIES.map((f) => <option key={f.key} value={f.label}>{f.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center p-12 text-slate-400"><Loader2 size={24} className="animate-spin" /></div>
+      ) : logs.length === 0 ? (
+        <div className="p-12 text-center bg-white rounded-xl border border-dashed text-slate-400 text-xs">
+          Belum ada riwayat aktivitas yang tercatat untuk filter ini.
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border divide-y text-xs shadow-xs">
           {logs.map((l, i) => (
-            <div key={i} className="p-3 flex justify-between">
-              <div>
-                <span className="font-semibold text-slate-700">{l.nama}</span> ({l.role}) — <span className="text-slate-600">{l.aksi}</span>
-                {l.detail && <p className="text-slate-400 text-[11px] mt-0.5">{l.detail}</p>}
+            <div key={i} className="p-3.5 flex flex-wrap items-center justify-between gap-2 hover:bg-slate-50/60">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-800">{l.nama}</span>
+                  <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">{l.role}{l.departemen ? ` · ${l.departemen}` : ""}</span>
+                  <span className="font-semibold text-rose-900 bg-rose-50 px-2 py-0.2 rounded text-[11px]">{l.aksi}</span>
+                  {l.fasilitas && <span className="text-[11px] font-bold text-slate-700 bg-amber-50 border border-amber-200 px-1.5 rounded">{l.fasilitas}</span>}
+                </div>
+                {l.detail && <p className="text-slate-500 text-[11px]">{l.detail}</p>}
               </div>
-              <span className="text-slate-400 text-[10px]">{new Date(l.waktu).toLocaleString("id-ID")}</span>
+              <span className="text-slate-400 text-[10px] whitespace-nowrap">{new Date(l.waktu).toLocaleString("id-ID")}</span>
             </div>
           ))}
         </div>
@@ -1809,11 +1858,23 @@ export default function App() {
   const [month, setMonth] = useState(currentMonth());
   const [showLogin, setShowLogin] = useState(false);
 
+  const handleLogout = useCallback(() => {
+    logout();
+    setView({ page: "dashboard" });
+  }, [logout]);
+
+  useEffect(() => {
+    const needsAuthPages = ["facility", "pengkajian", "formulir", "activity"];
+    if (needsAuthPages.includes(view.page) && !session) {
+      setView({ page: "dashboard" });
+    }
+  }, [session, view.page]);
+
   if (checking) return <div className="min-h-screen flex items-center justify-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin" /></div>;
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <TopBar session={session} onLoginClick={() => setShowLogin(true)} onLogout={logout} view={view} setView={setView} />
+      <TopBar session={session} onLoginClick={() => setShowLogin(true)} onLogout={handleLogout} view={view} setView={setView} />
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={login} />}
       {view.page === "dashboard" && <Dashboard month={month} setMonth={setMonth} setView={setView} session={session} onNeedLogin={() => setShowLogin(true)} />}
       {view.page === "facility" && session && <FacilityIntegratedPage session={session} facilityKey={view.facility} month={month} setMonth={setMonth} setView={setView} />}
