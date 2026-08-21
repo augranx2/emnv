@@ -235,19 +235,19 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
   );
 }
 
-/* ========================================================================= GRAFIK TREN BULANAN 1 RUANGAN ========================================================================= */
-function RoomMonthlyTrendChart({ entriesForRoom, paramKey, paramLabel, unit, limit }) {
+/* ========================================================================= GRAFIK TREN BULANAN ========================================================================= */
+function RoomMonthlyTrendChart({ entriesData, paramKey, paramLabel, unit, limit, isGlobal = false }) {
   const data = useMemo(() => {
-    return entriesForRoom.map((e) => {
+    return entriesData.map((e) => {
       const v = toNumberSafe(e[paramKey]);
       if (v === null) return null;
       return {
-        label: `${e.tanggal.slice(-2)}/${e.jam}`,
+        label: isGlobal ? `${e.tanggal.slice(-2)} (${e.roomName})` : `${e.tanggal.slice(-2)}/${e.jam}`,
         value: v,
         level: e.level?.[paramKey] ?? 0,
       };
     }).filter(Boolean);
-  }, [entriesForRoom, paramKey]);
+  }, [entriesData, paramKey, isGlobal]);
 
   if (data.length === 0) return null;
 
@@ -255,7 +255,7 @@ function RoomMonthlyTrendChart({ entriesForRoom, paramKey, paramLabel, unit, lim
     <div className="bg-white border rounded-xl p-4 shadow-sm space-y-2">
       <div className="flex justify-between items-center text-xs font-semibold text-slate-700 border-b pb-2">
         <span>{paramLabel} — Tren 1 Bulan</span>
-        <span className="text-slate-400 font-normal">{data.length} Titik Pengukuran</span>
+        <span className="text-slate-400 font-normal">{data.length} Titik</span>
       </div>
       <ResponsiveContainer width="100%" height={220}>
         <ComposedChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
@@ -465,7 +465,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
   );
 }
 
-/* ========================================================================= HALAMAN INTEGRATED ========================================================================= */
+/* ========================================================================= HALAMAN EVALUASI & INPUT HARIAN ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey);
   const canInput = hasFacilityAccess(session, "Staff", cfg);
@@ -515,7 +515,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Siapkan baris aktif & nilai saat tanggal berubah
   useEffect(() => {
     if (rooms.length === 0) return;
 
@@ -774,7 +773,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         <button onClick={() => setView({ page: "dashboard" })} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
           <ChevronLeft size={16} /> Kembali ke Dashboard
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700">
             <Calendar size={13} className="text-rose-800" />
             <input type="month" value={month} onChange={(e) => { setMonth(e.target.value); setSelectedDate(`${e.target.value}-01`); }} className="outline-none" />
@@ -791,6 +790,10 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               <FileCheck2 size={13} /> Formulir Bulanan (FM.QA.024/R11)
             </button>
           )}
+          {/* Tombol Cetak Evaluasi Harian */}
+          <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            <Printer size={13} /> Cetak Harian
+          </button>
         </div>
       </div>
 
@@ -1078,11 +1081,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* SECTION 4: PEMBAHASAN & EVALUASI HARIAN */}
+      {/* SECTION 4: PEMBAHASAN & NARASI HARIAN */}
       <div className="bg-white rounded-xl border p-5 shadow-sm space-y-5">
         <div className="flex items-center justify-between border-b pb-3">
           <div>
-            <h2 className="text-base font-bold text-slate-800">Pembahasan &amp; Narasi Evaluasi</h2>
+            <h2 className="text-base font-bold text-slate-800">Pembahasan &amp; Narasi Evaluasi Harian</h2>
             <p className="text-xs text-slate-400">Catatan pemantauan operasional mengacu pada Protap POS.QA.025</p>
           </div>
           {canDraftQA && !isFinalApproved && (
@@ -1170,7 +1173,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   );
 }
 
-/* ========================================================================= HALAMAN PENGKAJIAN QA RESMI (GLOBAL & PER RUANGAN) ========================================================================= */
+/* ========================================================================= HALAMAN PENGKAJIAN QA (GLOBAL & PER RUANGAN DENGAN TABEL DATA & GRAFIK) ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoom || "");
@@ -1255,6 +1258,13 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
     }
   }
 
+  // Ruangan yang relevan untuk tabel persyaratan
+  const displayedRooms = useMemo(() => {
+    if (selectedRoomName) return rooms.filter((r) => r.name === selectedRoomName);
+    const roomsInData = Array.from(new Set(monthEntries.map((e) => e.roomName)));
+    return rooms.filter((r) => roomsInData.includes(r.name));
+  }, [rooms, selectedRoomName, monthEntries]);
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6 print:max-w-none print:p-0">
       <div className="no-print flex flex-wrap items-center justify-between gap-2">
@@ -1276,7 +1286,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
                 <h1 className="text-xl font-bold text-white tracking-tight">
-                  {selectedRoomName ? `Pengkajian Tren Ruangan — ${selectedRoomName}` : `Pengkajian Tren Data EM Non Viable (Global)`}
+                  {selectedRoomName ? `Pengkajian Tren Ruangan — ${selectedRoomName}` : `Pengkajian Trend Data EM Non Viable (Global)`}
                 </h1>
                 <p className="text-xs text-rose-100/90 mt-0.5">
                   Fasilitas: <span className="font-semibold text-white">{cfg?.label}</span> · Periode: <span className="font-semibold text-white">{monthLabelID(month)}</span>
@@ -1289,7 +1299,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
       </div>
 
-      {/* FILTER FASILITAS & RUANGAN */}
+      {/* FILTER FASILITAS & CAKUPAN */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-xl border shadow-xs">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-bold text-slate-700 mr-1">Fasilitas:</span>
@@ -1323,30 +1333,135 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
       {error && <p className="p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-200">{error}</p>}
 
-      {/* GRAFIK BULANAN (JIKA PENGKAJIAN RUANGAN TERPILIH) */}
-      {selectedRoomName && (
+      {/* 1. TABEL REKAP NILAI DATA (MENAMPILKAN SELURUH DATA CAKUPAN) */}
+      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
+        <div className="flex justify-between items-center border-b pb-2">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">
+            {selectedRoomName ? `Rekap Data Pengukuran Bulanan — ${selectedRoomName}` : `Rekap Data Pengukuran Seluruh Ruangan — Fasilitas ${cfg?.label}`}
+          </h2>
+          <span className="text-[11px] text-slate-400 font-medium">{monthEntries.length} Baris Data Tersedia</span>
+        </div>
+
+        {monthEntries.length === 0 ? (
+          <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed text-xs text-slate-400">
+            Belum ada data pengukuran yang tercatat pada periode ini.
+          </div>
+        ) : (
+          <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-100">
+            <table className="w-full text-xs text-left">
+              <thead className="sticky top-0 bg-slate-50 text-slate-600 border-b">
+                <tr>
+                  <th className="px-3 py-2">TANGGAL</th>
+                  <th className="px-2 py-2 text-center">JAM</th>
+                  {!selectedRoomName && <th className="px-3 py-2">RUANGAN</th>}
+                  <th className="px-2 py-2 text-center">SUHU (°C)</th>
+                  <th className="px-2 py-2 text-center">RH (%)</th>
+                  <th className="px-2 py-2 text-center">DPG (Pa)</th>
+                  <th className="px-2 py-2 text-center">OPR</th>
+                  <th className="px-2 py-2 text-center">SPV</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {monthEntries.map((e) => (
+                  <tr key={e.id} className="hover:bg-slate-50/50">
+                    <td className="px-3 py-1.5 font-medium text-slate-700">{e.tanggal}</td>
+                    <td className="px-2 py-1.5 text-center text-slate-500">{e.jam}</td>
+                    {!selectedRoomName && <td className="px-3 py-1.5 text-slate-700 font-medium">{e.roomName}</td>}
+                    <td className="px-2 py-1.5 text-center">
+                      <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: levelStyle(e.level?.suhu).bg, color: levelStyle(e.level?.suhu).color }}>
+                        {e.suhu ?? "-"}
+                      </span>
+                    </td>
+                    <td className="px-2 py-1.5 text-center">
+                      <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: levelStyle(e.level?.rh).bg, color: levelStyle(e.level?.rh).color }}>
+                        {e.rh ?? "-"}
+                      </span>
+                    </td>
+                    <td className="px-2 py-1.5 text-center">
+                      <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: levelStyle(e.level?.dpg).bg, color: levelStyle(e.level?.dpg).color }}>
+                        {e.dpg ?? "-"}
+                      </span>
+                    </td>
+                    <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[11px]">{e.opr || "—"}</td>
+                    <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[11px]">{e.spv || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 2. CARD PERSYARATAN & LIMIT */}
+      {displayedRooms.length > 0 && (
+        <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit Ruangan</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 border-b">
+                  <th className="px-3 py-1.5">PARAMETER</th>
+                  <th className="px-3 py-1.5">RUANGAN</th>
+                  <th className="px-3 py-1.5">SYARAT</th>
+                  <th className="px-3 py-1.5">ALERT LIMIT</th>
+                  <th className="px-3 py-1.5">ACTION LIMIT</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {displayedRooms.map((rObj) => {
+                  return PARAM_DEFS.map((p) => {
+                    const lim = rObj.limits?.[p.key];
+                    if (!rObj.required?.[p.key] || !lim) return null;
+
+                    return (
+                      <tr key={rObj.name + p.key}>
+                        <td className="px-3 py-1 font-semibold text-slate-700">{p.label}</td>
+                        <td className="px-3 py-1 text-slate-600">{rObj.name}</td>
+                        <td className="px-3 py-1 text-slate-800">{formatRange(lim.syaratL, lim.syaratU, p.unit)}</td>
+                        <td className="px-3 py-1 text-amber-700">{formatRange(lim.alertL, lim.alertU, p.unit)}</td>
+                        <td className="px-3 py-1 text-orange-700">{formatRange(lim.actionL, lim.actionU, p.unit)}</td>
+                      </tr>
+                    );
+                  });
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"/> Terkendali</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"/> Alert</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-500"/> Action</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500"/> Melebihi Syarat</span>
+          </div>
+        </div>
+      )}
+
+      {/* 3. GRAFIK TREN BULANAN (GLOBAL MAUPUN RUANGAN) */}
+      <div className="space-y-4">
+        <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">Grafik Tren Pengukuran Periode {monthLabelID(month)}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {PARAM_DEFS.map((p) => {
-            const rObj = rooms.find((r) => r.name === selectedRoomName);
+            const rObj = selectedRoomName ? rooms.find((r) => r.name === selectedRoomName) : null;
             return (
               <RoomMonthlyTrendChart
                 key={p.key}
-                entriesForRoom={monthEntries}
+                entriesData={monthEntries}
                 paramKey={p.key}
                 paramLabel={p.label}
                 unit={p.unit}
                 limit={rObj?.limits?.[p.key]}
+                isGlobal={!selectedRoomName}
               />
             );
           })}
         </div>
-      )}
+      </div>
 
-      {/* FORM NARASI & APPROVAL */}
+      {/* 4. FORM NARASI & APPROVAL QA */}
       <div className="bg-white rounded-xl border p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b pb-3">
           <h2 className="text-sm font-bold text-slate-800">
-            {selectedRoomName ? `Narasi Pengkajian — ${selectedRoomName}` : `Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
+            {selectedRoomName ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}` : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
           </h2>
           {canDraft && !isFinal && (
             <div className="flex items-center gap-2 no-print">
