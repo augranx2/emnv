@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, ReferenceArea, ResponsiveContainer,
+  ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import {
   LogIn, LogOut, User, Loader2, Building2, ChevronLeft,
@@ -41,8 +41,8 @@ const FACILITIES = [
 
 const PARAM_DEFS = [
   { key: "suhu", label: "Suhu", unit: "°C" },
-  { key: "rh", label: "RH", unit: "%" },
-  { key: "dpg", label: "DPG", unit: "Pa" },
+  { key: "rh", label: "Kelembaban Relatif (RH)", unit: "%" },
+  { key: "dpg", label: "Perbedaan Tekanan (DPG)", unit: "Pa" },
 ];
 
 const SESI = ["08:00", "13:00"];
@@ -162,7 +162,7 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
   );
 }
 
-/* ========================================================================= HELPER GRAFIK BERWARNA ========================================================================= */
+/* ========================================================================= KOMPONEN GRAFIK ELEGAN EM VIABLE ========================================================================= */
 function ChartDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
   const style = levelStyle(payload.level);
@@ -184,14 +184,14 @@ function ChartTooltip({ active, payload, unit }) {
 
 function LegendChip({ color, label }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-200">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-600 border border-slate-200 shadow-2xs">
       <span className="h-2 w-2 rounded-full" style={{ background: color }} />
       {label}
     </span>
   );
 }
 
-/* ========================================================================= 1. GRAFIK HARIAN (SELURUH RUANGAN) ========================================================================= */
+/* 1. Grafik Harian (Full Width) */
 function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, paramLabel, unit }) {
   const data = useMemo(() => {
     return activeRoomNames.map((name) => {
@@ -211,7 +211,7 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
 
   if (data.length === 0) {
     return (
-      <div className="p-4 bg-slate-50 rounded-xl border border-dashed text-center text-xs text-slate-400">
+      <div className="p-6 bg-slate-50 rounded-xl border border-dashed text-center text-xs text-slate-400">
         Belum ada data {paramLabel} yang tersimpan untuk ruangan pada tanggal ini.
       </div>
     );
@@ -227,46 +227,48 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
   const gradId = `dayGrad-${paramKey}`;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print-card avoid-break">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5 bg-slate-50/50">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 bg-slate-50/60">
         <div>
-          <p className="text-xs font-bold text-slate-800">{paramLabel} — Perbandingan Ruangan</p>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-xs font-bold text-slate-800">{paramLabel}</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">
             Tertinggi: <span className="font-semibold text-slate-800">{peak.value} {unit}</span> ({peak.roomName})
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           <LegendChip color="#15803d" label="Terkendali" />
           {refLim.alertU !== null && <LegendChip color="#b45309" label={`Alert ${refLim.alertU}`} />}
           {refLim.actionU !== null && <LegendChip color="#c2410c" label={`Action ${refLim.actionU}`} />}
           {refLim.syaratU !== null && <LegendChip color="#b91c1c" label={`Syarat ${refLim.syaratU}`} />}
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={230}>
-        <ComposedChart data={data} margin={{ top: 15, right: 15, left: -10, bottom: 35 }}>
-          <defs>
-            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#16a34a" stopOpacity={0.2} />
-              <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-          {refLim.alertU !== null && <ReferenceLine y={refLim.alertU} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
-          {refLim.actionU !== null && <ReferenceLine y={refLim.actionU} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
-          {refLim.syaratU !== null && <ReferenceLine y={refLim.syaratU} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-          {refLim.syaratL !== null && <ReferenceLine y={refLim.syaratL} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={45} />
-          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={40} />
-          <Tooltip content={<ChartTooltip unit={unit} />} />
-          <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
-          <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
-        </ComposedChart>
-      </ResponsiveContainer>
+      <div className="p-3">
+        <ResponsiveContainer width="100%" height={240}>
+          <ComposedChart data={data} margin={{ top: 15, right: 20, left: 0, bottom: 40 }}>
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            {refLim.alertU !== null && <ReferenceLine y={refLim.alertU} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {refLim.actionU !== null && <ReferenceLine y={refLim.actionU} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {refLim.syaratU !== null && <ReferenceLine y={refLim.syaratU} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+            {refLim.syaratL !== null && <ReferenceLine y={refLim.syaratL} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={45} />
+            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={35} />
+            <Tooltip content={<ChartTooltip unit={unit} />} />
+            <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
+            <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
 
-/* ========================================================================= 2. GRAFIK TREN BULANAN (GLOBAL & PER RUANGAN) ========================================================================= */
+/* 2. Grafik Tren Bulanan (Full Width Vertikal) */
 function RoomMonthlyTrendChart({ entriesData, paramKey, paramLabel, unit, limit, isGlobal = false }) {
   const data = useMemo(() => {
     return entriesData.map((e) => {
@@ -292,41 +294,43 @@ function RoomMonthlyTrendChart({ entriesData, paramKey, paramLabel, unit, limit,
   const gradId = `monthGrad-${paramKey}-${isGlobal ? "global" : "room"}`;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print-card avoid-break">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5 bg-slate-50/50">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 bg-slate-50/60">
         <div>
           <p className="text-xs font-bold text-slate-800">{paramLabel} — {isGlobal ? "Tren Global Fasilitas" : "Tren 1 Bulan"}</p>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-slate-500 mt-0.5">
             Tertinggi: <span className="font-semibold text-slate-800">{peak.value} {unit}</span> ({peak.roomName})
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           <LegendChip color="#15803d" label="Terkendali" />
           {limit?.alertU !== null && limit?.alertU !== undefined && <LegendChip color="#b45309" label={`Alert ${limit.alertU}`} />}
           {limit?.actionU !== null && limit?.actionU !== undefined && <LegendChip color="#c2410c" label={`Action ${limit.actionU}`} />}
           {limit?.syaratU !== null && limit?.syaratU !== undefined && <LegendChip color="#b91c1c" label={`Syarat ${limit.syaratU}`} />}
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={230}>
-        <ComposedChart data={data} margin={{ top: 15, right: 15, left: -10, bottom: 35 }}>
-          <defs>
-            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#16a34a" stopOpacity={0.2} />
-              <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-          {limit?.alertU !== null && limit?.alertU !== undefined && <ReferenceLine y={limit.alertU} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
-          {limit?.actionU !== null && limit?.actionU !== undefined && <ReferenceLine y={limit.actionU} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
-          {limit?.syaratU !== null && limit?.syaratU !== undefined && <ReferenceLine y={limit.syaratU} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-          {limit?.syaratL !== null && limit?.syaratL !== undefined && <ReferenceLine y={limit.syaratL} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-          <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#64748b" }} angle={-35} textAnchor="end" interval="preserveStartEnd" height={40} />
-          <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={40} />
-          <Tooltip content={<ChartTooltip unit={unit} />} />
-          <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
-          <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
-        </ComposedChart>
-      </ResponsiveContainer>
+      <div className="p-3">
+        <ResponsiveContainer width="100%" height={240}>
+          <ComposedChart data={data} margin={{ top: 15, right: 20, left: 0, bottom: 40 }}>
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            {limit?.alertU !== null && limit?.alertU !== undefined && <ReferenceLine y={limit.alertU} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {limit?.actionU !== null && limit?.actionU !== undefined && <ReferenceLine y={limit.actionU} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {limit?.syaratU !== null && limit?.syaratU !== undefined && <ReferenceLine y={limit.syaratU} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+            {limit?.syaratL !== null && limit?.syaratL !== undefined && <ReferenceLine y={limit.syaratL} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+            <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#64748b" }} angle={-35} textAnchor="end" interval="preserveStartEnd" height={45} />
+            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={35} />
+            <Tooltip content={<ChartTooltip unit={unit} />} />
+            <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
+            <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
@@ -1117,8 +1121,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       )}
 
-      {/* SECTION 3: GRAFIK CROSS-SECTIONAL (1 HARI SELURUH RUANGAN TERPILIH) */}
-      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
+      {/* SECTION 3: GRAFIK CROSS-SECTIONAL (FULL WIDTH VERTIKAL) */}
+      <div className="space-y-4">
         <div>
           <h2 className="text-sm font-bold text-slate-800">Grafik Perbandingan Ruangan Terisi ({selectedDate})</h2>
           <p className="text-xs text-slate-400">Grafik terbentuk otomatis dari ruangan yang terisi pada tanggal yang sedang dibuka</p>
@@ -1222,7 +1226,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   );
 }
 
-/* ========================================================================= HALAMAN PENGKAJIAN QA RESMI ========================================================================= */
+/* ========================================================================= HALAMAN PENGKAJIAN QA (GLOBAL & PER RUANGAN FULL WIDTH) ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoom || "");
@@ -1342,7 +1346,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                 </p>
               </div>
             </div>
-            <p className="text-right text-xs text-rose-200">Acuan: POS.QA.025</p>
+            <p className="text-right text-xs text-rose-200">POS.QA.025</p>
           </div>
         </div>
       </div>
@@ -1382,7 +1386,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       {error && <p className="p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-200">{error}</p>}
 
       {/* 1. TABEL REKAP NILAI DATA */}
-      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
+      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3 print-card avoid-break">
         <div className="flex justify-between items-center border-b pb-2">
           <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">
             {selectedRoomName ? `Rekap Data Pengukuran Bulanan — ${selectedRoomName}` : `Rekap Data Pengukuran Seluruh Ruangan — Fasilitas ${cfg?.label}`}
@@ -1395,9 +1399,9 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             Belum ada data pengukuran yang tercatat pada periode ini.
           </div>
         ) : (
-          <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-100">
+          <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-100 print:max-h-none">
             <table className="w-full text-xs text-left">
-              <thead className="sticky top-0 bg-slate-50 text-slate-600 border-b">
+              <thead className="sticky top-0 bg-slate-50 text-slate-600 border-b print:static">
                 <tr>
                   <th className="px-3 py-2">TANGGAL</th>
                   <th className="px-2 py-2 text-center">JAM</th>
@@ -1442,7 +1446,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
       {/* 2. CARD PERSYARATAN & LIMIT */}
       {displayedRooms.length > 0 && (
-        <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
+        <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3 print-card avoid-break">
           <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit Ruangan</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
@@ -1484,10 +1488,10 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
       )}
 
-      {/* 3. GRAFIK TREN BULANAN */}
+      {/* 3. GRAFIK TREN BULANAN (FULL WIDTH VERTIKAL TERSUSUN KE BAWAH) */}
       <div className="space-y-4">
         <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">Grafik Tren Pengukuran Periode {monthLabelID(month)}</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="space-y-4">
           {PARAM_DEFS.map((p) => {
             const rObj = selectedRoomName ? rooms.find((r) => r.name === selectedRoomName) : null;
             return (
@@ -1506,7 +1510,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       </div>
 
       {/* 4. FORM NARASI & APPROVAL QA */}
-      <div className="bg-white rounded-xl border p-5 shadow-sm space-y-4">
+      <div className="bg-white rounded-xl border p-5 shadow-sm space-y-4 print-card avoid-break">
         <div className="flex items-center justify-between border-b pb-3">
           <h2 className="text-sm font-bold text-slate-800">
             {selectedRoomName ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}` : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
@@ -1525,9 +1529,11 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Pendahuluan</label>
+          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Pendahuluan</label>
+          <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Pendahuluan</p>
           <textarea value={pendahuluan} onChange={(e) => setPendahuluan(e.target.value)} disabled={!canDraft || isFinal} rows={2}
-            className="w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
         </div>
 
         {PARAM_DEFS.map((p) => (
@@ -1536,17 +1542,20 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             <textarea value={perParameter[p.key] || ""} onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
               disabled={!canDraft || isFinal} rows={3}
               placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
-              className="w-full border rounded-lg p-2.5 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50" />
+              className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50" />
+            <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{perParameter[p.key] || "-"}</p>
           </div>
         ))}
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Kesimpulan Umum</label>
+          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Kesimpulan Umum</label>
+          <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Kesimpulan Umum</p>
           <textarea value={kesimpulan} onChange={(e) => setKesimpulan(e.target.value)} disabled={!canDraft || isFinal} rows={3}
-            className="w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulan || "-"}</p>
         </div>
 
-        <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
           <div className="border rounded-xl p-4 bg-slate-50/50 text-center flex flex-col justify-between min-h-[140px]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
             {report?.signoff?.dinilai?.nama ? (
@@ -1744,7 +1753,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
   );
 }
 
-/* ========================================================================= HALAMAN RIWAYAT AKTIVITAS ========================================================================= */
+/* ========================================================================= RIWAYAT AKTIVITAS ========================================================================= */
 function ActivityPage({ session, month, setView }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1923,6 +1932,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <style>{`
+        .only-print { display: none; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        @media print {
+          .no-print { display: none !important; }
+          .only-print { display: block !important; }
+          .print-card { box-shadow: none !important; page-break-inside: avoid; break-inside: avoid; }
+          .avoid-break { page-break-inside: avoid; break-inside: avoid; }
+        }
+        @page {
+          margin: 1.2cm 1cm 1.5cm 1cm;
+        }
+      `}</style>
       <TopBar session={session} onLoginClick={() => setShowLogin(true)} onLogout={handleLogout} view={view} setView={setView} />
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={login} />}
       {view.page === "dashboard" && <Dashboard month={month} setMonth={setMonth} setView={setView} session={session} onNeedLogin={() => setShowLogin(true)} />}
