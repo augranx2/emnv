@@ -162,7 +162,7 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
   );
 }
 
-/* ========================================================================= KOMPONEN GRAFIK ELEGAN EM VIABLE ========================================================================= */
+/* ========================================================================= KOMPONEN GRAFIK ELEGAN ========================================================================= */
 function ChartDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
   const style = levelStyle(payload.level);
@@ -191,7 +191,7 @@ function LegendChip({ color, label }) {
   );
 }
 
-/* 1. Grafik Harian (Full Width) */
+/* 1. Grafik Harian */
 function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, paramLabel, unit }) {
   const data = useMemo(() => {
     return activeRoomNames.map((name) => {
@@ -268,7 +268,7 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
   );
 }
 
-/* 2. Grafik Tren Bulanan (Full Width Vertikal) */
+/* 2. Grafik Tren Bulanan */
 function RoomMonthlyTrendChart({ entriesData, paramKey, paramLabel, unit, limit, isGlobal = false }) {
   const data = useMemo(() => {
     return entriesData.map((e) => {
@@ -877,7 +877,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       {error && <p className="p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-200 whitespace-pre-line">{error}</p>}
 
       {/* SECTION 1: TABEL INPUT PEMILIHAN RUANGAN */}
-      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-4">
+      <div className="bg-white rounded-xl border p-4 shadow-sm space-y-4 print-card avoid-break">
         {/* PANEL ATAS */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
           <div className="flex flex-wrap items-center gap-3">
@@ -885,13 +885,13 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               <label className="text-xs font-bold text-slate-700">Tanggal:</label>
               <input type="date" value={selectedDate} max={todayStr()} onChange={(e) => setSelectedDate(e.target.value)}
                 className="border rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 outline-none focus:border-rose-700" />
-              <button onClick={() => setSelectedDate(todayStr())} className="text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-600">
+              <button onClick={() => setSelectedDate(todayStr())} className="text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-600 no-print">
                 Hari Ini
               </button>
             </div>
 
             {canInput && unselectedRooms.length > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 no-print">
                 <select
                   value=""
                   onChange={(e) => handleAddRoom(e.target.value)}
@@ -922,7 +922,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 no-print">
             {canInput && hasUnapprovedRoomsInActive && (
               <>
                 <button onClick={handleSaveDataOnly} disabled={saving}
@@ -953,18 +953,18 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             <p className="text-slate-400">Silakan klik dropdown <b>"+ Tambah Ruangan Lain..."</b> di atas untuk mulai mengisi data ruangan.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-xs print:table-fixed">
               <thead>
                 <tr className="bg-slate-50 text-slate-600 border-b">
-                  <th className="px-3 py-2 text-left min-w-[220px]">RUANGAN</th>
-                  <th className="px-2 py-2 text-center w-16">JAM</th>
-                  <th className="px-2 py-2 text-center w-24">SUHU (°C)</th>
-                  <th className="px-2 py-2 text-center w-24">RH (%)</th>
-                  <th className="px-2 py-2 text-center w-24">DPG (Pa)</th>
-                  <th className="px-2 py-2 text-center w-36">OPR (TTD)</th>
-                  <th className="px-2 py-2 text-center w-36">SPV (TTD)</th>
-                  <th className="px-2 py-2 text-center w-10">AKSI</th>
+                  <th className="px-3 py-2 text-left min-w-[180px] print:w-44">RUANGAN</th>
+                  <th className="px-2 py-2 text-center w-14">JAM</th>
+                  <th className="px-2 py-2 text-center w-20">SUHU (°C)</th>
+                  <th className="px-2 py-2 text-center w-20">RH (%)</th>
+                  <th className="px-2 py-2 text-center w-20">DPG (Pa)</th>
+                  <th className="px-2 py-2 text-center w-28">OPR (TTD)</th>
+                  <th className="px-2 py-2 text-center w-28">SPV (TTD)</th>
+                  <th className="px-2 py-2 text-center w-10 no-print">AKSI</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -987,9 +987,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                       <tr key={rObj.code + jam} className={jamIdx === 0 ? "border-t border-slate-200" : "bg-slate-50/30"}>
                         {jamIdx === 0 ? (
                           <td rowSpan={2} className="px-3 py-2 align-middle border-r border-slate-100">
-                            <div className="font-bold text-slate-800 text-sm">{rObj.code} — {rObj.name}</div>
+                            <div className="font-bold text-slate-800 text-xs">{rObj.code} — {rObj.name}</div>
                             {labelSuffix && (
-                              <span className={`inline-block mt-0.5 text-[10px] font-medium px-1.5 py-0.2 rounded ${st === "spv" ? "bg-rose-50 text-rose-800" : st === "opr" ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
+                              <span className={`inline-block mt-0.5 text-[9px] font-medium px-1.5 py-0.2 rounded ${st === "spv" ? "bg-rose-50 text-rose-800" : st === "opr" ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
                                 {labelSuffix}
                               </span>
                             )}
@@ -999,34 +999,34 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                         <td className="px-2 py-1.5 text-center">
                           <input value={v.suhu ?? ""} onChange={(e) => handleCellChange(rName, jam, "suhu", e.target.value)}
                             placeholder="" disabled={isLocked || !canInput}
-                            className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium"
+                            className="w-14 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium text-xs"
                             style={{ background: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).bg : undefined, color: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).color : undefined }} />
                         </td>
                         <td className="px-2 py-1.5 text-center">
                           <input value={v.rh ?? ""} onChange={(e) => handleCellChange(rName, jam, "rh", e.target.value)}
                             placeholder={rObj.required?.rh ? "" : "N/A"} disabled={isLocked || !rObj.required?.rh || !canInput}
-                            className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium"
+                            className="w-14 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium text-xs"
                             style={{ background: v.rh && v.rh !== "-" ? levelStyle(rLvl).bg : undefined, color: v.rh && v.rh !== "-" ? levelStyle(rLvl).color : undefined }} />
                         </td>
                         <td className="px-2 py-1.5 text-center">
                           <input value={v.dpg ?? ""} onChange={(e) => handleCellChange(rName, jam, "dpg", e.target.value)}
                             placeholder={rObj.required?.dpg ? "" : "N/A"} disabled={isLocked || !rObj.required?.dpg || !canInput}
-                            className="w-16 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium"
+                            className="w-14 text-center border rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium text-xs"
                             style={{ background: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).bg : undefined, color: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).color : undefined }} />
                         </td>
 
                         {/* KOLOM OPR */}
                         <td className="px-2 py-1.5 text-center text-slate-600">
                           {v.opr ? (
-                            <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
-                              <span className="font-medium text-[11px] truncate max-w-[80px]">{v.opr}</span>
+                            <div className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
+                              <span className="font-medium text-[10px] truncate max-w-[65px]">{v.opr}</span>
                               <VerifyQR type="harian" facility={facilityKey} period={selectedDate} roomName={rName} jam={jam} signerRole="OPR" signerName={v.opr} />
                             </div>
                           ) : isOperator && !isLocked ? (
                             <button
                               onClick={() => handleApproveOprSingle(rName)}
                               disabled={busyRow === rName + "|opr"}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs disabled:opacity-50"
+                              className="no-print inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs disabled:opacity-50"
                             >
                               {busyRow === rName + "|opr" ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />} Approve
                             </button>
@@ -1038,15 +1038,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                         {/* KOLOM SPV */}
                         <td className="px-2 py-1.5 text-center text-slate-600">
                           {v.spv ? (
-                            <div className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-900 px-2 py-0.5 rounded border border-rose-200">
-                              <span className="font-medium text-[11px] truncate max-w-[80px]">{v.spv}</span>
+                            <div className="inline-flex items-center gap-1 bg-rose-50 text-rose-900 px-1.5 py-0.5 rounded border border-rose-200">
+                              <span className="font-medium text-[10px] truncate max-w-[65px]">{v.spv}</span>
                               <VerifyQR type="harian" facility={facilityKey} period={selectedDate} roomName={rName} jam={jam} signerRole="SPV" signerName={v.spv} />
                             </div>
                           ) : canApproveSPV && !isLocked && hasOprApproved ? (
                             <button
                               onClick={() => handleApproveSpvSingle(rName)}
                               disabled={busyRow === rName + "|spv"}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded bg-rose-800 hover:bg-rose-900 text-white shadow-xs disabled:opacity-50"
+                              className="no-print inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded bg-rose-800 hover:bg-rose-900 text-white shadow-xs disabled:opacity-50"
                             >
                               {busyRow === rName + "|spv" ? <Loader2 size={10} className="animate-spin" /> : <FileCheck2 size={10} />} Approve
                             </button>
@@ -1056,7 +1056,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                         </td>
 
                         {jamIdx === 0 ? (
-                          <td rowSpan={2} className="px-2 py-1.5 text-center align-middle">
+                          <td rowSpan={2} className="px-2 py-1.5 text-center align-middle no-print">
                             {!isLocked && (
                               <button onClick={() => handleRemoveActiveRoom(rName)} className="text-slate-400 hover:text-red-600 p-1" title="Hapus baris ini">
                                 <Trash2 size={13} />
@@ -1076,9 +1076,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       {/* SECTION 2: CARD PERSYARATAN & LIMIT */}
       {activeRoomNames.length > 0 && (
-        <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
+        <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3 print-card avoid-break">
           <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit (Ruangan Terpilih)</h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 border-b">
@@ -1123,10 +1123,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       {/* SECTION 3: GRAFIK CROSS-SECTIONAL (FULL WIDTH VERTIKAL) */}
       <div className="space-y-4">
-        <div>
-          <h2 className="text-sm font-bold text-slate-800">Grafik Perbandingan Ruangan Terisi ({selectedDate})</h2>
-          <p className="text-xs text-slate-400">Grafik terbentuk otomatis dari ruangan yang terisi pada tanggal yang sedang dibuka</p>
-        </div>
+        <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">Grafik Perbandingan Ruangan Terisi ({selectedDate})</h2>
         <div className="space-y-4">
           <DayParamChart activeRoomNames={activeRoomNames} rooms={rooms} currentDayEntries={currentDayEntries} paramKey="suhu" paramLabel="Suhu" unit="°C" />
           <DayParamChart activeRoomNames={activeRoomNames} rooms={rooms} currentDayEntries={currentDayEntries} paramKey="rh" paramLabel="Kelembaban Relatif (RH)" unit="%" />
@@ -1135,7 +1132,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       </div>
 
       {/* SECTION 4: PEMBAHASAN & NARASI HARIAN */}
-      <div className="bg-white rounded-xl border p-5 shadow-sm space-y-5">
+      <div className="bg-white rounded-xl border p-5 shadow-sm space-y-5 print-card avoid-break">
         <div className="flex items-center justify-between border-b pb-3">
           <div>
             <h2 className="text-base font-bold text-slate-800">Pembahasan &amp; Narasi Evaluasi Harian</h2>
@@ -1155,9 +1152,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Pendahuluan</label>
+          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Pendahuluan</label>
+          <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Pendahuluan</p>
           <textarea value={pendahuluan} onChange={(e) => setPendahuluan(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={2}
-            className="w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
         </div>
 
         {PARAM_DEFS.map((p) => (
@@ -1166,59 +1165,59 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             <textarea value={perParameter[p.key] || ""} onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
               disabled={!canDraftQA || isFinalApproved} rows={3}
               placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
-              className="w-full border rounded-lg p-2.5 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50" />
+              className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50" />
+            <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{perParameter[p.key] || "-"}</p>
           </div>
         ))}
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Kesimpulan Umum</label>
+          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Kesimpulan Umum</label>
+          <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Kesimpulan Umum</p>
           <textarea value={kesimpulanUmum} onChange={(e) => setKesimpulanUmum(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={3}
-            className="w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulanUmum || "-"}</p>
         </div>
 
         {/* SECTION 5: TANDA TANGAN */}
-        <div className="pt-4 border-t space-y-3">
-          <p className="text-xs font-bold text-slate-700">Tanda Tangan Pengkajian</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="border rounded-xl p-4 bg-slate-50/50 text-center flex flex-col justify-between min-h-[140px]">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
-              {report?.signoff?.dinilai?.nama ? (
-                <div className="space-y-1 my-auto">
-                  <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Dikaji Oleh" signerName={report.signoff.dinilai.nama} size={54} /></div>
-                  <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
-                  <p className="text-[10px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
-                </div>
-              ) : (
-                <div className="my-auto space-y-2">
-                  <p className="text-xs italic text-slate-400">Belum disetujui</p>
-                  {canDraftQA && (
-                    <button onClick={handleDikaji} className="px-3 py-1 bg-rose-800 hover:bg-rose-900 text-white rounded text-xs font-semibold">
-                      Approve "Dikaji Oleh"
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+        <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
+          <div className="border rounded-xl p-4 bg-slate-50/50 text-center flex flex-col justify-between min-h-[140px]">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
+            {report?.signoff?.dinilai?.nama ? (
+              <div className="space-y-1 my-auto">
+                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Dikaji Oleh" signerName={report.signoff.dinilai.nama} size={54} /></div>
+                <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
+                <p className="text-[10px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
+              </div>
+            ) : (
+              <div className="my-auto space-y-2">
+                <p className="text-xs italic text-slate-400">Belum disetujui</p>
+                {canDraftQA && (
+                  <button onClick={handleDikaji} className="no-print px-3 py-1 bg-rose-800 hover:bg-rose-900 text-white rounded text-xs font-semibold">
+                    Approve "Dikaji Oleh"
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
-            <div className="border rounded-xl p-4 bg-slate-50/50 text-center flex flex-col justify-between min-h-[140px]">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Mengetahui (Manager QA)</p>
-              {report?.signoff?.diperiksa?.nama ? (
-                <div className="space-y-1 my-auto">
-                  <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Mengetahui" signerName={report.signoff.diperiksa.nama} size={54} /></div>
-                  <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
-                  <p className="text-[10px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
-                </div>
-              ) : (
-                <div className="my-auto space-y-2">
-                  <p className="text-xs italic text-slate-400">{report?.signoff?.dinilai?.nama ? "Menunggu approval Manager QA" : "Menunggu approval 'Dikaji Oleh' terlebih dahulu"}</p>
-                  {canFinalQA && report?.signoff?.dinilai?.nama && (
-                    <button onClick={handleMengetahui} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold">
-                      Approve Final "Mengetahui"
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+          <div className="border rounded-xl p-4 bg-slate-50/50 text-center flex flex-col justify-between min-h-[140px]">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Mengetahui (Manager QA)</p>
+            {report?.signoff?.diperiksa?.nama ? (
+              <div className="space-y-1 my-auto">
+                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Mengetahui" signerName={report.signoff.diperiksa.nama} size={54} /></div>
+                <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
+                <p className="text-[10px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
+              </div>
+            ) : (
+              <div className="my-auto space-y-2">
+                <p className="text-xs italic text-slate-400">{report?.signoff?.dinilai?.nama ? "Menunggu approval Manager QA" : "Menunggu approval 'Dikaji Oleh' terlebih dahulu"}</p>
+                {canFinalQA && report?.signoff?.dinilai?.nama && (
+                  <button onClick={handleMengetahui} className="no-print px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold">
+                    Approve Final "Mengetahui"
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1226,7 +1225,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   );
 }
 
-/* ========================================================================= HALAMAN PENGKAJIAN QA (GLOBAL & PER RUANGAN FULL WIDTH) ========================================================================= */
+/* ========================================================================= HALAMAN PENGKAJIAN QA RESMI ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoom || "");
@@ -1399,7 +1398,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             Belum ada data pengukuran yang tercatat pada periode ini.
           </div>
         ) : (
-          <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-100 print:max-h-none">
+          <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-100 print:max-h-none print:overflow-visible">
             <table className="w-full text-xs text-left">
               <thead className="sticky top-0 bg-slate-50 text-slate-600 border-b print:static">
                 <tr>
@@ -1448,7 +1447,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       {displayedRooms.length > 0 && (
         <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3 print-card avoid-break">
           <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit Ruangan</h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 border-b">
@@ -1488,7 +1487,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
       )}
 
-      {/* 3. GRAFIK TREN BULANAN (FULL WIDTH VERTIKAL TERSUSUN KE BAWAH) */}
+      {/* 3. GRAFIK TREN BULANAN (FULL WIDTH VERTIKAL) */}
       <div className="space-y-4">
         <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">Grafik Tren Pengukuran Periode {monthLabelID(month)}</h2>
         <div className="space-y-4">
@@ -1568,7 +1567,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               <div className="my-auto space-y-2">
                 <p className="text-xs italic text-slate-400">Belum disetujui</p>
                 {canDraft && (
-                  <button onClick={handleDikaji} className="px-3 py-1 bg-rose-800 hover:bg-rose-900 text-white rounded text-xs font-semibold">
+                  <button onClick={handleDikaji} className="no-print px-3 py-1 bg-rose-800 hover:bg-rose-900 text-white rounded text-xs font-semibold">
                     Approve "Dikaji Oleh"
                   </button>
                 )}
@@ -1588,7 +1587,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               <div className="my-auto space-y-2">
                 <p className="text-xs italic text-slate-400">{report?.signoff?.dinilai?.nama ? "Menunggu approval Manager QA" : "Menunggu approval 'Dikaji Oleh' terlebih dahulu"}</p>
                 {canFinal && report?.signoff?.dinilai?.nama && (
-                  <button onClick={handleMengetahui} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold">
+                  <button onClick={handleMengetahui} className="no-print px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold">
                     Approve Final "Mengetahui"
                   </button>
                 )}
@@ -1938,11 +1937,14 @@ export default function App() {
         @media print {
           .no-print { display: none !important; }
           .only-print { display: block !important; }
-          .print-card { box-shadow: none !important; page-break-inside: avoid; break-inside: avoid; }
+          .print-card { box-shadow: none !important; page-break-inside: avoid; break-inside: avoid; border: 1px solid #cbd5e1 !important; margin-bottom: 1.5rem !important; }
           .avoid-break { page-break-inside: avoid; break-inside: avoid; }
+          table { width: 100% !important; max-width: 100% !important; }
+          body { background: white !important; }
         }
         @page {
           margin: 1.2cm 1cm 1.5cm 1cm;
+          size: portrait;
         }
       `}</style>
       <TopBar session={session} onLoginClick={() => setShowLogin(true)} onLogout={handleLogout} view={view} setView={setView} />
