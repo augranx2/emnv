@@ -1333,9 +1333,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         <div>
           <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Kesimpulan Umum</label>
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Kesimpulan Umum</p>
-          <textarea value={kesimpulan} onChange={(e) => setKesimpulan(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={3}
+          <textarea value={kesimpulanUmum} onChange={(e) => setKesimpulanUmum(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={3}
             className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
-          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulan || "-"}</p>
+          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulanUmum || "-"}</p>
         </div>
 
         {/* SECTION 5: TANDA TANGAN */}
@@ -1725,6 +1725,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulan || "-"}</p>
         </div>
 
+        {/* SECTION 5: TANDA TANGAN */}
         <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
           <div className="border rounded-xl p-4 bg-slate-50/50 text-center flex flex-col justify-between min-h-[140px]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
