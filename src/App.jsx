@@ -988,7 +988,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             <Calendar size={13} className="text-rose-800" />
             <input type="month" value={month} onChange={(e) => { setMonth(e.target.value); setSelectedDate(`${e.target.value}-01`); }} className="outline-none" />
           </label>
-          {hasAccess(session, "Supervisor", "QA") && (
+          {canDraftQA && (
             <button onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: "" })}
               className="inline-flex items-center gap-1.5 rounded-lg bg-rose-900 hover:bg-rose-950 text-white px-3 py-1.5 text-xs font-semibold shadow-xs">
               <ClipboardList size={13} /> Pengkajian QA (Global 1 Bulan)
@@ -1034,7 +1034,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       {/* SECTION 1: TABEL INPUT PEMILIHAN RUANGAN */}
       <div className="bg-white rounded-xl border p-4 shadow-sm space-y-4 print-card avoid-break">
-        {/* PANEL ATAS */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1.5">
@@ -1098,7 +1097,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
         </div>
 
-        {/* Tabel Data dengan Kolom PERSYARATAN */}
+        {/* Tabel Data */}
         {activeRoomNames.length === 0 ? (
           <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed text-slate-500 text-xs space-y-1">
             <p className="font-semibold text-slate-700">Belum ada ruangan yang diinput pada tanggal {selectedDate}.</p>
@@ -1391,7 +1390,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoom || "");
   const [report, setReport] = useState(null);
   const [pendahuluan, setPendahuluan] = useState("");
-  const [kesimpulan, setKesimpulan] = useState("");
+  const [kesimpulanUmum, setKesimpulanUmum] = useState("");
   const [perParameter, setPerParameter] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1400,8 +1399,8 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
   const [monthEntries, setMonthEntries] = useState([]);
 
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
-  const canDraft = hasAccess(session, "Supervisor", "QA");
-  const canFinal = hasAccess(session, "Manager", "QA");
+  const canDraftQA = hasAccess(session, "Supervisor", "QA");
+  const canFinalQA = hasAccess(session, "Manager", "QA");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1417,7 +1416,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
       setReport(r);
       setPendahuluan(r?.narrative?.pendahuluan || "");
-      setKesimpulan(r?.narrative?.kesimpulanUmum || "");
+      setKesimpulanUmum(r?.narrative?.kesimpulanUmum || "");
       setPerParameter(r?.narrative?.perParameter || {});
       setRooms(roomList);
       setMonthEntries(selectedRoomName ? (allEntries || []).filter((e) => e?.roomName === selectedRoomName) : (allEntries || []));
@@ -1435,7 +1434,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
   async function handleSave() {
     setError("");
     try {
-      await apiSaveReport(facilityKey, month, { pendahuluan, kesimpulanUmum: kesimpulan, perParameter }, session.token, selectedRoomName);
+      await apiSaveReport(facilityKey, month, { pendahuluan, kesimpulanUmum, perParameter }, session.token, selectedRoomName);
       await load();
     } catch (err) { setError(err.message); }
   }
@@ -1465,7 +1464,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       }
       setPendahuluan(narrative.pendahuluan || "");
       setPerParameter(narrative.perParameter || {});
-      setKesimpulan(narrative.kesimpulanUmum || "");
+      setKesimpulanUmum(narrative.kesimpulanUmum || "");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1685,7 +1684,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           <h2 className="text-sm font-bold text-slate-800">
             {selectedRoomName ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}` : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
           </h2>
-          {canDraft && !isFinal && (
+          {canDraftQA && !isFinal && (
             <div className="flex items-center gap-2 no-print">
               <button onClick={handleGenerateAI} disabled={generating}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-rose-800 hover:bg-rose-900 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-60">
@@ -1701,7 +1700,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         <div>
           <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Pendahuluan</label>
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Pendahuluan</p>
-          <textarea value={pendahuluan} onChange={(e) => setPendahuluan(e.target.value)} disabled={!canDraft || isFinal} rows={2}
+          <textarea value={pendahuluan} onChange={(e) => setPendahuluan(e.target.value)} disabled={!canDraftQA || isFinal} rows={2}
             className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
           <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
         </div>
@@ -1710,7 +1709,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           <div key={p.key} className="space-y-1.5 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200">
             <label className="block text-xs font-bold text-slate-700">Hasil, Tren &amp; Kesimpulan — {p.label} ({p.unit})</label>
             <textarea value={perParameter[p.key] || ""} onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
-              disabled={!canDraft || isFinal} rows={3}
+              disabled={!canDraftQA || isFinal} rows={3}
               placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
               className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50" />
             <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{perParameter[p.key] || "-"}</p>
@@ -1720,9 +1719,9 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         <div>
           <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Kesimpulan Umum</label>
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Kesimpulan Umum</p>
-          <textarea value={kesimpulan} onChange={(e) => setKesimpulan(e.target.value)} disabled={!canDraft || isFinal} rows={3}
+          <textarea value={kesimpulanUmum} onChange={(e) => setKesimpulanUmum(e.target.value)} disabled={!canDraftQA || isFinal} rows={3}
             className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
-          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulan || "-"}</p>
+          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulanUmum || "-"}</p>
         </div>
 
         {/* SECTION 5: TANDA TANGAN */}
@@ -1731,7 +1730,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
             {report?.signoff?.dinilai?.nama ? (
               <div className="space-y-1 my-auto">
-                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Dikaji Oleh" signerName={report.signoff.dinilai.nama} size={54} /></div>
+                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={selectedRoomName} signerRole="Dikaji Oleh" signerName={report.signoff.dinilai.nama} size={54} /></div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
                 <p className="text-[10px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
               </div>
@@ -1751,7 +1750,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Mengetahui (Manager QA)</p>
             {report?.signoff?.diperiksa?.nama ? (
               <div className="space-y-1 my-auto">
-                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Mengetahui" signerName={report.signoff.diperiksa.nama} size={54} /></div>
+                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={selectedRoomName} signerRole="Mengetahui" signerName={report.signoff.diperiksa.nama} size={54} /></div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
                 <p className="text-[10px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
               </div>
