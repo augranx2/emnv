@@ -150,10 +150,11 @@ function facilityOverallLevel(entries) {
 /* ========================================================================= QR VERIFIKASI ========================================================================= */
 function buildVerifyUrl(params) {
   const qs = new URLSearchParams(params).toString();
-  return `${window.location.origin}/verify?${qs}`;
+  const base = typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://emnv.myrama.id";
+  return `${base}/verify?${qs}`;
 }
 
-function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerName, size = 26, hideLabel = true }) {
+function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerName, size = 36, hideLabel = true }) {
   const params = { type, facility };
   if (type === "pengkajian") {
     params.month = period;
@@ -176,7 +177,14 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
 
   return (
     <a href={url} target="_blank" rel="noreferrer" title="Klik verifikasi TTD" className="inline-flex flex-col items-center gap-0.5 hover:opacity-80">
-      <QRCodeSVG value={url} size={size} level="M" bgColor="#ffffff" fgColor="#0f172a" />
+      <QRCodeSVG
+        value={url}
+        size={size}
+        level="L"
+        includeMargin={true}
+        bgColor="#ffffff"
+        fgColor="#0f172a"
+      />
       {!hideLabel && <span className="text-[9px] text-slate-400">Scan</span>}
     </a>
   );
@@ -610,7 +618,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const cfg = FACILITIES.find((f) => f.key === facilityKey);
   const canInput = hasFacilityAccess(session, "Staff", cfg);
   const canApproveSPV = hasFacilityAccess(session, "Supervisor", cfg);
-  const isOperator = session.role === "Staff" || session.role === "Administrator";
+  const isOperator = session.role === "Staff" || session.role === "Operator" || session.role === "Admin" || session.role === "Administrator";
   const canDraftQA = hasAccess(session, "Supervisor", "QA");
   const canFinalQA = hasAccess(session, "Manager", "QA");
 
@@ -1259,9 +1267,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         <div>
           <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Kesimpulan Umum</label>
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Kesimpulan Umum</p>
-          <textarea value={kesimpulanUmum} onChange={(e) => setKesimpulanUmum(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={3}
+          <textarea value={kesimpulan} onChange={(e) => setKesimpulan(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={3}
             className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
-          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulanUmum || "-"}</p>
+          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulan || "-"}</p>
         </div>
 
         {/* SECTION 5: TANDA TANGAN */}
