@@ -7,7 +7,7 @@ import {
 import {
   LogIn, LogOut, User, Loader2, Building2, ChevronLeft,
   Lock, History, Save, FileCheck2, ClipboardList,
-  Printer, Sparkles, Calendar, Trash2, CheckCheck, CheckCircle2, ChevronRight, AlertTriangle,
+  Printer, Sparkles, Calendar, Trash2, CheckCheck, CheckCircle2, ChevronRight, AlertTriangle, KeyRound,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
@@ -17,7 +17,7 @@ import {
   fetchFormulirBulanan, approveKepalaBagian as apiApproveKepalaBagian,
   approveManagerQAFormulir as apiApproveManagerQAFormulir,
   approveOpr as apiApproveOpr, approveSpv as apiApproveSpv,
-  approveDay as apiApproveDay,
+  approveDay as apiApproveDay, changePassword as apiChangePassword,
 } from "./api.js";
 import { useAuth, hasAccess, hasFacilityAccess } from "./auth.js";
 import { buildFacilityStats, generateLocalNarrative, fullDateID, monthLabelID } from "./narrativeGenerator.js";
@@ -409,8 +409,8 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
   );
 }
 
-/* ========================================================================= TOPBAR & LOGIN ========================================================================= */
-function TopBar({ session, onLoginClick, onLogout, view, setView }) {
+/* ========================================================================= TOPBAR & PROFIL MODAL ========================================================================= */
+function TopBar({ session, onLoginClick, onLogout, onProfileClick, view, setView }) {
   return (
     <div className="no-print border-b border-slate-200 bg-white px-4 py-2.5">
       <div className="mx-auto flex max-w-6xl items-center justify-between">
@@ -433,9 +433,13 @@ function TopBar({ session, onLoginClick, onLogout, view, setView }) {
           )}
           {session ? (
             <div className="flex items-center gap-2">
-              <span className="hidden items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 sm:inline-flex">
-                <User size={13} /> {session.nama} · {session.role}
-              </span>
+              <button
+                onClick={onProfileClick}
+                className="hidden items-center gap-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 sm:inline-flex transition"
+                title="Buka Profil & Ganti Password"
+              >
+                <User size={13} className="text-rose-800" /> {session.nama} · {session.role}
+              </button>
               <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
                 <LogOut size={14} /> Keluar
               </button>
@@ -446,6 +450,155 @@ function TopBar({ session, onLoginClick, onLogout, view, setView }) {
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileModal({ session, onClose, onChangePasswordClick }) {
+  if (!session) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl border space-y-4">
+        <div className="flex items-center gap-2 border-b pb-3">
+          <User size={18} className="text-rose-800" />
+          <h3 className="text-base font-bold text-slate-800">Profil Saya</h3>
+        </div>
+
+        <div className="space-y-2 text-xs">
+          <div className="flex justify-between py-1.5 border-b border-slate-100">
+            <span className="text-slate-400">Username</span>
+            <span className="font-bold text-slate-800">{session.username}</span>
+          </div>
+          <div className="flex justify-between py-1.5 border-b border-slate-100">
+            <span className="text-slate-400">Nama Lengkap</span>
+            <span className="font-bold text-slate-800">{session.nama}</span>
+          </div>
+          <div className="flex justify-between py-1.5 border-b border-slate-100">
+            <span className="text-slate-400">Jabatan / Role</span>
+            <span className="font-bold text-slate-800">{session.role}</span>
+          </div>
+          <div className="flex justify-between py-1.5 border-b border-slate-100">
+            <span className="text-slate-400">Departemen</span>
+            <span className="font-bold text-slate-800">{session.departemen || "—"}</span>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+            Tutup
+          </button>
+          <button
+            type="button"
+            onClick={onChangePasswordClick}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-rose-900 hover:bg-rose-950 px-3 py-1.5 text-xs font-semibold text-white shadow-xs"
+          >
+            <KeyRound size={13} /> Ganti Password
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChangePasswordModal({ session, onClose }) {
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError("Konfirmasi password baru tidak cocok.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError("Password baru minimal 6 karakter.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await apiChangePassword(session.token, oldPassword, newPassword);
+      if (res && res.error) {
+        setError(res.error);
+      } else {
+        setSuccess(true);
+        setTimeout(() => {
+          onClose();
+        }, 1500);
+      }
+    } catch (err) {
+      setError(err.message || "Gagal mengganti password.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl border space-y-4">
+        <div className="flex items-center gap-2 border-b pb-3">
+          <KeyRound size={18} className="text-rose-800" />
+          <h3 className="text-base font-bold text-slate-800">Ganti Password</h3>
+        </div>
+
+        {success ? (
+          <div className="p-4 bg-emerald-50 text-emerald-700 text-xs rounded-xl font-semibold text-center border border-emerald-200">
+            ✓ Password berhasil diperbarui!
+          </div>
+        ) : (
+          <form onSubmit={submit} className="space-y-3">
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-500">Password Lama</label>
+              <input
+                type="password"
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                required
+                className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs focus:border-rose-700 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-500">Password Baru</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs focus:border-rose-700 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-500">Konfirmasi Password Baru</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs focus:border-rose-700 focus:outline-none"
+              />
+            </div>
+
+            {error && <p className="p-2 bg-red-50 text-red-600 text-xs rounded-lg border border-red-200">{error}</p>}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !oldPassword || !newPassword || !confirmPassword}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-900 hover:bg-rose-950 px-3.5 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+              >
+                {submitting ? <Loader2 size={13} className="animate-spin" /> : null} Simpan Password
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
@@ -1343,7 +1496,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
             {report?.signoff?.dinilai?.nama ? (
               <div className="space-y-1 my-auto">
-                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={selectedRoomName} signerRole="Dikaji Oleh" signerName={report.signoff.dinilai.nama} size={54} /></div>
+                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Dikaji Oleh" signerName={report.signoff.dinilai.nama} size={54} /></div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
                 <p className="text-[10px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
               </div>
@@ -1363,7 +1516,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Mengetahui (Manager QA)</p>
             {report?.signoff?.diperiksa?.nama ? (
               <div className="space-y-1 my-auto">
-                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={selectedRoomName} signerRole="Mengetahui" signerName={report.signoff.diperiksa.nama} size={54} /></div>
+                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Mengetahui" signerName={report.signoff.diperiksa.nama} size={54} /></div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
                 <p className="text-[10px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
               </div>
@@ -2103,10 +2256,14 @@ export default function App() {
   const [view, setView] = useState({ page: "dashboard" });
   const [month, setMonth] = useState(currentMonth());
   const [showLogin, setShowLogin] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const handleLogout = useCallback(() => {
     logout();
     setView({ page: "dashboard" });
+    setShowProfile(false);
+    setShowChangePassword(false);
   }, [logout]);
 
   useEffect(() => {
@@ -2137,8 +2294,31 @@ export default function App() {
             size: portrait;
           }
         `}</style>
-        <TopBar session={session} onLoginClick={() => setShowLogin(true)} onLogout={handleLogout} view={view} setView={setView} />
+        <TopBar
+          session={session}
+          onLoginClick={() => setShowLogin(true)}
+          onLogout={handleLogout}
+          onProfileClick={() => setShowProfile(true)}
+          view={view}
+          setView={setView}
+        />
         {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={login} />}
+        {showProfile && session && (
+          <ProfileModal
+            session={session}
+            onClose={() => setShowProfile(false)}
+            onChangePasswordClick={() => {
+              setShowProfile(false);
+              setShowChangePassword(true);
+            }}
+          />
+        )}
+        {showChangePassword && session && (
+          <ChangePasswordModal
+            session={session}
+            onClose={() => setShowChangePassword(false)}
+          />
+        )}
         {view.page === "dashboard" && <Dashboard month={month} setMonth={setMonth} setView={setView} session={session} onNeedLogin={() => setShowLogin(true)} />}
         {view.page === "facility" && session && <FacilityIntegratedPage session={session} facilityKey={view.facility} month={month} setMonth={setMonth} setView={setView} />}
         {view.page === "pengkajian" && session && <PengkajianPage session={session} month={month} setView={setView} initialFacility={view.facility} initialRoom={view.room} />}
