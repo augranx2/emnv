@@ -2,9 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { login as apiLogin, logout as apiLogout, whoami as apiWhoami } from "./api";
 
 const STORAGE_KEY = "em_non_viable_session";
-
-// Sengaja tidak ada role level 0 (konsisten dengan Code.gs — lihat catatan di sana).
-const ROLE_LEVEL = { Tamu: 1, Staff: 2, Supervisor: 3, Manager: 4, "Assistant Manager": 4, Administrator: 5 };
+const ROLE_LEVEL = { Tamu: 1, Staff: 2, Operator: 2, Admin: 2, Supervisor: 3, Manager: 4, "Assistant Manager": 4, Administrator: 5 };
 
 function readStored() {
   try {
@@ -19,9 +17,7 @@ function writeStored(session) {
   try {
     if (session) localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
     else localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // localStorage tidak tersedia — sesi hanya bertahan di memori
-  }
+  } catch {}
 }
 
 export function useAuth() {
@@ -72,7 +68,6 @@ export function roleLevel(role) {
   return ROLE_LEVEL[role] || 0;
 }
 
-// Akses generik (tidak terikat fasilitas) — mis. Pengkajian QA, Riwayat Aktivitas.
 export function hasAccess(session, minRole, departemen) {
   if (!session) return false;
   if (session.role === "Administrator") return true;
@@ -80,12 +75,30 @@ export function hasAccess(session, minRole, departemen) {
   return roleLevel(session.role) >= roleLevel(minRole);
 }
 
-// Akses KHUSUS FASILITAS: departemen sesi harus sama dengan cfg.department,
-// ATAU cfg.altDepartment (mis. "PPIC") dengan syarat levelnya Manager ke atas.
+// Pengecekan Akses Fasilitas yang Mendukung Akses Spesifik per Gedung
 export function hasFacilityAccess(session, minRole, cfg) {
   if (!session) return false;
   if (session.role === "Administrator") return true;
-  if (session.departemen === cfg.department) return roleLevel(session.role) >= roleLevel(minRole);
-  if (cfg.altDepartment && session.departemen === cfg.altDepartment) return roleLevel(session.role) >= roleLevel("Manager");
-  return false;
+  if (roleLevel(session.role) < roleLevel(minRole)) return false;
+
+  const userPerms = (session.departemen || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  const facLabel = (cfg.label || "").toLowerCase();
+  const facKey = (cfg.key || "").toLowerCase();
+  const facDept = (cfg.department || "").toLowerCase();
+  const facAltDept = (cfg.altDepartment || "").toLowerCase();
+  const facGroup = (cfg.group || "").toLowerCase();
+
+  return userPerms.some((perm) => {
+    // 1. Cocok dengan nama spesifik fasilitas (misal: "nbl kemasan")
+    if (perm === facLabel || perm === facKey) return true;
+    // 2. Cocok dengan grup (misal: "nbl", "sefa")
+    if (perm === facGroup) return true;
+    // 3. Cocok dengan departemen umum (misal: "produksi", "kemasan", "qc", "ppic")
+    if (perm === facDept || (facAltDept && perm === facAltDept)) return true;
+    return false;
+  });
 }
