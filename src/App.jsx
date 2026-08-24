@@ -123,7 +123,7 @@ function levelStyle(level) {
 }
 
 function roomCategory(room) {
-  const key = room.persyaratanKey || "";
+  const key = room?.persyaratanKey || "";
   return key || "Persyaratan Umum";
 }
 
@@ -140,7 +140,7 @@ function facilityOverallLevel(entries) {
   let max = 0;
   (entries || []).forEach((e) => {
     PARAM_DEFS.forEach((p) => {
-      const lvl = e.level?.[p.key];
+      const lvl = e?.level?.[p.key];
       if (lvl !== null && lvl !== undefined && lvl > max) max = lvl;
     });
   });
@@ -193,14 +193,14 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
 /* ========================================================================= KOMPONEN GRAFIK FULL-WIDTH ========================================================================= */
 function ChartDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
-  const style = levelStyle(payload.level);
+  const style = levelStyle(payload?.level);
   return <circle cx={cx} cy={cy} r={4} fill={style.color} stroke="#fff" strokeWidth={1.5} />;
 }
 
 function ChartTooltip({ active, payload, unit }) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
-  const style = levelStyle(p.level);
+  const style = levelStyle(p?.level);
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg space-y-0.5">
       <p className="font-semibold text-slate-700">{p.label}</p>
@@ -219,12 +219,12 @@ function LegendChip({ color, label }) {
   );
 }
 
-function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, paramLabel, unit }) {
+function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [], paramKey, paramLabel, unit }) {
   const data = useMemo(() => {
-    return activeRoomNames.map((name) => {
-      const rObj = rooms.find((r) => r.name === name);
-      const rowAm = currentDayEntries.find((e) => e.roomName === name && e.jam === "08:00");
-      const rowPm = currentDayEntries.find((e) => e.roomName === name && e.jam === "13:00");
+    return (activeRoomNames || []).map((name) => {
+      const rObj = (rooms || []).find((r) => r?.name === name);
+      const rowAm = (currentDayEntries || []).find((e) => e?.roomName === name && e?.jam === "08:00");
+      const rowPm = (currentDayEntries || []).find((e) => e?.roomName === name && e?.jam === "13:00");
       const vAm = toNumberSafe(rowAm?.[paramKey]);
       const vPm = toNumberSafe(rowPm?.[paramKey]);
       const lim = rObj?.limits?.[paramKey];
@@ -236,7 +236,7 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
     }).flat();
   }, [activeRoomNames, rooms, currentDayEntries, paramKey]);
 
-  if (data.length === 0) {
+  if (!data || data.length === 0) {
     return (
       <div className="p-6 bg-slate-50 rounded-xl border border-dashed text-center text-xs text-slate-400">
         Belum ada data {paramLabel} yang tersimpan untuk ruangan pada tanggal ini.
@@ -264,9 +264,9 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LegendChip color="#15803d" label="Terkendali" />
-          {refLim.alertU !== null && <LegendChip color="#b45309" label={`Alert ${refLim.alertU}`} />}
-          {refLim.actionU !== null && <LegendChip color="#c2410c" label={`Action ${refLim.actionU}`} />}
-          {refLim.syaratU !== null && <LegendChip color="#b91c1c" label={`Syarat ${refLim.syaratU}`} />}
+          {refLim.alertU !== null && refLim.alertU !== undefined && <LegendChip color="#b45309" label={`Alert ${refLim.alertU}`} />}
+          {refLim.actionU !== null && refLim.actionU !== undefined && <LegendChip color="#c2410c" label={`Action ${refLim.actionU}`} />}
+          {refLim.syaratU !== null && refLim.syaratU !== undefined && <LegendChip color="#b91c1c" label={`Syarat ${refLim.syaratU}`} />}
         </div>
       </div>
       <div className="p-3">
@@ -279,10 +279,10 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            {refLim.alertU !== null && <ReferenceLine y={refLim.alertU} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
-            {refLim.actionU !== null && <ReferenceLine y={refLim.actionU} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
-            {refLim.syaratU !== null && <ReferenceLine y={refLim.syaratU} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-            {refLim.syaratL !== null && <ReferenceLine y={refLim.syaratL} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+            {refLim.alertU !== null && refLim.alertU !== undefined && <ReferenceLine y={refLim.alertU} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {refLim.actionU !== null && refLim.actionU !== undefined && <ReferenceLine y={refLim.actionU} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {refLim.syaratU !== null && refLim.syaratU !== undefined && <ReferenceLine y={refLim.syaratU} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+            {refLim.syaratL !== null && refLim.syaratL !== undefined && <ReferenceLine y={refLim.syaratL} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={45} />
             <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={35} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
@@ -295,13 +295,13 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
   );
 }
 
-function RoomMonthlyTrendChart({ entriesData, paramKey, paramLabel, unit, limit, isGlobal = false }) {
+function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, limit, isGlobal = false }) {
   const data = useMemo(() => {
-    return entriesData.map((e) => {
-      const v = toNumberSafe(e[paramKey]);
+    return (entriesData || []).map((e) => {
+      const v = toNumberSafe(e?.[paramKey]);
       if (v === null) return null;
       return {
-        label: isGlobal ? `${e.tanggal.slice(-2)} (${e.roomName})` : `${e.tanggal.slice(-2)}/${e.jam}`,
+        label: isGlobal ? `${String(e.tanggal || "").slice(-2)} (${e.roomName})` : `${String(e.tanggal || "").slice(-2)}/${e.jam}`,
         value: v,
         level: e.level?.[paramKey] ?? 0,
         roomName: e.roomName,
@@ -309,7 +309,7 @@ function RoomMonthlyTrendChart({ entriesData, paramKey, paramLabel, unit, limit,
     }).filter(Boolean);
   }, [entriesData, paramKey, isGlobal]);
 
-  if (data.length === 0) return null;
+  if (!data || data.length === 0) return null;
 
   const peak = data.reduce((a, b) => (b.level > a.level ? b : a), data[0]);
   const allVals = data.map((d) => d.value).concat([limit?.syaratL, limit?.syaratU, limit?.alertL, limit?.alertU, limit?.actionL, limit?.actionU]).filter((v) => v !== null && v !== undefined);
@@ -463,7 +463,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
     setLoading(true);
     setStatusError("");
     fetchStatusIndex(month)
-      .then((d) => { if (!cancelled) setStatus(d); })
+      .then((d) => { if (!cancelled) setStatus(d?.status || d || {}); })
       .catch((err) => { if (!cancelled) setStatusError(err.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -615,7 +615,7 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
 
 /* ========================================================================= HALAMAN EVALUASI & INPUT HARIAN ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
-  const cfg = FACILITIES.find((f) => f.key === facilityKey);
+  const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
   const canInput = hasFacilityAccess(session, "Staff", cfg);
   const canApproveSPV = hasFacilityAccess(session, "Supervisor", cfg);
   const isOperator = session.role === "Staff" || session.role === "Operator" || session.role === "Admin" || session.role === "Administrator";
@@ -643,17 +643,20 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setLoading(true);
     setError("");
     try {
-      const [roomList, entryList, reportRes] = await Promise.all([
+      const [roomRes, entryRes, reportRes] = await Promise.all([
         fetchMaster(facilityKey),
         fetchEntries(facilityKey, month),
         fetchReport(facilityKey, month, session.token),
       ]);
+      const roomList = Array.isArray(roomRes) ? roomRes : (roomRes?.rooms || []);
+      const entryList = Array.isArray(entryRes) ? entryRes : (entryRes?.entries || []);
+
       setRooms(roomList);
       setMonthEntries(entryList);
       setReport(reportRes);
-      setPendahuluan(reportRes.narrative?.pendahuluan || "");
-      setKesimpulanUmum(reportRes.narrative?.kesimpulanUmum || "");
-      setPerParameter(reportRes.narrative?.perParameter || { suhu: "", rh: "", dpg: "" });
+      setPendahuluan(reportRes?.narrative?.pendahuluan || "");
+      setKesimpulanUmum(reportRes?.narrative?.kesimpulanUmum || "");
+      setPerParameter(reportRes?.narrative?.perParameter || { suhu: "", rh: "", dpg: "" });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -664,16 +667,17 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
-    if (rooms.length === 0) return;
+    if (!rooms || rooms.length === 0) return;
 
     const existingRoomsToday = Array.from(
-      new Set(monthEntries.filter((e) => e.tanggal === selectedDate).map((e) => e.roomName))
+      new Set((monthEntries || []).filter((e) => e?.tanggal === selectedDate).map((e) => e?.roomName))
     ).filter(Boolean);
 
     setActiveRoomNames(existingRoomsToday);
 
     const initialGrid = {};
     rooms.forEach((r) => {
+      if (!r?.name) return;
       initialGrid[r.name] = {
         "08:00": { suhu: "", rh: "", dpg: "", opr: "", spv: "" },
         "13:00": { suhu: "", rh: "", dpg: "", opr: "", spv: "" },
@@ -685,7 +689,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       });
     });
 
-    monthEntries.filter((e) => e.tanggal === selectedDate).forEach((e) => {
+    (monthEntries || []).filter((e) => e?.tanggal === selectedDate).forEach((e) => {
       if (initialGrid[e.roomName] && initialGrid[e.roomName][e.jam]) {
         const rObj = rooms.find((r) => r.name === e.roomName);
         initialGrid[e.roomName][e.jam] = {
@@ -727,7 +731,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   function buildTodayPayload() {
     const todayRows = [];
     activeRoomNames.forEach((rName) => {
-      const rObj = rooms.find((r) => r.name === rName);
+      const rObj = (rooms || []).find((r) => r?.name === rName);
       SESI.forEach((jam) => {
         const v = gridValues[rName]?.[jam] || {};
         const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
@@ -759,7 +763,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setError("");
     try {
       const todayRows = buildTodayPayload();
-      const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
+      const otherRows = (monthEntries || []).filter((e) => e?.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
       await loadData();
     } catch (err) {
@@ -776,7 +780,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       const todayRows = buildTodayPayload();
       if (todayRows.length === 0) throw new Error("Belum ada nilai yang diisi pada tanggal ini.");
 
-      const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
+      const otherRows = (monthEntries || []).filter((e) => e?.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
 
       const uniqueRooms = Array.from(new Set(todayRows.map((r) => r.roomName)));
@@ -798,7 +802,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       const todayRows = buildTodayPayload();
       if (todayRows.length === 0) throw new Error("Tidak ada data ruangan untuk di-approve SPV.");
 
-      const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
+      const otherRows = (monthEntries || []).filter((e) => e?.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
 
       await apiApproveDay(facilityKey, selectedDate, session.token);
@@ -815,7 +819,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setError("");
     try {
       const todayRows = buildTodayPayload();
-      const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
+      const otherRows = (monthEntries || []).filter((e) => e?.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
       await apiApproveOpr(facilityKey, selectedDate, roomName, session.token);
       await loadData();
@@ -831,7 +835,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setError("");
     try {
       const todayRows = buildTodayPayload();
-      const otherRows = monthEntries.filter((e) => e.tanggal !== selectedDate);
+      const otherRows = (monthEntries || []).filter((e) => e?.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session.token);
       await apiApproveSpv(facilityKey, selectedDate, roomName, session.token);
       await loadData();
@@ -880,7 +884,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   }
 
   const currentDayEntries = useMemo(() => {
-    return monthEntries.filter((e) => e.tanggal === selectedDate);
+    return (monthEntries || []).filter((e) => e?.tanggal === selectedDate);
   }, [monthEntries, selectedDate]);
 
   const currentLevel = facilityOverallLevel(monthEntries);
@@ -888,8 +892,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   const roomStatusToday = useMemo(() => {
     const map = {};
-    rooms.forEach((r) => {
-      const rows = currentDayEntries.filter((e) => e.roomName === r.name);
+    (rooms || []).forEach((r) => {
+      const rows = currentDayEntries.filter((e) => e?.roomName === r?.name);
       if (rows.length === 0) {
         map[r.name] = "empty";
       } else if (rows.every((e) => !!e.spv)) {
@@ -904,15 +908,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   }, [rooms, currentDayEntries]);
 
   const isFacilityFullySpvApproved = useMemo(() => {
-    if (rooms.length === 0) return false;
+    if (!rooms || rooms.length === 0) return false;
     return rooms.every((r) => roomStatusToday[r.name] === "spv");
   }, [rooms, roomStatusToday]);
 
   const hasUnapprovedRoomsInActive = useMemo(() => {
-    return activeRoomNames.some((rName) => roomStatusToday[rName] !== "spv");
+    return (activeRoomNames || []).some((rName) => roomStatusToday[rName] !== "spv");
   }, [activeRoomNames, roomStatusToday]);
 
-  const unselectedRooms = rooms.filter((r) => !activeRoomNames.includes(r.name));
+  const unselectedRooms = (rooms || []).filter((r) => !activeRoomNames.includes(r.name));
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6 print:max-w-none print:p-0">
@@ -932,7 +936,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               <ClipboardList size={13} /> Pengkajian QA (Global 1 Bulan)
             </button>
           )}
-          {rooms.length > 0 && (
+          {rooms && rooms.length > 0 && (
             <button onClick={() => setView({ page: "formulir", facility: facilityKey, room: rooms[0]?.name, bulan: month })}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
               <FileCheck2 size={13} /> Formulir Bulanan (FM.QA.024/R11)
@@ -1063,7 +1067,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {activeRoomNames.map((rName) => {
-                  const rObj = rooms.find((r) => r.name === rName);
+                  const rObj = (rooms || []).find((r) => r?.name === rName);
                   if (!rObj) return null;
                   const st = roomStatusToday[rName];
                   const labelSuffix = st === "spv" ? "✓ Disetujui SPV" : st === "opr" ? "• Diapprove OPR" : st === "filled" ? "• Terisi" : "";
@@ -1185,7 +1189,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {activeRoomNames.map((rName) => {
-                  const rObj = rooms.find((r) => r.name === rName);
+                  const rObj = (rooms || []).find((r) => r?.name === rName);
                   if (!rObj) return null;
 
                   return PARAM_DEFS.map((p) => {
@@ -1267,9 +1271,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         <div>
           <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Kesimpulan Umum</label>
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Kesimpulan Umum</p>
-          <textarea value={kesimpulan} onChange={(e) => setKesimpulan(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={3}
+          <textarea value={kesimpulanUmum} onChange={(e) => setKesimpulanUmum(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={3}
             className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
-          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulan || "-"}</p>
+          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulanUmum || "-"}</p>
         </div>
 
         {/* SECTION 5: TANDA TANGAN */}
@@ -1333,7 +1337,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
   const [rooms, setRooms] = useState([]);
   const [monthEntries, setMonthEntries] = useState([]);
 
-  const cfg = FACILITIES.find((f) => f.key === facilityKey);
+  const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
   const canDraft = hasAccess(session, "Supervisor", "QA");
   const canFinal = hasAccess(session, "Manager", "QA");
 
@@ -1341,17 +1345,20 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
     setLoading(true);
     setError("");
     try {
-      const [r, roomList, entries] = await Promise.all([
+      const [r, roomRes, entryRes] = await Promise.all([
         fetchReport(facilityKey, month, session.token, selectedRoomName),
         fetchMaster(facilityKey),
         fetchEntries(facilityKey, month),
       ]);
+      const roomList = Array.isArray(roomRes) ? roomRes : (roomRes?.rooms || []);
+      const allEntries = Array.isArray(entryRes) ? entryRes : (entryRes?.entries || []);
+
       setReport(r);
-      setPendahuluan(r.narrative?.pendahuluan || "");
-      setKesimpulan(r.narrative?.kesimpulanUmum || "");
-      setPerParameter(r.narrative?.perParameter || {});
+      setPendahuluan(r?.narrative?.pendahuluan || "");
+      setKesimpulan(r?.narrative?.kesimpulanUmum || "");
+      setPerParameter(r?.narrative?.perParameter || {});
       setRooms(roomList);
-      setMonthEntries(selectedRoomName ? entries.filter((e) => e.roomName === selectedRoomName) : entries);
+      setMonthEntries(selectedRoomName ? (allEntries || []).filter((e) => e?.roomName === selectedRoomName) : (allEntries || []));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1405,9 +1412,9 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
   }
 
   const displayedRooms = useMemo(() => {
-    if (selectedRoomName) return rooms.filter((r) => r.name === selectedRoomName);
-    const roomsInData = Array.from(new Set(monthEntries.map((e) => e.roomName)));
-    return rooms.filter((r) => roomsInData.includes(r.name));
+    if (selectedRoomName) return (rooms || []).filter((r) => r?.name === selectedRoomName);
+    const roomsInData = Array.from(new Set((monthEntries || []).map((e) => e?.roomName)));
+    return (rooms || []).filter((r) => roomsInData.includes(r?.name));
   }, [rooms, selectedRoomName, monthEntries]);
 
   return (
@@ -1467,7 +1474,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             className="border rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none bg-slate-50"
           >
             <option value="">Semua Ruangan (Global 1 Fasilitas)</option>
-            {rooms.map((r) => (
+            {(rooms || []).map((r) => (
               <option key={r.code + r.name} value={r.name}>
                 Khusus Ruang: {r.code} — {r.name}
               </option>
@@ -1484,10 +1491,10 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">
             {selectedRoomName ? `Rekap Data Pengukuran Bulanan — ${selectedRoomName}` : `Rekap Data Pengukuran Seluruh Ruangan — Fasilitas ${cfg?.label}`}
           </h2>
-          <span className="text-[11px] text-slate-400 font-medium">{monthEntries.length} Baris Data Tersedia</span>
+          <span className="text-[11px] text-slate-400 font-medium">{(monthEntries || []).length} Baris Data Tersedia</span>
         </div>
 
-        {monthEntries.length === 0 ? (
+        {(monthEntries || []).length === 0 ? (
           <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed text-xs text-slate-400">
             Belum ada data pengukuran yang tercatat pada periode ini.
           </div>
@@ -1507,23 +1514,23 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {monthEntries.map((e) => (
+                {(monthEntries || []).map((e) => (
                   <tr key={e.id} className="hover:bg-slate-50/50">
                     <td className="px-3 py-1.5 font-medium text-slate-700">{e.tanggal}</td>
                     <td className="px-2 py-1.5 text-center text-slate-500">{e.jam}</td>
                     {!selectedRoomName && <td className="px-3 py-1.5 text-slate-700 font-medium">{e.roomName}</td>}
                     <td className="px-2 py-1.5 text-center">
-                      <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: levelStyle(e.level?.suhu).bg, color: levelStyle(e.level?.suhu).color }}>
+                      <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: levelStyle(e?.level?.suhu).bg, color: levelStyle(e?.level?.suhu).color }}>
                         {e.suhu ?? "-"}
                       </span>
                     </td>
                     <td className="px-2 py-1.5 text-center">
-                      <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: levelStyle(e.level?.rh).bg, color: levelStyle(e.level?.rh).color }}>
+                      <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: levelStyle(e?.level?.rh).bg, color: levelStyle(e?.level?.rh).color }}>
                         {e.rh ?? "-"}
                       </span>
                     </td>
                     <td className="px-2 py-1.5 text-center">
-                      <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: levelStyle(e.level?.dpg).bg, color: levelStyle(e.level?.dpg).color }}>
+                      <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: levelStyle(e?.level?.dpg).bg, color: levelStyle(e?.level?.dpg).color }}>
                         {e.dpg ?? "-"}
                       </span>
                     </td>
@@ -1555,8 +1562,8 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               <tbody className="divide-y divide-slate-100">
                 {displayedRooms.map((rObj) => {
                   return PARAM_DEFS.map((p) => {
-                    const lim = rObj.limits?.[p.key];
-                    if (!rObj.required?.[p.key] || !lim) return null;
+                    const lim = rObj?.limits?.[p.key];
+                    if (!rObj?.required?.[p.key] || !lim) return null;
 
                     return (
                       <tr key={rObj.name + p.key}>
@@ -1586,7 +1593,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">Grafik Tren Pengukuran Periode {monthLabelID(month)}</h2>
         <div className="space-y-4">
           {PARAM_DEFS.map((p) => {
-            const rObj = selectedRoomName ? rooms.find((r) => r.name === selectedRoomName) : null;
+            const rObj = selectedRoomName ? (rooms || []).find((r) => r?.name === selectedRoomName) : null;
             return (
               <RoomMonthlyTrendChart
                 key={p.key}
@@ -1648,19 +1655,20 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulan || "-"}</p>
         </div>
 
+        {/* SECTION 5: TANDA TANGAN */}
         <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
           <div className="border rounded-xl p-4 bg-slate-50/50 text-center flex flex-col justify-between min-h-[140px]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
             {report?.signoff?.dinilai?.nama ? (
               <div className="space-y-1 my-auto">
-                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={selectedRoomName} signerRole="Dikaji Oleh" signerName={report.signoff.dinilai.nama} size={54} /></div>
+                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Dikaji Oleh" signerName={report.signoff.dinilai.nama} size={54} /></div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
                 <p className="text-[10px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
               </div>
             ) : (
               <div className="my-auto space-y-2">
                 <p className="text-xs italic text-slate-400">Belum disetujui</p>
-                {canDraft && (
+                {canDraftQA && (
                   <button onClick={handleDikaji} className="no-print px-3 py-1 bg-rose-800 hover:bg-rose-900 text-white rounded text-xs font-semibold">
                     Approve "Dikaji Oleh"
                   </button>
@@ -1673,14 +1681,14 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Mengetahui (Manager QA)</p>
             {report?.signoff?.diperiksa?.nama ? (
               <div className="space-y-1 my-auto">
-                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={selectedRoomName} signerRole="Mengetahui" signerName={report.signoff.diperiksa.nama} size={54} /></div>
+                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} signerRole="Mengetahui" signerName={report.signoff.diperiksa.nama} size={54} /></div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
                 <p className="text-[10px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
               </div>
             ) : (
               <div className="my-auto space-y-2">
                 <p className="text-xs italic text-slate-400">{report?.signoff?.dinilai?.nama ? "Menunggu approval Manager QA" : "Menunggu approval 'Dikaji Oleh' terlebih dahulu"}</p>
-                {canFinal && report?.signoff?.dinilai?.nama && (
+                {canFinalQA && report?.signoff?.dinilai?.nama && (
                   <button onClick={handleMengetahui} className="no-print px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold">
                     Approve Final "Mengetahui"
                   </button>
@@ -1696,7 +1704,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
 /* ========================================================================= FORMULIR BULANAN CETAK (FM.QA.024/R11) ========================================================================= */
 function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }) {
-  const cfg = FACILITIES.find((f) => f.key === facilityKey);
+  const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(roomName || "");
   const [entries, setEntries] = useState([]);
@@ -1713,12 +1721,12 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
         fetchEntries(facilityKey, bulan),
         fetchFormulirBulanan(facilityKey, bulan, selectedRoom, session.token),
       ]);
-      const roomList = Array.isArray(master) ? master : (master.rooms || []);
+      const roomList = Array.isArray(master) ? master : (master?.rooms || []);
       setRooms(roomList);
       const targetRoom = selectedRoom || roomList[0]?.name || "";
       setSelectedRoom(targetRoom);
-      const list = Array.isArray(entriesRes) ? entriesRes : (entriesRes.entries || []);
-      setEntries(list.filter((e) => String(e.roomName).trim() === String(targetRoom).trim()));
+      const list = Array.isArray(entriesRes) ? entriesRes : (entriesRes?.entries || []);
+      setEntries(list.filter((e) => String(e?.roomName || "").trim() === String(targetRoom).trim()));
       setFormulir(formulirRes);
     } catch {
       // ignore
@@ -1729,8 +1737,8 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
 
   const n = daysInMonth(bulan);
   const byDay = {};
-  entries.forEach((e) => { byDay[e.tanggal + "|" + e.jam] = e; });
-  const roomObj = rooms.find((r) => r.name === selectedRoom) || rooms[0];
+  (entries || []).forEach((e) => { byDay[e.tanggal + "|" + e.jam] = e; });
+  const roomObj = (rooms || []).find((r) => r?.name === selectedRoom) || rooms[0];
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 print:max-w-none print:p-0 space-y-4">
@@ -1740,7 +1748,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
         </button>
         <div className="flex items-center gap-2">
           <select value={selectedRoom} onChange={(e) => setSelectedRoom(e.target.value)} className="border rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-semibold outline-none">
-            {rooms.map((r) => <option key={r.code} value={r.name}>{r.name} ({r.code})</option>)}
+            {(rooms || []).map((r) => <option key={r.code} value={r.name}>{r.name} ({r.code})</option>)}
           </select>
           {hasAccess(session, "Supervisor", "QA") && (
             <button onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: selectedRoom })}
@@ -1858,7 +1866,8 @@ function ActivityPage({ session, month, setView }) {
     setLoading(true);
     fetchActivityLog(session.token, { month: allMonths ? undefined : selectedMonth, facility: filterFacility || undefined })
       .then((data) => {
-        setLogs(Array.isArray(data) ? data : []);
+        const logList = Array.isArray(data) ? data : (data?.logs || []);
+        setLogs(logList);
       })
       .catch(() => setLogs([]))
       .finally(() => setLoading(false));
@@ -1905,13 +1914,13 @@ function ActivityPage({ session, month, setView }) {
 
       {loading ? (
         <div className="flex justify-center p-12 text-slate-400"><Loader2 size={24} className="animate-spin" /></div>
-      ) : logs.length === 0 ? (
+      ) : (logs || []).length === 0 ? (
         <div className="p-12 text-center bg-white rounded-xl border border-dashed text-slate-400 text-xs">
           Belum ada riwayat aktivitas yang tercatat untuk filter ini.
         </div>
       ) : (
         <div className="bg-white rounded-xl border divide-y text-xs shadow-xs">
-          {logs.map((l, i) => (
+          {(logs || []).map((l, i) => (
             <div key={i} className="p-3.5 flex flex-wrap items-center justify-between gap-2 hover:bg-slate-50/60">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
