@@ -122,15 +122,14 @@ function levelStyle(level) {
   return LEVEL_STYLE[level] || LEVEL_STYLE[0];
 }
 
-function roomCategory(room) {
-  const key = room?.persyaratanKey || "";
-  return key || "Persyaratan Umum";
-}
-
-function formatRange(lower, upper, unit) {
+function formatRange(lower, upper, unit, isDpg = false) {
   const lo = lower !== null && lower !== undefined ? String(lower).replace(".", ",") : null;
   const hi = upper !== null && upper !== undefined ? String(upper).replace(".", ",") : null;
-  if (lo === null && hi === null) return "N/A";
+  if (lo === null && hi === null) return "—";
+  if (isDpg) {
+    const val = lo || hi;
+    return `≥ ${val} ${unit}`;
+  }
   if (lo === null) return `≤ ${hi} ${unit}`;
   if (hi === null) return `≥ ${lo} ${unit}`;
   return `${lo} – ${hi} ${unit}`;
@@ -246,12 +245,17 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
 
   const peak = data.reduce((a, b) => (b.level > a.level ? b : a), data[0]);
   const refLim = peak?.lim || rooms[0]?.limits?.[paramKey] || {};
+  const isDpg = paramKey === "dpg";
   const allVals = data.map((d) => d.value).concat([refLim.syaratL, refLim.syaratU, refLim.alertL, refLim.alertU, refLim.actionL, refLim.actionU]).filter((v) => v !== null && v !== undefined);
   const minVal = Math.min(...allVals, 0);
   const maxVal = Math.max(...allVals, 10);
   const yMin = minVal - (maxVal - minVal) * 0.1;
   const yMax = maxVal + (maxVal - minVal) * 0.1;
   const gradId = `dayGrad-${paramKey}`;
+
+  const alertVal = refLim.alertU ?? refLim.alertL;
+  const actionVal = refLim.actionU ?? refLim.actionL;
+  const syaratVal = refLim.syaratU ?? refLim.syaratL;
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
@@ -264,9 +268,9 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LegendChip color="#15803d" label="Terkendali" />
-          {refLim.alertU !== null && refLim.alertU !== undefined && <LegendChip color="#b45309" label={`Alert ${refLim.alertU}`} />}
-          {refLim.actionU !== null && refLim.actionU !== undefined && <LegendChip color="#c2410c" label={`Action ${refLim.actionU}`} />}
-          {refLim.syaratU !== null && refLim.syaratU !== undefined && <LegendChip color="#b91c1c" label={`Syarat ${refLim.syaratU}`} />}
+          {alertVal !== null && alertVal !== undefined && <LegendChip color="#b45309" label={`Alert ${isDpg ? '≥ ' : ''}${alertVal}`} />}
+          {actionVal !== null && actionVal !== undefined && <LegendChip color="#c2410c" label={`Action ${isDpg ? '≥ ' : ''}${actionVal}`} />}
+          {syaratVal !== null && syaratVal !== undefined && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? '≥ ' : ''}${syaratVal}`} />}
         </div>
       </div>
       <div className="p-3">
@@ -279,10 +283,9 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            {refLim.alertU !== null && refLim.alertU !== undefined && <ReferenceLine y={refLim.alertU} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
-            {refLim.actionU !== null && refLim.actionU !== undefined && <ReferenceLine y={refLim.actionU} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
-            {refLim.syaratU !== null && refLim.syaratU !== undefined && <ReferenceLine y={refLim.syaratU} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-            {refLim.syaratL !== null && refLim.syaratL !== undefined && <ReferenceLine y={refLim.syaratL} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+            {alertVal !== null && alertVal !== undefined && <ReferenceLine y={alertVal} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {actionVal !== null && actionVal !== undefined && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {syaratVal !== null && syaratVal !== undefined && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={45} />
             <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={35} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
@@ -312,12 +315,17 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
   if (!data || data.length === 0) return null;
 
   const peak = data.reduce((a, b) => (b.level > a.level ? b : a), data[0]);
+  const isDpg = paramKey === "dpg";
   const allVals = data.map((d) => d.value).concat([limit?.syaratL, limit?.syaratU, limit?.alertL, limit?.alertU, limit?.actionL, limit?.actionU]).filter((v) => v !== null && v !== undefined);
   const minVal = Math.min(...allVals, 0);
   const maxVal = Math.max(...allVals, 10);
   const yMin = minVal - (maxVal - minVal) * 0.1;
   const yMax = maxVal + (maxVal - minVal) * 0.1;
   const gradId = `monthGrad-${paramKey}-${isGlobal ? "global" : "room"}`;
+
+  const alertVal = limit?.alertU ?? limit?.alertL;
+  const actionVal = limit?.actionU ?? limit?.actionL;
+  const syaratVal = limit?.syaratU ?? limit?.syaratL;
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
@@ -330,9 +338,9 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LegendChip color="#15803d" label="Terkendali" />
-          {limit?.alertU !== null && limit?.alertU !== undefined && <LegendChip color="#b45309" label={`Alert ${limit.alertU}`} />}
-          {limit?.actionU !== null && limit?.actionU !== undefined && <LegendChip color="#c2410c" label={`Action ${limit.actionU}`} />}
-          {limit?.syaratU !== null && limit?.syaratU !== undefined && <LegendChip color="#b91c1c" label={`Syarat ${limit.syaratU}`} />}
+          {alertVal !== null && alertVal !== undefined && <LegendChip color="#b45309" label={`Alert ${isDpg ? '≥ ' : ''}${alertVal}`} />}
+          {actionVal !== null && actionVal !== undefined && <LegendChip color="#c2410c" label={`Action ${isDpg ? '≥ ' : ''}${actionVal}`} />}
+          {syaratVal !== null && syaratVal !== undefined && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? '≥ ' : ''}${syaratVal}`} />}
         </div>
       </div>
       <div className="p-3">
@@ -345,10 +353,9 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            {limit?.alertU !== null && limit?.alertU !== undefined && <ReferenceLine y={limit.alertU} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
-            {limit?.actionU !== null && limit?.actionU !== undefined && <ReferenceLine y={limit.actionU} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
-            {limit?.syaratU !== null && limit?.syaratU !== undefined && <ReferenceLine y={limit.syaratU} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-            {limit?.syaratL !== null && limit?.syaratL !== undefined && <ReferenceLine y={limit.syaratL} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+            {alertVal !== null && alertVal !== undefined && <ReferenceLine y={alertVal} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {actionVal !== null && actionVal !== undefined && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {syaratVal !== null && syaratVal !== undefined && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#64748b" }} angle={-35} textAnchor="end" interval="preserveStartEnd" height={45} />
             <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={35} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
@@ -918,6 +925,18 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   const unselectedRooms = (rooms || []).filter((r) => !activeRoomNames.includes(r.name));
 
+  /* Distinct Limit Keys for Clean Table Below */
+  const activeDistinctLimits = useMemo(() => {
+    const map = {};
+    activeRoomNames.forEach((rName) => {
+      const rObj = (rooms || []).find((r) => r?.name === rName);
+      if (rObj && rObj.persyaratanKey) {
+        map[rObj.persyaratanKey] = rObj.limits;
+      }
+    });
+    return map;
+  }, [activeRoomNames, rooms]);
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6 print:max-w-none print:p-0">
       {/* Header Bar */}
@@ -996,19 +1015,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   className="border border-rose-300 bg-rose-50/50 hover:bg-rose-50 rounded-lg px-3 py-1 text-xs text-rose-950 font-semibold outline-none transition"
                 >
                   <option value="">+ Tambah Ruangan Lain...</option>
-                  {Array.from(new Set(unselectedRooms.map(roomCategory))).map((cat) => (
-                    <optgroup key={cat} label={cat}>
-                      {unselectedRooms.filter((r) => roomCategory(r) === cat).map((r) => {
-                        const st = roomStatusToday[r.name];
-                        const labelSuffix = st === "spv" ? " ✓ disetujui" : st === "opr" ? " • diapprove OPR" : st === "filled" ? " • terisi" : "";
-                        return (
-                          <option key={r.code + r.name} value={r.name}>
-                            {r.code} — {r.name}{labelSuffix}
-                          </option>
-                        );
-                      })}
-                    </optgroup>
-                  ))}
+                  {unselectedRooms.map((r) => {
+                    const st = roomStatusToday[r.name];
+                    const labelSuffix = st === "spv" ? " ✓ disetujui" : st === "opr" ? " • diapprove OPR" : st === "filled" ? " • terisi" : "";
+                    return (
+                      <option key={r.code + r.name} value={r.name}>
+                        {r.code} — {r.name} ({r.persyaratanKey || "—"}){labelSuffix}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             )}
@@ -1044,7 +1059,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
         </div>
 
-        {/* Tabel Data */}
+        {/* Tabel Data dengan Kolom PERSYARATAN */}
         {activeRoomNames.length === 0 ? (
           <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed text-slate-500 text-xs space-y-1">
             <p className="font-semibold text-slate-700">Belum ada ruangan yang diinput pada tanggal {selectedDate}.</p>
@@ -1055,7 +1070,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             <table className="w-full text-xs print:table-fixed">
               <thead>
                 <tr className="bg-slate-50 text-slate-600 border-b">
-                  <th className="px-3 py-2 text-left min-w-[180px] print:w-44">RUANGAN</th>
+                  <th className="px-3 py-2 text-left min-w-[170px] print:w-40">RUANGAN</th>
+                  <th className="px-2 py-2 text-center w-28">PERSYARATAN</th>
                   <th className="px-2 py-2 text-center w-14">JAM</th>
                   <th className="px-2 py-2 text-center w-20">SUHU (°C)</th>
                   <th className="px-2 py-2 text-center w-20">RH (%)</th>
@@ -1084,14 +1100,21 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                     return (
                       <tr key={rObj.code + jam} className={jamIdx === 0 ? "border-t border-slate-200" : "bg-slate-50/30"}>
                         {jamIdx === 0 ? (
-                          <td rowSpan={2} className="px-3 py-2 align-middle border-r border-slate-100">
-                            <div className="font-bold text-slate-800 text-xs">{rObj.code} — {rObj.name}</div>
-                            {labelSuffix && (
-                              <span className={`inline-block mt-0.5 text-[9px] font-medium px-1.5 py-0.2 rounded ${st === "spv" ? "bg-rose-50 text-rose-800" : st === "opr" ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
-                                {labelSuffix}
+                          <>
+                            <td rowSpan={2} className="px-3 py-2 align-middle border-r border-slate-100">
+                              <div className="font-bold text-slate-800 text-xs">{rObj.code} — {rObj.name}</div>
+                              {labelSuffix && (
+                                <span className={`inline-block mt-0.5 text-[9px] font-medium px-1.5 py-0.2 rounded ${st === "spv" ? "bg-rose-50 text-rose-800" : st === "opr" ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
+                                  {labelSuffix}
+                                </span>
+                              )}
+                            </td>
+                            <td rowSpan={2} className="px-2 py-2 text-center align-middle border-r border-slate-100">
+                              <span className="inline-block bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded text-[10px] border border-slate-200">
+                                {rObj.persyaratanKey || "—"}
                               </span>
-                            )}
-                          </td>
+                            </td>
+                          </>
                         ) : null}
                         <td className="px-2 py-1.5 text-center font-medium text-slate-500">{jam}</td>
                         <td className="px-2 py-1.5 text-center">
@@ -1172,37 +1195,35 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         )}
       </div>
 
-      {/* SECTION 2: CARD PERSYARATAN & LIMIT */}
-      {activeRoomNames.length > 0 && (
+      {/* SECTION 2: CARD PERSYARATAN & LIMIT (DEDUPLIKASI BERDASARKAN PERSYARATAN KEY) */}
+      {Object.keys(activeDistinctLimits).length > 0 && (
         <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3 print-card avoid-break">
-          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit (Ruangan Terpilih)</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)</h3>
           <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 border-b">
+                  <th className="px-3 py-1.5">KODE / PERSYARATAN</th>
                   <th className="px-3 py-1.5">PARAMETER</th>
-                  <th className="px-3 py-1.5">RUANGAN</th>
                   <th className="px-3 py-1.5">SYARAT</th>
                   <th className="px-3 py-1.5">ALERT LIMIT</th>
                   <th className="px-3 py-1.5">ACTION LIMIT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {activeRoomNames.map((rName) => {
-                  const rObj = (rooms || []).find((r) => r?.name === rName);
-                  if (!rObj) return null;
-
+                {Object.entries(activeDistinctLimits).map(([pKey, limits]) => {
                   return PARAM_DEFS.map((p) => {
-                    const lim = rObj.limits?.[p.key];
-                    if (!rObj.required?.[p.key] || !lim) return null;
+                    const lim = limits?.[p.key];
+                    if (!lim || [lim.syaratL, lim.syaratU, lim.alertL, lim.alertU, lim.actionL, lim.actionU].every((x) => x === null || x === undefined)) return null;
+                    const isDpg = p.key === "dpg";
 
                     return (
-                      <tr key={rName + p.key}>
-                        <td className="px-3 py-1 font-semibold text-slate-700">{p.label}</td>
-                        <td className="px-3 py-1 text-slate-600">{rName}</td>
-                        <td className="px-3 py-1 text-slate-800">{formatRange(lim.syaratL, lim.syaratU, p.unit)}</td>
-                        <td className="px-3 py-1 text-amber-700">{formatRange(lim.alertL, lim.alertU, p.unit)}</td>
-                        <td className="px-3 py-1 text-orange-700">{formatRange(lim.actionL, lim.actionU, p.unit)}</td>
+                      <tr key={pKey + p.key}>
+                        <td className="px-3 py-1.5 font-bold text-slate-800">{pKey}</td>
+                        <td className="px-3 py-1.5 font-semibold text-slate-700">{p.label}</td>
+                        <td className="px-3 py-1.5 text-slate-800">{formatRange(lim.syaratL, lim.syaratU, p.unit, isDpg)}</td>
+                        <td className="px-3 py-1.5 text-amber-700">{formatRange(lim.alertL, lim.alertU, p.unit, isDpg)}</td>
+                        <td className="px-3 py-1.5 text-orange-700">{formatRange(lim.actionL, lim.actionU, p.unit, isDpg)}</td>
                       </tr>
                     );
                   });
@@ -1271,9 +1292,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         <div>
           <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Kesimpulan Umum</label>
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Kesimpulan Umum</p>
-          <textarea value={kesimpulanUmum} onChange={(e) => setKesimpulanUmum(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={3}
+          <textarea value={kesimpulan} onChange={(e) => setKesimpulan(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={3}
             className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
-          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulanUmum || "-"}</p>
+          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulan || "-"}</p>
         </div>
 
         {/* SECTION 5: TANDA TANGAN */}
@@ -1411,11 +1432,16 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
     }
   }
 
-  const displayedRooms = useMemo(() => {
-    if (selectedRoomName) return (rooms || []).filter((r) => r?.name === selectedRoomName);
-    const roomsInData = Array.from(new Set((monthEntries || []).map((e) => e?.roomName)));
-    return (rooms || []).filter((r) => roomsInData.includes(r?.name));
-  }, [rooms, selectedRoomName, monthEntries]);
+  const distinctReportLimits = useMemo(() => {
+    const map = {};
+    const relevantRooms = selectedRoomName ? (rooms || []).filter((r) => r?.name === selectedRoomName) : (rooms || []);
+    relevantRooms.forEach((rObj) => {
+      if (rObj && rObj.persyaratanKey) {
+        map[rObj.persyaratanKey] = rObj.limits;
+      }
+    });
+    return map;
+  }, [rooms, selectedRoomName]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6 print:max-w-none print:p-0">
@@ -1544,34 +1570,35 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         )}
       </div>
 
-      {/* 2. CARD PERSYARATAN & LIMIT */}
-      {displayedRooms.length > 0 && (
+      {/* 2. CARD PERSYARATAN & LIMIT (DEDUPLIKASI BERDASARKAN PERSYARATAN KEY) */}
+      {Object.keys(distinctReportLimits).length > 0 && (
         <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3 print-card avoid-break">
-          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit Ruangan</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)</h3>
           <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 border-b">
+                  <th className="px-3 py-1.5">KODE / PERSYARATAN</th>
                   <th className="px-3 py-1.5">PARAMETER</th>
-                  <th className="px-3 py-1.5">RUANGAN</th>
                   <th className="px-3 py-1.5">SYARAT</th>
                   <th className="px-3 py-1.5">ALERT LIMIT</th>
                   <th className="px-3 py-1.5">ACTION LIMIT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {displayedRooms.map((rObj) => {
+                {Object.entries(distinctReportLimits).map(([pKey, limits]) => {
                   return PARAM_DEFS.map((p) => {
-                    const lim = rObj?.limits?.[p.key];
-                    if (!rObj?.required?.[p.key] || !lim) return null;
+                    const lim = limits?.[p.key];
+                    if (!lim || [lim.syaratL, lim.syaratU, lim.alertL, lim.alertU, lim.actionL, lim.actionU].every((x) => x === null || x === undefined)) return null;
+                    const isDpg = p.key === "dpg";
 
                     return (
-                      <tr key={rObj.name + p.key}>
-                        <td className="px-3 py-1 font-semibold text-slate-700">{p.label}</td>
-                        <td className="px-3 py-1 text-slate-600">{rObj.name}</td>
-                        <td className="px-3 py-1 text-slate-800">{formatRange(lim.syaratL, lim.syaratU, p.unit)}</td>
-                        <td className="px-3 py-1 text-amber-700">{formatRange(lim.alertL, lim.alertU, p.unit)}</td>
-                        <td className="px-3 py-1 text-orange-700">{formatRange(lim.actionL, lim.actionU, p.unit)}</td>
+                      <tr key={pKey + p.key}>
+                        <td className="px-3 py-1.5 font-bold text-slate-800">{pKey}</td>
+                        <td className="px-3 py-1.5 font-semibold text-slate-700">{p.label}</td>
+                        <td className="px-3 py-1.5 text-slate-800">{formatRange(lim.syaratL, lim.syaratU, p.unit, isDpg)}</td>
+                        <td className="px-3 py-1.5 text-amber-700">{formatRange(lim.alertL, lim.alertU, p.unit, isDpg)}</td>
+                        <td className="px-3 py-1.5 text-orange-700">{formatRange(lim.actionL, lim.actionU, p.unit, isDpg)}</td>
                       </tr>
                     );
                   });
@@ -1655,7 +1682,6 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulan || "-"}</p>
         </div>
 
-        {/* SECTION 5: TANDA TANGAN */}
         <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
           <div className="border rounded-xl p-4 bg-slate-50/50 text-center flex flex-col justify-between min-h-[140px]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
