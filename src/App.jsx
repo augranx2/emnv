@@ -7,7 +7,7 @@ import {
 import {
   LogIn, LogOut, User, Loader2, Building2, ChevronLeft,
   Lock, History, Save, FileCheck2, ClipboardList,
-  Printer, Sparkles, Calendar, Trash2, CheckCheck, CheckCircle2,
+  Printer, Sparkles, Calendar, Trash2, CheckCheck, CheckCircle2, ChevronRight,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
@@ -22,21 +22,42 @@ import {
 import { useAuth, hasAccess, hasFacilityAccess } from "./auth.js";
 import { buildFacilityStats, generateLocalNarrative, fullDateID, monthLabelID } from "./narrativeGenerator.js";
 
-/* ========================================================================= KONFIGURASI ========================================================================= */
+/* ========================================================================= 17 FASILITAS & 8 GRUP DASHBOARD ========================================================================= */
 const FACILITIES = [
-  { key: "nbl", label: "NBL", department: "Produksi" },
-  { key: "bl", label: "BL", department: "Produksi" },
-  { key: "sefaNonSteril", label: "Sefa Non Steril", department: "Produksi" },
-  { key: "sefaSteril", label: "Sefa Steril", department: "Produksi" },
-  { key: "qc", label: "QC", department: "QC" },
-  { key: "rnd", label: "RND", department: "RND" },
-  { key: "gbbNbl", label: "GBB NBL", department: "GBB", altDepartment: "PPIC" },
-  { key: "gbbBl", label: "GBB BL", department: "GBB", altDepartment: "PPIC" },
-  { key: "gbbSefa", label: "GBB SEFA", department: "GBB", altDepartment: "PPIC" },
-  { key: "gbj", label: "GBJ", department: "GBJ", altDepartment: "PPIC" },
-  { key: "gbk", label: "GBK", department: "GBK", altDepartment: "PPIC" },
-  { key: "pkrt", label: "PKRT", department: "PKRT" },
-  { key: "alkes", label: "Alkes", department: "PKRT" },
+  { key: "nblProduksi", label: "NBL Produksi", department: "Produksi", group: "nbl" },
+  { key: "nblKemasan", label: "NBL Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "nbl" },
+  { key: "gbbNbl", label: "GBB NBL", department: "GBB", altDepartment: "PPIC", group: "nbl" },
+
+  { key: "blProduksi", label: "BL Produksi", department: "Produksi", group: "bl" },
+  { key: "blKemasan", label: "BL Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "bl" },
+  { key: "gbbBl", label: "GBB BL", department: "GBB", altDepartment: "PPIC", group: "bl" },
+
+  { key: "sefaNonSterilProduksi", label: "Sefa Non Steril Produksi", department: "Produksi", group: "sefaNonSteril" },
+  { key: "sefaNonSterilKemasan", label: "Sefa Non Steril Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "sefaNonSteril" },
+  { key: "gbbSefa", label: "GBB SEFA", department: "GBB", altDepartment: "PPIC", group: "sefaNonSteril" },
+
+  { key: "sefaSterilProduksi", label: "Sefa Steril Produksi", department: "Produksi", group: "sefaSteril" },
+  { key: "sefaSterilKemasan", label: "Sefa Steril Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "sefaSteril" },
+
+  { key: "qc", label: "Laboratorium QC", department: "QC", group: "qc" },
+  { key: "rnd", label: "Research and Development (RND)", department: "RND", group: "rnd" },
+  { key: "pkrt", label: "Perbekalan Kesehatan Rumah Tangga (PKRT)", department: "PKRT", altDepartment: "Produksi", group: "pkrt" },
+  { key: "alkes", label: "Alat Kesehatan (Alkes)", department: "PKRT", altDepartment: "Produksi", group: "alkes" },
+  { key: "gbj", label: "Gudang Barang Jadi (GBJ)", department: "GBJ", altDepartment: "PPIC", group: "gbj" },
+  { key: "gbk", label: "Gudang Bahan Kemas (GBK)", department: "GBK", altDepartment: "PPIC", group: "gbk" },
+];
+
+const GROUPS = [
+  { key: "nbl", title: "Nonbetalaktam (NBL)", items: ["nblProduksi", "nblKemasan", "gbbNbl"] },
+  { key: "bl", title: "Betalaktam (BL)", items: ["blProduksi", "blKemasan", "gbbBl"] },
+  { key: "sefaNonSteril", title: "Sefalosporin Non Steril", items: ["sefaNonSterilProduksi", "sefaNonSterilKemasan", "gbbSefa"] },
+  { key: "sefaSteril", title: "Sefalosporin Steril", items: ["sefaSterilProduksi", "sefaSterilKemasan"] },
+  { key: "qc", title: "Laboratorium QC", singleKey: "qc" },
+  { key: "rnd", title: "Research & Development (RND)", singleKey: "rnd" },
+  { key: "pkrt", title: "PKRT", singleKey: "pkrt" },
+  { key: "alkes", title: "Alat Kesehatan (Alkes)", singleKey: "alkes" },
+  { key: "gbj", title: "Gudang Barang Jadi (GBJ)", singleKey: "gbj" },
+  { key: "gbk", title: "Gudang Bahan Kemas (GBK)", singleKey: "gbk" },
 ];
 
 const PARAM_DEFS = [
@@ -103,8 +124,7 @@ function levelStyle(level) {
 
 function roomCategory(room) {
   const key = room.persyaratanKey || "";
-  const idx = key.indexOf(" : ");
-  return idx === -1 ? key || "Kategori Umum" : key.slice(0, idx);
+  return key || "Persyaratan Umum";
 }
 
 function formatRange(lower, upper, unit) {
@@ -162,7 +182,7 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
   );
 }
 
-/* ========================================================================= KOMPONEN GRAFIK ELEGAN ========================================================================= */
+/* ========================================================================= KOMPONEN GRAFIK FULL-WIDTH ========================================================================= */
 function ChartDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
   const style = levelStyle(payload.level);
@@ -191,7 +211,6 @@ function LegendChip({ color, label }) {
   );
 }
 
-/* 1. Grafik Harian */
 function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, paramLabel, unit }) {
   const data = useMemo(() => {
     return activeRoomNames.map((name) => {
@@ -268,7 +287,6 @@ function DayParamChart({ activeRoomNames, rooms, currentDayEntries, paramKey, pa
   );
 }
 
-/* 2. Grafik Tren Bulanan */
 function RoomMonthlyTrendChart({ entriesData, paramKey, paramLabel, unit, limit, isGlobal = false }) {
   const data = useMemo(() => {
     return entriesData.map((e) => {
@@ -346,7 +364,7 @@ function TopBar({ session, onLoginClick, onLogout, view, setView }) {
         </button>
         <div className="flex items-center gap-2">
           {session && hasAccess(session, "Supervisor", "QA") && (
-            <button onClick={() => setView({ page: "pengkajian", facility: view.facility || "nbl", room: "" })}
+            <button onClick={() => setView({ page: "pengkajian", facility: view.facility || "nblProduksi", room: "" })}
               className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${view.page === "pengkajian" && !view.room ? "bg-rose-900 text-white" : "border border-slate-300 text-slate-600 hover:bg-rose-50"}`}>
               <ClipboardList size={14} /> Pengkajian QA (Global)
             </button>
@@ -425,11 +443,12 @@ function LoginModal({ onClose, onLogin }) {
   );
 }
 
-/* ========================================================================= DASHBOARD REKAP ========================================================================= */
+/* ========================================================================= DASHBOARD REKAP GRUP ========================================================================= */
 function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
   const [status, setStatus] = useState({});
   const [loading, setLoading] = useState(true);
   const [statusError, setStatusError] = useState("");
+  const [selectedGroupModal, setSelectedGroupModal] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -446,6 +465,15 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
   const tmsCount = FACILITIES.filter((f) => (status[f.key]?.level || 0) >= 4).length;
   const terkendaliCount = FACILITIES.filter((f) => status[f.key]?.hasData && (status[f.key]?.level || 0) < 3).length;
   const belumAdaCount = FACILITIES.filter((f) => !status[f.key]?.hasData).length;
+
+  function handleCardClick(g) {
+    if (!session) { onNeedLogin(); return; }
+    if (g.singleKey) {
+      setView({ page: "facility", facility: g.singleKey });
+    } else {
+      setSelectedGroupModal(g);
+    }
+  }
 
   return (
     <div>
@@ -489,32 +517,90 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
           </div>
         </div>
 
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Pilih Fasilitas — {monthLabelID(month)}</p>
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Pilih Gedung / Fasilitas — {monthLabelID(month)}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {FACILITIES.map((f) => {
-            const st = status[f.key];
-            const level = st?.hasData ? (st?.level || 0) : 0;
-            const lvlStyle = levelStyle(level);
+          {GROUPS.map((g) => {
+            let maxGroupLevel = 0;
+            let groupHasData = false;
+            if (g.singleKey) {
+              const st = status[g.singleKey];
+              maxGroupLevel = st?.level || 0;
+              groupHasData = !!st?.hasData;
+            } else {
+              g.items.forEach((k) => {
+                const st = status[k];
+                if (st?.hasData) {
+                  groupHasData = true;
+                  if (st.level > maxGroupLevel) maxGroupLevel = st.level;
+                }
+              });
+            }
+            const lvlStyle = levelStyle(groupHasData ? maxGroupLevel : null);
+
             return (
-              <button key={f.key} onClick={() => { if (!session) onNeedLogin(); else setView({ page: "facility", facility: f.key }); }}
-                className="group flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-rose-700 hover:shadow-md">
+              <button key={g.key} onClick={() => handleCardClick(g)}
+                className="group flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xs transition hover:border-rose-700 hover:shadow-md">
                 <div className="flex items-center justify-between mb-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-rose-50 text-rose-900 font-bold text-sm">
                     <Building2 size={20} />
                   </span>
                   <span className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: lvlStyle.bg, color: lvlStyle.color }}>
-                    {st?.hasData ? lvlStyle.label : "Belum Ada Data"}
+                    {groupHasData ? lvlStyle.label : "Belum Ada Data"}
                   </span>
                 </div>
                 <div>
-                  <p className="font-bold text-slate-800 text-base">{f.label}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Departemen: {f.department}</p>
+                  <p className="font-bold text-slate-800 text-base">{g.title}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {g.singleKey ? "Area Tunggal" : `${g.items.length} Sub-Area (Produksi, Kemasan, GBB)`}
+                  </p>
                 </div>
               </button>
             );
           })}
         </div>
       </div>
+
+      {/* Modal Sub-Area */}
+      {selectedGroupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border space-y-4">
+            <div className="flex justify-between items-center border-b pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-800">{selectedGroupModal.title}</h3>
+                <p className="text-xs text-slate-400">Pilih area spesifik yang ingin dipantau</p>
+              </div>
+              <button onClick={() => setSelectedGroupModal(null)} className="text-slate-400 hover:text-slate-600 text-xs font-semibold">Tutup</button>
+            </div>
+
+            <div className="space-y-2">
+              {selectedGroupModal.items.map((facKey) => {
+                const fac = FACILITIES.find((f) => f.key === facKey);
+                const st = status[facKey];
+                const lvlStyle = levelStyle(st?.hasData ? st.level : null);
+
+                return (
+                  <button
+                    key={facKey}
+                    onClick={() => { setSelectedGroupModal(null); setView({ page: "facility", facility: facKey }); }}
+                    className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-100 hover:border-rose-300 hover:bg-rose-50/40 transition text-left"
+                  >
+                    <div>
+                      <p className="font-bold text-slate-800 text-sm">{fac?.label}</p>
+                      <p className="text-xs text-slate-400">Departemen: {fac?.department}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: lvlStyle.bg, color: lvlStyle.color }}>
+                        {st?.hasData ? lvlStyle.label : "Belum Ada Data"}
+                      </span>
+                      <ChevronRight size={14} className="text-slate-300" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1685,7 +1771,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full border-collapse text-[10px]">
             <thead>
               <tr>
@@ -1721,7 +1807,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
           </table>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 text-center">
+        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 text-center avoid-break">
           <div>
             <p className="mb-2 text-[11px] text-slate-500">(Kepala Bagian)</p>
             {formulir?.kepalaBagian?.nama ? (
@@ -1837,7 +1923,7 @@ function ActivityPage({ session, month, setView }) {
   );
 }
 
-/* ========================================================================= HALAMAN VERIFIKASI DOKUMEN ELEGAN (/verify) ========================================================================= */
+/* ========================================================================= VERIFIKASI QR (/verify) ========================================================================= */
 function VerifyPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const type = params.get("type");
@@ -1937,10 +2023,10 @@ export default function App() {
         @media print {
           .no-print { display: none !important; }
           .only-print { display: block !important; }
-          .print-card { box-shadow: none !important; page-break-inside: avoid; break-inside: avoid; border: 1px solid #cbd5e1 !important; margin-bottom: 1.5rem !important; }
-          .avoid-break { page-break-inside: avoid; break-inside: avoid; }
-          table { width: 100% !important; max-width: 100% !important; }
-          body { background: white !important; }
+          .print-card { box-shadow: none !important; page-break-inside: avoid !important; break-inside: avoid !important; border: 1px solid #cbd5e1 !important; margin-bottom: 1.5rem !important; }
+          .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
+          table { width: 100% !important; max-width: 100% !important; table-layout: auto !important; }
+          body, html, #root { background: white !important; height: auto !important; }
         }
         @page {
           margin: 1.2cm 1cm 1.5cm 1cm;
