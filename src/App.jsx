@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Component } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -7,7 +7,7 @@ import {
 import {
   LogIn, LogOut, User, Loader2, Building2, ChevronLeft,
   Lock, History, Save, FileCheck2, ClipboardList,
-  Printer, Sparkles, Calendar, Trash2, CheckCheck, CheckCircle2, ChevronRight,
+  Printer, Sparkles, Calendar, Trash2, CheckCheck, CheckCircle2, ChevronRight, AlertTriangle,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
@@ -22,7 +22,41 @@ import {
 import { useAuth, hasAccess, hasFacilityAccess } from "./auth.js";
 import { buildFacilityStats, generateLocalNarrative, fullDateID, monthLabelID } from "./narrativeGenerator.js";
 
-/* ========================================================================= 17 FASILITAS & 8 GRUP DASHBOARD ========================================================================= */
+/* ========================================================================= ERROR BOUNDARY ========================================================================= */
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("UI Error Caught:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+          <div className="max-w-md w-full bg-white rounded-2xl p-6 border shadow-sm text-center space-y-3">
+            <AlertTriangle className="w-10 h-10 text-rose-600 mx-auto" />
+            <h2 className="text-base font-bold text-slate-800">Terjadi Kesalahan Tampilan</h2>
+            <p className="text-xs text-slate-500">{String(this.state.error?.message || this.state.error)}</p>
+            <button
+              onClick={() => { this.setState({ hasError: false }); window.location.href = "/"; }}
+              className="px-4 py-2 bg-rose-900 text-white rounded-lg text-xs font-semibold hover:bg-rose-950 transition"
+            >
+              Kembali ke Dashboard Utama
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/* ========================================================================= 17 FASILITAS & 8 GRUP ========================================================================= */
 const FACILITIES = [
   { key: "nblProduksi", label: "NBL Produksi", department: "Produksi", group: "nbl" },
   { key: "nblKemasan", label: "NBL Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "nbl" },
@@ -86,13 +120,16 @@ function daysInMonth(monthStr) {
 
 function toNumberSafe(v) {
   if (v === null || v === undefined || v === "" || v === "-") return null;
-  const n = Number(String(v).replace(",", "."));
+  const clean = String(v).replace(/[≤≥]/g, "").replace(",", ".").trim();
+  const n = Number(clean);
   return Number.isNaN(n) ? null : n;
 }
 
 function inRange(v, lower, upper) {
-  if (lower !== null && lower !== undefined && v < lower) return false;
-  if (upper !== null && upper !== undefined && v > upper) return false;
+  const lo = toNumberSafe(lower);
+  const hi = toNumberSafe(upper);
+  if (lo !== null && v < lo) return false;
+  if (hi !== null && v > hi) return false;
   return true;
 }
 
@@ -100,9 +137,11 @@ function liveLevelFor(rawValue, limit, paramKey) {
   if (rawValue === "-") return 1;
   const v = toNumberSafe(rawValue);
   if (v === null) return 0;
-  if (!limit || [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU].every((x) => x === null || x === undefined)) {
-    return paramKey === "suhu" ? 1 : null;
-  }
+  if (!limit) return paramKey === "suhu" ? 1 : null;
+  
+  const allNull = [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU].every((x) => toNumberSafe(x) === null);
+  if (allNull) return paramKey === "suhu" ? 1 : null;
+
   if (inRange(v, limit.alertL, limit.alertU)) return 1;
   if (inRange(v, limit.actionL, limit.actionU)) return 2;
   if (inRange(v, limit.syaratL, limit.syaratU)) return 3;
@@ -123,16 +162,16 @@ function levelStyle(level) {
 }
 
 function formatRange(lower, upper, unit, isDpg = false) {
-  const lo = lower !== null && lower !== undefined ? String(lower).replace(".", ",") : null;
-  const hi = upper !== null && upper !== undefined ? String(upper).replace(".", ",") : null;
+  const lo = toNumberSafe(lower);
+  const hi = toNumberSafe(upper);
   if (lo === null && hi === null) return "—";
   if (isDpg) {
-    const val = lo || hi;
-    return `≥ ${val} ${unit}`;
+    const val = lo !== null ? lo : hi;
+    return `≥ ${String(val).replace(".", ",")} ${unit}`;
   }
-  if (lo === null) return `≤ ${hi} ${unit}`;
-  if (hi === null) return `≥ ${lo} ${unit}`;
-  return `${lo} – ${hi} ${unit}`;
+  if (lo === null) return `≤ ${String(hi).replace(".", ",")} ${unit}`;
+  if (hi === null) return `≥ ${String(lo).replace(".", ",")} ${unit}`;
+  return `${String(lo).replace(".", ",")} – ${String(hi).replace(".", ",")} ${unit}`;
 }
 
 function facilityOverallLevel(entries) {
@@ -246,16 +285,17 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
   const peak = data.reduce((a, b) => (b.level > a.level ? b : a), data[0]);
   const refLim = peak?.lim || rooms[0]?.limits?.[paramKey] || {};
   const isDpg = paramKey === "dpg";
-  const allVals = data.map((d) => d.value).concat([refLim.syaratL, refLim.syaratU, refLim.alertL, refLim.alertU, refLim.actionL, refLim.actionU]).filter((v) => v !== null && v !== undefined);
+
+  const alertVal = toNumberSafe(refLim.alertU ?? refLim.alertL);
+  const actionVal = toNumberSafe(refLim.actionU ?? refLim.actionL);
+  const syaratVal = toNumberSafe(refLim.syaratU ?? refLim.syaratL);
+
+  const allVals = data.map((d) => d.value).concat([alertVal, actionVal, syaratVal]).filter((v) => v !== null && !isNaN(v));
   const minVal = Math.min(...allVals, 0);
   const maxVal = Math.max(...allVals, 10);
   const yMin = minVal - (maxVal - minVal) * 0.1;
   const yMax = maxVal + (maxVal - minVal) * 0.1;
   const gradId = `dayGrad-${paramKey}`;
-
-  const alertVal = refLim.alertU ?? refLim.alertL;
-  const actionVal = refLim.actionU ?? refLim.actionL;
-  const syaratVal = refLim.syaratU ?? refLim.syaratL;
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
@@ -268,9 +308,9 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LegendChip color="#15803d" label="Terkendali" />
-          {alertVal !== null && alertVal !== undefined && <LegendChip color="#b45309" label={`Alert ${isDpg ? '≥ ' : ''}${alertVal}`} />}
-          {actionVal !== null && actionVal !== undefined && <LegendChip color="#c2410c" label={`Action ${isDpg ? '≥ ' : ''}${actionVal}`} />}
-          {syaratVal !== null && syaratVal !== undefined && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? '≥ ' : ''}${syaratVal}`} />}
+          {alertVal !== null && <LegendChip color="#b45309" label={`Alert ${isDpg ? '≥ ' : ''}${alertVal}`} />}
+          {actionVal !== null && <LegendChip color="#c2410c" label={`Action ${isDpg ? '≥ ' : ''}${actionVal}`} />}
+          {syaratVal !== null && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? '≥ ' : ''}${syaratVal}`} />}
         </div>
       </div>
       <div className="p-3">
@@ -283,9 +323,9 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            {alertVal !== null && alertVal !== undefined && <ReferenceLine y={alertVal} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
-            {actionVal !== null && actionVal !== undefined && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
-            {syaratVal !== null && syaratVal !== undefined && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+            {alertVal !== null && <ReferenceLine y={alertVal} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={45} />
             <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={35} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
@@ -304,10 +344,10 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
       const v = toNumberSafe(e?.[paramKey]);
       if (v === null) return null;
       return {
-        label: isGlobal ? `${String(e.tanggal || "").slice(-2)} (${e.roomName})` : `${String(e.tanggal || "").slice(-2)}/${e.jam}`,
+        label: isGlobal ? `${String(e?.tanggal || "").slice(-2)} (${e?.roomName || ""})` : `${String(e?.tanggal || "").slice(-2)}/${e?.jam || ""}`,
         value: v,
-        level: e.level?.[paramKey] ?? 0,
-        roomName: e.roomName,
+        level: e?.level?.[paramKey] ?? 0,
+        roomName: e?.roomName || "",
       };
     }).filter(Boolean);
   }, [entriesData, paramKey, isGlobal]);
@@ -316,16 +356,17 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
 
   const peak = data.reduce((a, b) => (b.level > a.level ? b : a), data[0]);
   const isDpg = paramKey === "dpg";
-  const allVals = data.map((d) => d.value).concat([limit?.syaratL, limit?.syaratU, limit?.alertL, limit?.alertU, limit?.actionL, limit?.actionU]).filter((v) => v !== null && v !== undefined);
+
+  const alertVal = toNumberSafe(limit?.alertU ?? limit?.alertL);
+  const actionVal = toNumberSafe(limit?.actionU ?? limit?.actionL);
+  const syaratVal = toNumberSafe(limit?.syaratU ?? limit?.syaratL);
+
+  const allVals = data.map((d) => d.value).concat([alertVal, actionVal, syaratVal]).filter((v) => v !== null && !isNaN(v));
   const minVal = Math.min(...allVals, 0);
   const maxVal = Math.max(...allVals, 10);
   const yMin = minVal - (maxVal - minVal) * 0.1;
   const yMax = maxVal + (maxVal - minVal) * 0.1;
   const gradId = `monthGrad-${paramKey}-${isGlobal ? "global" : "room"}`;
-
-  const alertVal = limit?.alertU ?? limit?.alertL;
-  const actionVal = limit?.actionU ?? limit?.actionL;
-  const syaratVal = limit?.syaratU ?? limit?.syaratL;
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
@@ -338,9 +379,9 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LegendChip color="#15803d" label="Terkendali" />
-          {alertVal !== null && alertVal !== undefined && <LegendChip color="#b45309" label={`Alert ${isDpg ? '≥ ' : ''}${alertVal}`} />}
-          {actionVal !== null && actionVal !== undefined && <LegendChip color="#c2410c" label={`Action ${isDpg ? '≥ ' : ''}${actionVal}`} />}
-          {syaratVal !== null && syaratVal !== undefined && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? '≥ ' : ''}${syaratVal}`} />}
+          {alertVal !== null && <LegendChip color="#b45309" label={`Alert ${isDpg ? '≥ ' : ''}${alertVal}`} />}
+          {actionVal !== null && <LegendChip color="#c2410c" label={`Action ${isDpg ? '≥ ' : ''}${actionVal}`} />}
+          {syaratVal !== null && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? '≥ ' : ''}${syaratVal}`} />}
         </div>
       </div>
       <div className="p-3">
@@ -353,9 +394,9 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            {alertVal !== null && alertVal !== undefined && <ReferenceLine y={alertVal} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
-            {actionVal !== null && actionVal !== undefined && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
-            {syaratVal !== null && syaratVal !== undefined && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+            {alertVal !== null && <ReferenceLine y={alertVal} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
+            {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#64748b" }} angle={-35} textAnchor="end" interval="preserveStartEnd" height={45} />
             <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={35} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
@@ -575,7 +616,6 @@ function Dashboard({ month, setMonth, setView, session, onNeedLogin }) {
         </div>
       </div>
 
-      {/* Modal Sub-Area */}
       {selectedGroupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border space-y-4">
@@ -925,10 +965,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   const unselectedRooms = (rooms || []).filter((r) => !activeRoomNames.includes(r.name));
 
-  /* Distinct Limit Keys for Clean Table Below */
   const activeDistinctLimits = useMemo(() => {
     const map = {};
-    activeRoomNames.forEach((rName) => {
+    (activeRoomNames || []).forEach((rName) => {
       const rObj = (rooms || []).find((r) => r?.name === rName);
       if (rObj && rObj.persyaratanKey) {
         map[rObj.persyaratanKey] = rObj.limits;
@@ -1195,7 +1234,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         )}
       </div>
 
-      {/* SECTION 2: CARD PERSYARATAN & LIMIT (DEDUPLIKASI BERDASARKAN PERSYARATAN KEY) */}
+      {/* SECTION 2: CARD PERSYARATAN & LIMIT */}
       {Object.keys(activeDistinctLimits).length > 0 && (
         <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3 print-card avoid-break">
           <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)</h3>
@@ -1214,7 +1253,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                 {Object.entries(activeDistinctLimits).map(([pKey, limits]) => {
                   return PARAM_DEFS.map((p) => {
                     const lim = limits?.[p.key];
-                    if (!lim || [lim.syaratL, lim.syaratU, lim.alertL, lim.alertU, lim.actionL, lim.actionU].every((x) => x === null || x === undefined)) return null;
+                    if (!lim) return null;
+                    const allNull = [lim.syaratL, lim.syaratU, lim.alertL, lim.alertU, lim.actionL, lim.actionU].every((x) => toNumberSafe(x) === null);
+                    if (allNull) return null;
                     const isDpg = p.key === "dpg";
 
                     return (
@@ -1240,7 +1281,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       )}
 
-      {/* SECTION 3: GRAFIK CROSS-SECTIONAL (FULL WIDTH VERTIKAL) */}
+      {/* SECTION 3: GRAFIK CROSS-SECTIONAL */}
       <div className="space-y-4">
         <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">Grafik Perbandingan Ruangan Terisi ({selectedDate})</h2>
         <div className="space-y-4">
@@ -1570,7 +1611,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         )}
       </div>
 
-      {/* 2. CARD PERSYARATAN & LIMIT (DEDUPLIKASI BERDASARKAN PERSYARATAN KEY) */}
+      {/* 2. CARD PERSYARATAN & LIMIT */}
       {Object.keys(distinctReportLimits).length > 0 && (
         <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3 print-card avoid-break">
           <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)</h3>
@@ -1589,7 +1630,9 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                 {Object.entries(distinctReportLimits).map(([pKey, limits]) => {
                   return PARAM_DEFS.map((p) => {
                     const lim = limits?.[p.key];
-                    if (!lim || [lim.syaratL, lim.syaratU, lim.alertL, lim.alertU, lim.actionL, lim.actionU].every((x) => x === null || x === undefined)) return null;
+                    if (!lim) return null;
+                    const allNull = [lim.syaratL, lim.syaratU, lim.alertL, lim.alertU, lim.actionL, lim.actionU].every((x) => toNumberSafe(x) === null);
+                    if (allNull) return null;
                     const isDpg = p.key === "dpg";
 
                     return (
@@ -1615,7 +1658,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
       )}
 
-      {/* 3. GRAFIK TREN BULANAN (FULL WIDTH VERTIKAL) */}
+      {/* 3. GRAFIK TREN BULANAN */}
       <div className="space-y-4">
         <h2 className="text-xs font-bold uppercase tracking-wide text-slate-700">Grafik Tren Pengukuran Periode {monthLabelID(month)}</h2>
         <div className="space-y-4">
@@ -2059,30 +2102,32 @@ export default function App() {
   if (checking) return <div className="min-h-screen flex items-center justify-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin" /></div>;
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <style>{`
-        .only-print { display: none; }
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        @media print {
-          .no-print { display: none !important; }
-          .only-print { display: block !important; }
-          .print-card { box-shadow: none !important; page-break-inside: avoid !important; break-inside: avoid !important; border: 1px solid #cbd5e1 !important; margin-bottom: 1.5rem !important; }
-          .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
-          table { width: 100% !important; max-width: 100% !important; table-layout: auto !important; }
-          body, html, #root { background: white !important; height: auto !important; }
-        }
-        @page {
-          margin: 1.2cm 1cm 1.5cm 1cm;
-          size: portrait;
-        }
-      `}</style>
-      <TopBar session={session} onLoginClick={() => setShowLogin(true)} onLogout={handleLogout} view={view} setView={setView} />
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={login} />}
-      {view.page === "dashboard" && <Dashboard month={month} setMonth={setMonth} setView={setView} session={session} onNeedLogin={() => setShowLogin(true)} />}
-      {view.page === "facility" && session && <FacilityIntegratedPage session={session} facilityKey={view.facility} month={month} setMonth={setMonth} setView={setView} />}
-      {view.page === "pengkajian" && session && <PengkajianPage session={session} month={month} setView={setView} initialFacility={view.facility} initialRoom={view.room} />}
-      {view.page === "formulir" && session && <FormulirBulananPrint session={session} facilityKey={view.facility} roomName={view.room} bulan={view.bulan || month} setView={setView} />}
-      {view.page === "activity" && session && <ActivityPage session={session} month={month} setView={setView} />}
-    </div>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-slate-50">
+        <style>{`
+          .only-print { display: none; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          @media print {
+            .no-print { display: none !important; }
+            .only-print { display: block !important; }
+            .print-card { box-shadow: none !important; page-break-inside: avoid !important; break-inside: avoid !important; border: 1px solid #cbd5e1 !important; margin-bottom: 1.5rem !important; }
+            .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
+            table { width: 100% !important; max-width: 100% !important; table-layout: auto !important; }
+            body, html, #root { background: white !important; height: auto !important; }
+          }
+          @page {
+            margin: 1.2cm 1cm 1.5cm 1cm;
+            size: portrait;
+          }
+        `}</style>
+        <TopBar session={session} onLoginClick={() => setShowLogin(true)} onLogout={handleLogout} view={view} setView={setView} />
+        {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={login} />}
+        {view.page === "dashboard" && <Dashboard month={month} setMonth={setMonth} setView={setView} session={session} onNeedLogin={() => setShowLogin(true)} />}
+        {view.page === "facility" && session && <FacilityIntegratedPage session={session} facilityKey={view.facility} month={month} setMonth={setMonth} setView={setView} />}
+        {view.page === "pengkajian" && session && <PengkajianPage session={session} month={month} setView={setView} initialFacility={view.facility} initialRoom={view.room} />}
+        {view.page === "formulir" && session && <FormulirBulananPrint session={session} facilityKey={view.facility} roomName={view.room} bulan={view.bulan || month} setView={setView} />}
+        {view.page === "activity" && session && <ActivityPage session={session} month={month} setView={setView} />}
+      </div>
+    </ErrorBoundary>
   );
 }
