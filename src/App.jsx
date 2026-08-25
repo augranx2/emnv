@@ -731,7 +731,7 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
           </div>
         </div>
 
-        {/* Status SOP POS.QA.025 & Online Sync Footer (Clean & Modern) */}
+        {/* Status SOP POS.QA.025 & Online Sync Footer */}
         <div className="px-4 py-3 border-t border-zinc-800/80 bg-black/70 text-[10px] text-zinc-400 flex justify-between items-center select-none">
           <span className="font-mono text-zinc-400">SOP POS.QA.025</span>
           <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
@@ -1203,7 +1203,7 @@ function LoginModal({ onClose, onLogin }) {
 }
 
 /* =========================================================================
-   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + PEMISAHAN NARASI HARIAN)
+   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + FIX GENERATE AI HARIAN)
    ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -1251,7 +1251,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setLoading(true);
     setError("");
     try {
-      // Pemisahan narasi: Harian menggunakan tanggal unik selectedDate
       const [roomRes, entryRes, reportRes] = await Promise.all([
         fetchMaster(facilityKey),
         fetchEntries(facilityKey, month),
@@ -1485,39 +1484,56 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
+  /* Perbaikan Logika Generate AI Harian */
   async function handleGenerateAI() {
     setGenerating(true);
     setError("");
     try {
+      const todayRows = buildTodayPayload();
+      const otherRows = (monthEntries || []).filter((e) => e?.tanggal !== selectedDate);
+      const combinedEntries = [...otherRows, ...todayRows];
+
       const currentDayRooms = (rooms || []).filter((r) => activeRoomNames.includes(r.name));
+
+      if (todayRows.length === 0 && currentDayEntriesMemo.length === 0) {
+        showToast("Belum ada data pengukuran yang diisi pada tanggal ini.");
+        setGenerating(false);
+        return;
+      }
+
       const facilityStats = buildFacilityStats({
         facilityLabel: `${cfg.label} (Harian: ${selectedDate})`,
         monthLabel: fullDateID(selectedDate),
-        entries: currentDayEntries,
-        rooms: currentDayRooms,
+        entries: combinedEntries,
+        rooms: currentDayRooms.length > 0 ? currentDayRooms : rooms,
       });
+
       let narrative;
       try {
         narrative = await generateNarrative({
           facilityLabel: `${cfg.label} (Harian: ${selectedDate})`,
           monthLabel: fullDateID(selectedDate),
-          stats: facilityStats.stats,
+          stats: facilityStats?.stats || {},
         });
       } catch (aiErr) {
         narrative = generateLocalNarrative({
           facilityLabel: `${cfg.label} (Harian: ${selectedDate})`,
           monthLabel: fullDateID(selectedDate),
-          entries: currentDayEntries,
-          rooms: currentDayRooms,
+          entries: combinedEntries,
+          rooms: currentDayRooms.length > 0 ? currentDayRooms : rooms,
         });
-        showToast("Narasi AI offline, menggunakan draf evaluator lokal.");
+        showToast("Menggunakan draf narasi evaluator lokal.");
       }
-      setPendahuluan(narrative.pendahuluan || "");
-      setPerParameter(narrative.perParameter || {});
-      setKesimpulanUmum(narrative.kesimpulanUmum || "");
-      showToast("Draf narasi harian berhasil di-generate!");
+
+      if (narrative) {
+        setPendahuluan(narrative.pendahuluan || "");
+        setPerParameter(narrative.perParameter || { suhu: "", rh: "", dpg: "" });
+        setKesimpulanUmum(narrative.kesimpulanUmum || "");
+        showToast("Draf narasi harian berhasil dibuat!");
+      }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Gagal membuat narasi AI harian.");
+      showToast("Terjadi kendala saat generate narasi AI.");
     } finally {
       setGenerating(false);
     }
@@ -2057,7 +2073,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* SECTION 4: PEMBAHASAN & NARASI HARIAN (AUTO-GROWING TEXTAREA + NOTIFIKASI SUKSES) */}
+      {/* SECTION 4: PEMBAHASAN & NARASI HARIAN */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3.5">
           <div>
@@ -2383,12 +2399,12 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           entries: monthEntries,
           rooms,
         });
-        showToast("Narasi AI offline, menggunakan draf evaluator lokal.");
+        showToast("Menggunakan draf evaluator lokal.");
       }
       setPendahuluan(narrative.pendahuluan || "");
       setPerParameter(narrative.perParameter || {});
       setKesimpulanUmum(narrative.kesimpulanUmum || "");
-      showToast("Draf narasi pengkajian berhasil di-generate!");
+      showToast("Draf narasi pengkajian berhasil dibuat!");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -2701,26 +2717,16 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
       </div>
 
-      {/* 4. FORM NARASI & APPROVAL QA (AUTO-GROWING TEXTAREA + NOTIFIKASI SUKSES) */}
+      {/* 4. FORM NARASI & APPROVAL QA */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3.5">
-          <div>
-            <h2 className="text-sm font-bold text-slate-800">
-              {selectedRoomName
-                ? `Pembahasan & Narasi Pengkajian Ruangan — ${selectedRoomName}`
-                : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
-            </h2>
-            <p className="text-xs text-slate-400">
-              Evaluasi tren bulanan {selectedRoomName ? `ruangan ${selectedRoomName}` : `seluruh area ${cfg?.label}`}
-            </p>
-          </div>
+        <div className="flex items-center justify-between border-b pb-3.5">
+          <h2 className="text-sm font-bold text-slate-800">
+            {selectedRoomName
+              ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}`
+              : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
+          </h2>
           {canDraftQA && !isFinal && (
-            <div className="flex flex-wrap items-center gap-2.5 no-print">
-              {lastSavedTime && (
-                <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200/60">
-                  ✓ Tersimpan {lastSavedTime}
-                </span>
-              )}
+            <div className="flex items-center gap-2 no-print">
               <button
                 onClick={handleGenerateAI}
                 disabled={generating}
