@@ -47,6 +47,7 @@ import {
   Stethoscope,
   Warehouse,
   PackageCheck,
+  Map,
 } from "lucide-react";
 import {
   fetchMaster,
@@ -166,6 +167,21 @@ const GROUPS = [
   { key: "gbj", title: "Gudang Barang Jadi (GBJ)", singleKey: "gbj", icon: Warehouse },
   { key: "gbk", title: "Gudang Bahan Kemas (GBK)", singleKey: "gbk", icon: PackageCheck },
 ];
+
+/* Pemetaan Denah Gambar Ruangan */
+const DENAH_MAP = {
+  // Area NBL
+  nblProduksi: "/denah/nbl.png",
+  nblKemasan: "/denah/nbl.png",
+  gbbNbl: "/denah/nbl.png",
+
+  // Area Sefalosporin
+  sefaNonSterilProduksi: "/denah/sefa.png",
+  sefaNonSterilKemasan: "/denah/sefa.png",
+  sefaSterilProduksi: "/denah/sefa.png",
+  sefaSterilKemasan: "/denah/sefa.png",
+  gbbSefa: "/denah/sefa.png",
+};
 
 const PARAM_DEFS = [
   { key: "suhu", label: "Suhu", unit: "°C" },
@@ -1203,7 +1219,7 @@ function LoginModal({ onClose, onLogin }) {
 }
 
 /* =========================================================================
-   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + FIX ANTI-HILANG)
+   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + DENAH + SINKRONISASI)
    ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -1236,8 +1252,13 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const [perParameter, setPerParameter] = useState({ suhu: "", rh: "", dpg: "" });
   const [generating, setGenerating] = useState(false);
 
-  // Memori cache lokal berbasis state agar perpindahan antar-fasilitas berjalan cepat dan persisten
+  /* Modal Denah State */
+  const [showDenahModal, setShowDenahModal] = useState(false);
+  const denahSrc = DENAH_MAP[facilityKey] || null;
+
+  /* State dictionary memori agar perpindahan fasilitas cepat & narasi tidak hilang */
   const [narrativeMemory, setNarrativeMemory] = useState({});
+  const currentMemKey = `${facilityKey}_${selectedDate}`;
 
   const showToast = (msg) => {
     setToast(msg);
@@ -1249,8 +1270,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     target.style.height = "auto";
     target.style.height = `${target.scrollHeight}px`;
   };
-
-  const currentMemKey = `${facilityKey}_${selectedDate}`;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -1267,7 +1286,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       setRooms(roomList);
       setMonthEntries(entryList);
 
-      // 1. Ambil data dari backend (roomName = "" karena laporan harian mencakup seluruh fasilitas)
+      // Ambil data laporan fasilitas harian
       let reportRes = await fetchReport(facilityKey, month, session?.token, "").catch(() => null);
 
       if (reportRes?.narrative?.pendahuluan || reportRes?.narrative?.kesimpulanUmum) {
@@ -1276,13 +1295,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         setKesimpulanUmum(reportRes.narrative.kesimpulanUmum || "");
         setPerParameter(reportRes.narrative.perParameter || { suhu: "", rh: "", dpg: "" });
       } else if (narrativeMemory[currentMemKey]) {
-        // 2. Ambil dari memory state jika backend belum selesai sinkronisasi
         const mem = narrativeMemory[currentMemKey];
         setPendahuluan(mem.pendahuluan || "");
         setKesimpulanUmum(mem.kesimpulanUmum || "");
         setPerParameter(mem.perParameter || { suhu: "", rh: "", dpg: "" });
       } else {
-        // 3. Bersihkan form jika fasilitas/tanggal ini memang belum memiliki data
         setReport(null);
         setPendahuluan("");
         setKesimpulanUmum("");
@@ -1490,13 +1507,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     try {
       const payload = { pendahuluan, kesimpulanUmum, perParameter };
 
-      // Simpan di memory state lokal
       setNarrativeMemory((prev) => ({
         ...prev,
         [currentMemKey]: payload,
       }));
 
-      // Kirim ke backend (roomName = "" agar cocok dengan kolom spreadsheet)
       await apiSaveReport(
         facilityKey,
         month,
@@ -1564,7 +1579,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         setPerParameter(nextPerParam);
         setKesimpulanUmum(nextKesimpulan);
 
-        // Catat ke memory state
         setNarrativeMemory((prev) => ({
           ...prev,
           [currentMemKey]: {
@@ -1670,6 +1684,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </button>
 
         <div className="flex flex-wrap items-center gap-2">
+          {denahSrc && (
+            <button
+              type="button"
+              onClick={() => setShowDenahModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-200/80 text-indigo-950 px-3.5 py-2 text-xs font-bold transition shadow-2xs"
+            >
+              <Map size={14} className="text-indigo-700" /> Lihat Denah Ruangan
+            </button>
+          )}
           {canDraftQA && (
             <button
               onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: "" })}
@@ -2297,6 +2320,46 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
         </div>
       </div>
+
+      {/* MODAL PREVIEW DENAH RUANGAN */}
+      {showDenahModal && denahSrc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-fade-in no-print">
+          <div className="relative max-w-5xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                  <Map size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Denah Tata Letak Ruangan — {cfg?.label}</h3>
+                  <p className="text-[11px] text-slate-400">Panduan visual lokasi titik pemantauan CPOB</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDenahModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-200/60 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-100/50">
+              <img
+                src={denahSrc}
+                alt={`Denah Ruangan ${cfg?.label}`}
+                className="max-w-full max-h-[72vh] object-contain rounded-2xl shadow-sm border border-slate-200/60 bg-white"
+              />
+            </div>
+            <div className="px-6 py-3 border-t border-slate-100 bg-white flex justify-end">
+              <button
+                onClick={() => setShowDenahModal(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold shadow-xs transition"
+              >
+                Tutup Denah
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2689,7 +2752,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                   <th className="px-3.5 py-2">PARAMETER</th>
                   <th className="px-3.5 py-2">SYARAT</th>
                   <th className="px-3.5 py-2">ALERT LIMIT</th>
-                  <th className="px-3.5 py-2.5">ACTION LIMIT</th>
+                  <th className="px-3.5 py-2">ACTION LIMIT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
