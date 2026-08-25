@@ -560,7 +560,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
 }
 
 /* =========================================================================
-   6. SIDEBAR & HEADER BAR
+   6. SIDEBAR COMPONENT
    ========================================================================= */
 function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onClose }) {
   const [expandedGroups, setExpandedGroups] = useState({ nbl: true, gbb: true });
@@ -1251,20 +1251,34 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setLoading(true);
     setError("");
     try {
-      const [roomRes, entryRes, reportRes] = await Promise.all([
+      const [roomRes, entryRes] = await Promise.all([
         fetchMaster(facilityKey),
         fetchEntries(facilityKey, month),
-        fetchReport(facilityKey, selectedDate, session?.token, `HARIAN_${selectedDate}`),
       ]);
       const roomList = Array.isArray(roomRes) ? roomRes : roomRes?.rooms || [];
       const entryList = Array.isArray(entryRes) ? entryRes : entryRes?.entries || [];
 
       setRooms(roomList);
       setMonthEntries(entryList);
-      setReport(reportRes);
-      setPendahuluan(reportRes?.narrative?.pendahuluan || "");
-      setKesimpulanUmum(reportRes?.narrative?.kesimpulanUmum || "");
-      setPerParameter(reportRes?.narrative?.perParameter || { suhu: "", rh: "", dpg: "" });
+
+      // Sinkronisasi ganda: cek via roomName = selectedDate dan fallback via selectedDate langsung
+      let reportRes = await fetchReport(facilityKey, month, session?.token, selectedDate).catch(() => null);
+      if (!reportRes?.narrative?.pendahuluan && !reportRes?.narrative?.kesimpulanUmum) {
+        const fallbackRes = await fetchReport(facilityKey, selectedDate, session?.token).catch(() => null);
+        if (fallbackRes?.narrative) reportRes = fallbackRes;
+      }
+
+      if (reportRes?.narrative) {
+        setReport(reportRes);
+        setPendahuluan(reportRes.narrative.pendahuluan || "");
+        setKesimpulanUmum(reportRes.narrative.kesimpulanUmum || "");
+        setPerParameter(reportRes.narrative.perParameter || { suhu: "", rh: "", dpg: "" });
+      } else {
+        setReport(null);
+        setPendahuluan("");
+        setKesimpulanUmum("");
+        setPerParameter({ suhu: "", rh: "", dpg: "" });
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1465,12 +1479,13 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setError("");
     setSaving(true);
     try {
+      // Simpan dengan key Bulan dan identifier roomName = selectedDate agar tidak bentrok
       await apiSaveReport(
         facilityKey,
-        selectedDate,
+        month,
         { pendahuluan, kesimpulanUmum, perParameter },
         session?.token,
-        `HARIAN_${selectedDate}`
+        selectedDate
       );
       await loadData();
       const now = new Date();
@@ -1492,7 +1507,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       const todayRows = buildTodayPayload();
       const otherRows = (monthEntries || []).filter((e) => e?.tanggal !== selectedDate);
       const combinedEntries = [...otherRows, ...todayRows];
-
       const currentDayRooms = (rooms || []).filter((r) => activeRoomNames.includes(r.name));
 
       if (todayRows.length === 0 && currentDayEntriesMemo.length === 0) {
@@ -1541,7 +1555,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   async function handleDikaji() {
     try {
-      await apiApproveDikaji(facilityKey, selectedDate, session?.token, `HARIAN_${selectedDate}`);
+      await apiApproveDikaji(facilityKey, month, session?.token, selectedDate);
       await loadData();
       showToast("Status 'Dikaji Oleh' berhasil disetujui!");
     } catch (err) {
@@ -1551,7 +1565,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   async function handleMengetahui() {
     try {
-      await apiApproveMengetahui(facilityKey, selectedDate, session?.token, `HARIAN_${selectedDate}`);
+      await apiApproveMengetahui(facilityKey, month, session?.token, selectedDate);
       await loadData();
       showToast("Status 'Mengetahui' Final berhasil disetujui!");
     } catch (err) {
@@ -2073,7 +2087,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* SECTION 4: PEMBAHASAN & NARASI HARIAN */}
+      {/* SECTION 4: PEMBAHASAN & NARASI HARIAN (AUTO-GROWING TEXTAREA + NOTIFIKASI SUKSES) */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3.5">
           <div>
@@ -2187,8 +2201,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   <VerifyQR
                     type="pengkajian"
                     facility={facilityKey}
-                    period={selectedDate}
-                    roomName={`HARIAN_${selectedDate}`}
+                    period={month}
+                    roomName={selectedDate}
                     signerRole="Dikaji Oleh"
                     signerName={report.signoff.dinilai.nama}
                     size={54}
@@ -2222,8 +2236,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   <VerifyQR
                     type="pengkajian"
                     facility={facilityKey}
-                    period={selectedDate}
-                    roomName={`HARIAN_${selectedDate}`}
+                    period={month}
+                    roomName={selectedDate}
                     signerRole="Mengetahui"
                     signerName={report.signoff.diperiksa.nama}
                     size={54}
@@ -2257,7 +2271,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 }
 
 /* =========================================================================
-   10. HALAMAN PENGKAJIAN QA RESMI (PENGKAJIAN GLOBAL & PENGKAJIAN RUANGAN)
+   10. HALAMAN PENGKAJIAN QA RESMI (PENGKAJIAN GLOBAL & RUANGAN)
    ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
@@ -2303,9 +2317,15 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       const allEntries = Array.isArray(entryRes) ? entryRes : entryRes?.entries || [];
 
       setReport(r);
-      setPendahuluan(r?.narrative?.pendahuluan || "");
-      setKesimpulanUmum(r?.narrative?.kesimpulanUmum || "");
-      setPerParameter(r?.narrative?.perParameter || {});
+      if (r?.narrative) {
+        setPendahuluan(r.narrative.pendahuluan || "");
+        setKesimpulanUmum(r.narrative.kesimpulanUmum || "");
+        setPerParameter(r.narrative.perParameter || {});
+      } else {
+        setPendahuluan("");
+        setKesimpulanUmum("");
+        setPerParameter({});
+      }
       setRooms(roomList);
       setMonthEntries(
         selectedRoomName
