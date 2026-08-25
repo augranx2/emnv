@@ -47,8 +47,6 @@ import {
   Stethoscope,
   Warehouse,
   PackageCheck,
-  RefreshCw,
-  FileSpreadsheet,
 } from "lucide-react";
 import {
   fetchMaster,
@@ -130,7 +128,7 @@ class ErrorBoundary extends Component {
 
 /* =========================================================================
    MASTER KONFIGURASI 17 FASILITAS & PEMETAAN GRUP GBB
-   ========================================================= */
+   ========================================================================= */
 const FACILITIES = [
   { key: "nblProduksi", label: "NBL Produksi", department: "Produksi", group: "nbl" },
   { key: "nblKemasan", label: "NBL Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "nbl" },
@@ -324,7 +322,7 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
 }
 
 /* =========================================================================
-   KOMPONEN GRAFIK RECHARTS LENGKAP & AMAN
+   KOMPONEN GRAFIK RECHARTS
    ========================================================================= */
 function ChartDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
@@ -559,7 +557,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
 }
 
 /* =========================================================================
-   SIDEBAR COMPONENT (THEME BLACK ZINC-950 + FULL ICONS + BOTTOM AUTH)
+   SIDEBAR COMPONENT (THEME BLACK ZINC-950 + FOOTER ONLINE SYNC + MASUK)
    ========================================================================= */
 function Sidebar({ session, view, setView, status = {}, onNeedLogin, onLogout, onProfileClick, isOpen, onClose }) {
   const [expandedGroups, setExpandedGroups] = useState({ nbl: true, gbb: true });
@@ -730,7 +728,7 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, onLogout, o
           </div>
         </div>
 
-        {/* User Account & Login / Logout Action di Bawah Sidebar */}
+        {/* User Account / Tombol Masuk atau Keluar di Bawah Sidebar */}
         <div className="p-3 border-t border-zinc-800/80 bg-black/40">
           {session ? (
             <div className="space-y-2">
@@ -761,9 +759,18 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, onLogout, o
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-rose-900 hover:bg-rose-950 text-white text-xs font-bold shadow-sm transition"
             >
               <LogIn size={14} />
-              <span>Masuk Sistem</span>
+              <span>Masuk</span>
             </button>
           )}
+        </div>
+
+        {/* Status SOP POS.QA.025 & Online Sync Footer */}
+        <div className="px-4 py-2.5 border-t border-zinc-900 bg-black/70 text-[10px] text-zinc-500 flex justify-between items-center select-none">
+          <span>SOP POS.QA.025</span>
+          <span className="flex items-center gap-1.5 text-emerald-500 font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Online Sync
+          </span>
         </div>
       </aside>
     </>
