@@ -48,6 +48,9 @@ import {
   Warehouse,
   PackageCheck,
   Map,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
 } from "lucide-react";
 import {
   fetchMaster,
@@ -170,12 +173,10 @@ const GROUPS = [
 
 /* Pemetaan Denah Gambar Ruangan */
 const DENAH_MAP = {
-  // Area NBL
   nblProduksi: "/denah/nbl.png",
   nblKemasan: "/denah/nbl.png",
   gbbNbl: "/denah/nbl.png",
 
-  // Area Sefalosporin
   sefaNonSterilProduksi: "/denah/sefa.png",
   sefaNonSterilKemasan: "/denah/sefa.png",
   sefaSterilProduksi: "/denah/sefa.png",
@@ -1219,7 +1220,7 @@ function LoginModal({ onClose, onLogin }) {
 }
 
 /* =========================================================================
-   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + DENAH + SINKRONISASI)
+   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + ZOOM/DRAG DENAH)
    ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -1252,11 +1253,44 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const [perParameter, setPerParameter] = useState({ suhu: "", rh: "", dpg: "" });
   const [generating, setGenerating] = useState(false);
 
-  /* Modal Denah State */
+  /* Modal Denah State with Zoom & Pan */
   const [showDenahModal, setShowDenahModal] = useState(false);
+  const [denahScale, setDenahScale] = useState(1);
+  const [denahPosition, setDenahPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const denahSrc = DENAH_MAP[facilityKey] || null;
 
-  /* State dictionary memori agar perpindahan fasilitas cepat & narasi tidak hilang */
+  const handleResetZoom = () => {
+    setDenahScale(1);
+    setDenahPosition({ x: 0, y: 0 });
+  };
+
+  const handleZoomIn = () => setDenahScale((prev) => Math.min(prev + 0.3, 4));
+  const handleZoomOut = () => setDenahScale((prev) => Math.max(prev - 0.3, 0.6));
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - denahPosition.x, y: e.clientY - denahPosition.y });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    setDenahPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+
+  const handleWheel = (e) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      setDenahScale((prev) => Math.min(prev + 0.2, 4));
+    } else {
+      setDenahScale((prev) => Math.max(prev - 0.2, 0.6));
+    }
+  };
+
+  /* Dictionary memori cache lokal berbasis state */
   const [narrativeMemory, setNarrativeMemory] = useState({});
   const currentMemKey = `${facilityKey}_${selectedDate}`;
 
@@ -1286,7 +1320,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       setRooms(roomList);
       setMonthEntries(entryList);
 
-      // Ambil data laporan fasilitas harian
+      // Ambil data laporan fasilitas harian dari backend
       let reportRes = await fetchReport(facilityKey, month, session?.token, "").catch(() => null);
 
       if (reportRes?.narrative?.pendahuluan || reportRes?.narrative?.kesimpulanUmum) {
@@ -2052,7 +2086,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   <th className="px-3.5 py-2">PARAMETER</th>
                   <th className="px-3.5 py-2">SYARAT</th>
                   <th className="px-3.5 py-2">ALERT LIMIT</th>
-                  <th className="px-3.5 py-2">ACTION LIMIT</th>
+                  <th className="px-3.5 py-2.5">ACTION LIMIT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -2321,37 +2355,93 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* MODAL PREVIEW DENAH RUANGAN */}
+      {/* MODAL PREVIEW DENAH RUANGAN INTERAKTIF */}
       {showDenahModal && denahSrc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-fade-in no-print">
-          <div className="relative max-w-5xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
+          <div className="relative max-w-6xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-200 flex flex-col h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
                   <Map size={18} />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">Denah Tata Letak Ruangan — {cfg?.label}</h3>
-                  <p className="text-[11px] text-slate-400">Panduan visual lokasi titik pemantauan CPOB</p>
+                  <p className="text-[11px] text-slate-500">Gunakan scroll/drag untuk zoom dan menggeser denah</p>
                 </div>
               </div>
-              <button
-                onClick={() => setShowDenahModal(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-200/60 transition"
+
+              {/* Toolbar Zoom & Actions */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-slate-200/80 rounded-xl p-0.5 text-xs font-semibold text-slate-700">
+                  <button
+                    onClick={handleZoomOut}
+                    className="p-1.5 hover:bg-white rounded-lg transition"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut size={15} />
+                  </button>
+                  <span className="px-2 text-[11px] select-none">{Math.round(denahScale * 100)}%</span>
+                  <button
+                    onClick={handleZoomIn}
+                    className="p-1.5 hover:bg-white rounded-lg transition"
+                    title="Zoom In"
+                  >
+                    <ZoomIn size={15} />
+                  </button>
+                  <button
+                    onClick={handleResetZoom}
+                    className="p-1.5 hover:bg-white rounded-lg transition border-l border-slate-300 ml-0.5 text-[10px]"
+                    title="Reset Ukuran"
+                  >
+                    <RotateCcw size={13} />
+                  </button>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowDenahModal(false);
+                    handleResetZoom();
+                  }}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-200/60 transition"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Viewport Canvas Drag & Zoom */}
+            <div
+              className={`flex-1 overflow-hidden p-4 flex items-center justify-center bg-zinc-900/5 select-none relative ${
+                isDragging ? "cursor-grabbing" : "cursor-grab"
+              }`}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onWheel={handleWheel}
+            >
+              <div
+                style={{
+                  transform: `translate(${denahPosition.x}px, ${denahPosition.y}px) scale(${denahScale})`,
+                  transition: isDragging ? "none" : "transform 0.15s ease-out",
+                }}
+                className="max-w-full max-h-full flex items-center justify-center origin-center pointer-events-none"
               >
-                <X size={18} />
-              </button>
+                <img
+                  src={denahSrc}
+                  alt={`Denah Ruangan ${cfg?.label}`}
+                  className="max-w-none w-auto h-auto max-h-[70vh] rounded-xl shadow-md border border-slate-200 bg-white"
+                  draggable={false}
+                />
+              </div>
             </div>
-            <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-100/50">
-              <img
-                src={denahSrc}
-                alt={`Denah Ruangan ${cfg?.label}`}
-                className="max-w-full max-h-[72vh] object-contain rounded-2xl shadow-sm border border-slate-200/60 bg-white"
-              />
-            </div>
-            <div className="px-6 py-3 border-t border-slate-100 bg-white flex justify-end">
+
+            <div className="px-6 py-3 border-t border-slate-100 bg-white flex items-center justify-between">
+              <span className="text-[11px] text-slate-400">💡 Klik dan tahan mouse untuk menggeser denah</span>
               <button
-                onClick={() => setShowDenahModal(false)}
+                onClick={() => {
+                  setShowDenahModal(false);
+                  handleResetZoom();
+                }}
                 className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold shadow-xs transition"
               >
                 Tutup Denah
@@ -2752,7 +2842,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                   <th className="px-3.5 py-2">PARAMETER</th>
                   <th className="px-3.5 py-2">SYARAT</th>
                   <th className="px-3.5 py-2">ALERT LIMIT</th>
-                  <th className="px-3.5 py-2">ACTION LIMIT</th>
+                  <th className="px-3.5 py-2.5">ACTION LIMIT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
