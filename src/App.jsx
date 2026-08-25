@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, Component } from "react";
+import React, { useState, useEffect, useCallback, useMemo, Component, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ComposedChart,
@@ -308,7 +308,7 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
       href={url}
       target="_blank"
       rel="noreferrer"
-      title="Verifikasi Tanda Tangan Digital"
+      title="Verifikasi Keabsahan TTD Digital"
       className="inline-flex flex-col items-center gap-0.5 hover:opacity-80 transition transform hover:scale-105"
     >
       <QRCodeSVG
@@ -731,7 +731,7 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
           </div>
         </div>
 
-        {/* Status SOP POS.QA.025 & Online Sync Footer (Tanpa Tombol User Bawah) */}
+        {/* Status SOP POS.QA.025 & Online Sync Footer */}
         <div className="px-4 py-3 border-t border-zinc-800/80 bg-black/70 text-[10px] text-zinc-400 flex justify-between items-center select-none">
           <span className="font-mono text-zinc-400">SOP POS.QA.025</span>
           <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
@@ -826,7 +826,6 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
 
   return (
     <div className="space-y-6">
-      {/* Banner Ringkasan */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-black via-zinc-950 to-rose-950 p-6 sm:p-8 text-white shadow-xl">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-rose-600/20 blur-3xl" />
         <div className="relative space-y-2">
@@ -841,7 +840,6 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
         </div>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
           <p className="text-xs font-semibold text-slate-400">Total Fasilitas</p>
@@ -865,7 +863,6 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
         </div>
       </div>
 
-      {/* Matriks Fasilitas */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -1236,6 +1233,13 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const [kesimpulanUmum, setKesimpulanUmum] = useState("");
   const [perParameter, setPerParameter] = useState({ suhu: "", rh: "", dpg: "" });
   const [generating, setGenerating] = useState(false);
+
+  // Helper untuk Auto-Resize Textarea agar otomatis melebar ke bawah
+  const handleAutoResize = (e) => {
+    const target = e.target;
+    target.style.height = "auto";
+    target.style.height = `${target.scrollHeight}px`;
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -2016,7 +2020,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* SECTION 4: PEMBAHASAN & NARASI HARIAN */}
+      {/* SECTION 4: PEMBAHASAN & NARASI HARIAN (AUTO-RESIZE TEXTAREA) */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
         <div className="flex items-center justify-between border-b pb-3.5">
           <div>
@@ -2049,10 +2053,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Pendahuluan</p>
           <textarea
             value={pendahuluan}
-            onChange={(e) => setPendahuluan(e.target.value)}
+            onChange={(e) => {
+              setPendahuluan(e.target.value);
+              handleAutoResize(e);
+            }}
+            onFocus={handleAutoResize}
             disabled={!canDraftQA || isFinalApproved}
-            rows={2}
-            className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50"
+            rows={3}
+            style={{ minHeight: "80px", overflow: "hidden" }}
+            className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
           />
           <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
         </div>
@@ -2064,11 +2073,16 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             </label>
             <textarea
               value={perParameter[p.key] || ""}
-              onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
+              onChange={(e) => {
+                setPerParameter({ ...perParameter, [p.key]: e.target.value });
+                handleAutoResize(e);
+              }}
+              onFocus={handleAutoResize}
               disabled={!canDraftQA || isFinalApproved}
               rows={3}
+              style={{ minHeight: "90px", overflow: "hidden" }}
               placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
-              className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50"
+              className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
             />
             <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
               {perParameter[p.key] || "-"}
@@ -2083,10 +2097,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Kesimpulan Umum</p>
           <textarea
             value={kesimpulanUmum}
-            onChange={(e) => setKesimpulanUmum(e.target.value)}
+            onChange={(e) => {
+              setKesimpulanUmum(e.target.value);
+              handleAutoResize(e);
+            }}
+            onFocus={handleAutoResize}
             disabled={!canDraftQA || isFinalApproved}
             rows={3}
-            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50"
+            style={{ minHeight: "80px", overflow: "hidden" }}
+            className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
           />
           <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
             {kesimpulanUmum || "-"}
@@ -2193,6 +2212,12 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
   const canDraftQA = hasAccess(session, "Supervisor", "QA");
   const canFinalQA = hasAccess(session, "Manager", "QA");
+
+  const handleAutoResize = (e) => {
+    const target = e.target;
+    target.style.height = "auto";
+    target.style.height = `${target.scrollHeight}px`;
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2414,7 +2439,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
       {error && <p className="p-3.5 bg-red-50 text-red-600 text-xs rounded-2xl border border-red-200">{error}</p>}
 
-      {/* 1. TABEL REKAP NILAI DATA DENGAN KOLOM PERSYARATAN */}
+      {/* 1. TABEL REKAP NILAI DATA */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3.5 print-card avoid-break">
         <div className="flex justify-between items-center border-b pb-2.5">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -2599,7 +2624,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
       </div>
 
-      {/* 4. FORM NARASI & APPROVAL QA */}
+      {/* 4. FORM NARASI & APPROVAL QA (AUTO-RESIZE TEXTAREA) */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
         <div className="flex items-center justify-between border-b pb-3.5">
           <h2 className="text-sm font-bold text-slate-800">
@@ -2633,10 +2658,15 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Pendahuluan</p>
           <textarea
             value={pendahuluan}
-            onChange={(e) => setPendahuluan(e.target.value)}
+            onChange={(e) => {
+              setPendahuluan(e.target.value);
+              handleAutoResize(e);
+            }}
+            onFocus={handleAutoResize}
             disabled={!canDraftQA || isFinal}
-            rows={2}
-            className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50"
+            rows={3}
+            style={{ minHeight: "80px", overflow: "hidden" }}
+            className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
           />
           <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
         </div>
@@ -2648,11 +2678,16 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             </label>
             <textarea
               value={perParameter[p.key] || ""}
-              onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
+              onChange={(e) => {
+                setPerParameter({ ...perParameter, [p.key]: e.target.value });
+                handleAutoResize(e);
+              }}
+              onFocus={handleAutoResize}
               disabled={!canDraftQA || isFinal}
               rows={3}
+              style={{ minHeight: "90px", overflow: "hidden" }}
               placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
-              className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50"
+              className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
             />
             <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
               {perParameter[p.key] || "-"}
@@ -2667,10 +2702,15 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Kesimpulan Umum</p>
           <textarea
             value={kesimpulanUmum}
-            onChange={(e) => setKesimpulanUmum(e.target.value)}
+            onChange={(e) => {
+              setKesimpulanUmum(e.target.value);
+              handleAutoResize(e);
+            }}
+            onFocus={handleAutoResize}
             disabled={!canDraftQA || isFinal}
             rows={3}
-            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50"
+            style={{ minHeight: "80px", overflow: "hidden" }}
+            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
           />
           <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
             {kesimpulanUmum || "-"}
@@ -2759,7 +2799,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 }
 
 /* =========================================================================
-   11. FORMULIR BULANAN CETAK (FM.QA.024/R11)
+   12. FORMULIR BULANAN CETAK (FM.QA.024/R11)
    ========================================================================= */
 function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -3019,7 +3059,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
 }
 
 /* =========================================================================
-   12. RIWAYAT AKTIVITAS & AUDIT TRAIL + DOWNLOAD CSV
+   13. RIWAYAT AKTIVITAS & AUDIT TRAIL + DOWNLOAD CSV
    ========================================================================= */
 function ActivityPage({ session, month, setView }) {
   const [logs, setLogs] = useState([]);
@@ -3185,7 +3225,7 @@ function ActivityPage({ session, month, setView }) {
 }
 
 /* =========================================================================
-   13. HALAMAN VERIFIKASI QR DOKUMEN PUBLIK (/verify)
+   14. HALAMAN VERIFIKASI QR DOKUMEN PUBLIK (/verify)
    ========================================================================= */
 function VerifyPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -3278,7 +3318,7 @@ function VerifyPage() {
 }
 
 /* =========================================================================
-   14. APP CONTENT CONTROLLER
+   15. APP CONTENT CONTROLLER
    ========================================================================= */
 function AppContent() {
   const { session, checking, login, logout } = useAuth();
@@ -3337,6 +3377,7 @@ function AppContent() {
           table { width: 100% !important; max-width: 100% !important; table-layout: auto !important; }
           body, html, #root { background: white !important; height: auto !important; }
           main { padding: 0 !important; margin: 0 !important; }
+          textarea { border: none !important; resize: none !important; background: transparent !important; padding: 0 !important; height: auto !important; }
         }
         @page {
           margin: 1.2cm 1cm 1.5cm 1cm;
@@ -3430,7 +3471,7 @@ function AppContent() {
 }
 
 /* =========================================================================
-   15. ROOT EXPORT
+   16. ROOT EXPORT
    ========================================================================= */
 export default function App() {
   if (typeof window !== "undefined" && window.location.pathname === "/verify") {
