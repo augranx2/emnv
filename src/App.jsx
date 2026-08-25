@@ -557,7 +557,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
 }
 
 /* =========================================================================
-   SIDEBAR COMPONENT (THEME BLACK ZINC-950 + FOOTER ONLINE SYNC ONLY)
+   SIDEBAR COMPONENT (THEME BLACK ZINC-950 + FOOTER ONLINE SYNC)
    ========================================================================= */
 function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onClose }) {
   const [expandedGroups, setExpandedGroups] = useState({ nbl: true, gbb: true });
