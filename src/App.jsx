@@ -1,63 +1,125 @@
-import { useState, useEffect, useCallback, useMemo, Component } from "react";
+import React, { useState, useEffect, useCallback, useMemo, Component } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, ResponsiveContainer,
+  ComposedChart,
+  Line,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+  ResponsiveContainer,
 } from "recharts";
 import {
-  LogIn, LogOut, User, Loader2, Building2, ChevronLeft,
-  Lock, History, Save, FileCheck2, ClipboardList,
-  Printer, Sparkles, Calendar, Trash2, CheckCheck, CheckCircle2,
-  ChevronRight, ChevronDown, AlertTriangle, KeyRound, LayoutDashboard,
-  Menu, X, ShieldCheck, Activity, Layers, ArrowLeft, Boxes,
+  LogIn,
+  LogOut,
+  User,
+  Loader2,
+  Building2,
+  ChevronLeft,
+  Lock,
+  History,
+  Save,
+  FileCheck2,
+  ClipboardList,
+  Printer,
+  Sparkles,
+  Calendar,
+  Trash2,
+  CheckCheck,
+  CheckCircle2,
+  ChevronRight,
+  ChevronDown,
+  AlertTriangle,
+  KeyRound,
+  LayoutDashboard,
+  Menu,
+  X,
+  ShieldCheck,
+  Activity,
+  Layers,
+  ArrowLeft,
+  Boxes,
+  Download,
+  FlaskConical,
+  Microscope,
+  Stethoscope,
+  Warehouse,
+  PackageCheck,
+  RefreshCw,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
-  fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
-  fetchReport, saveReport as apiSaveReport, fetchStatusIndex,
-  approveDikaji as apiApproveDikaji, approveMengetahui as apiApproveMengetahui,
-  fetchActivityLog, fetchVerify, generateNarrative,
-  fetchFormulirBulanan, approveKepalaBagian as apiApproveKepalaBagian,
+  fetchMaster,
+  fetchEntries,
+  saveEntries as apiSaveEntries,
+  fetchReport,
+  saveReport as apiSaveReport,
+  fetchStatusIndex,
+  approveDikaji as apiApproveDikaji,
+  approveMengetahui as apiApproveMengetahui,
+  fetchActivityLog,
+  fetchVerify,
+  generateNarrative,
+  fetchFormulirBulanan,
+  approveKepalaBagian as apiApproveKepalaBagian,
   approveManagerQAFormulir as apiApproveManagerQAFormulir,
-  approveOpr as apiApproveOpr, approveSpv as apiApproveSpv,
+  approveOpr as apiApproveOpr,
+  approveSpv as apiApproveSpv,
   approveDay as apiApproveDay,
 } from "./api.js";
 import { useAuth, hasAccess, hasFacilityAccess } from "./auth.js";
-import { buildFacilityStats, generateLocalNarrative, fullDateID, monthLabelID } from "./narrativeGenerator.js";
+import {
+  buildFacilityStats,
+  generateLocalNarrative,
+  fullDateID,
+  monthLabelID,
+} from "./narrativeGenerator.js";
 
-/* ========================================================================= ERROR BOUNDARY (OUTER WRAPPER) ========================================================================= */
+/* =========================================================================
+   ERROR BOUNDARY ROOT COMPONENT
+   ========================================================================= */
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
   componentDidCatch(error, errorInfo) {
-    console.error("UI Error Caught:", error, errorInfo);
+    console.error("CRITICAL UI ERROR:", error, errorInfo);
+    this.setState({ errorInfo });
   }
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50 font-sans">
-          <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-rose-100 shadow-xl text-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
-              <AlertTriangle className="w-8 h-8" />
+        <div className="min-h-screen flex items-center justify-center p-6 bg-slate-900 text-white font-sans">
+          <div className="max-w-lg w-full bg-slate-950 rounded-3xl p-8 border border-rose-900/50 shadow-2xl text-center space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-rose-950/80 text-rose-400 border border-rose-800 flex items-center justify-center mx-auto shadow-inner">
+              <AlertTriangle className="w-9 h-9" />
             </div>
-            <h2 className="text-lg font-bold text-slate-800">Terjadi Kesalahan Sistem</h2>
-            <p className="text-xs text-slate-500 leading-relaxed font-mono bg-slate-50 p-3 rounded-xl border border-slate-200 text-left overflow-x-auto">
-              {String(this.state.error?.message || this.state.error)}
+            <h2 className="text-xl font-bold text-white tracking-tight">Terjadi Kesalahan Aplikasi</h2>
+            <p className="text-xs text-rose-200/80 leading-relaxed">
+              Sistem mendeteksi error saat memuat komponen antarmuka:
             </p>
-            <button
-              onClick={() => {
-                localStorage.clear();
-                this.setState({ hasError: false });
-                window.location.href = "/";
-              }}
-              className="px-5 py-2.5 bg-rose-900 text-white rounded-xl text-xs font-semibold hover:bg-rose-950 transition shadow-sm"
-            >
-              Bersihkan Cache &amp; Kembali ke Utama
-            </button>
+            <div className="text-left bg-black/60 p-4 rounded-xl border border-zinc-800 text-[11px] font-mono text-rose-300 overflow-x-auto max-h-40">
+              {String(this.state.error?.message || this.state.error)}
+            </div>
+            <div className="flex gap-3 justify-center pt-2">
+              <button
+                onClick={() => {
+                  localStorage.clear();
+                  sessionStorage.clear();
+                  this.setState({ hasError: false, error: null });
+                  window.location.href = "/";
+                }}
+                className="px-5 py-2.5 bg-rose-900 hover:bg-rose-800 text-white rounded-xl text-xs font-semibold transition shadow-md"
+              >
+                Reset Cache &amp; Muat Ulang
+              </button>
+            </div>
           </div>
         </div>
       );
@@ -66,7 +128,9 @@ class ErrorBoundary extends Component {
   }
 }
 
-/* ========================================================================= 17 FASILITAS & GRUP PEMETAAN ========================================================================= */
+/* =========================================================================
+   MASTER KONFIGURASI 17 FASILITAS & PEMETAAN GRUP GBB
+   ========================================================= */
 const FACILITIES = [
   { key: "nblProduksi", label: "NBL Produksi", department: "Produksi", group: "nbl" },
   { key: "nblKemasan", label: "NBL Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "nbl" },
@@ -97,12 +161,12 @@ const GROUPS = [
   { key: "sefaNonSteril", title: "Sefalosporin Non Steril", items: ["sefaNonSterilProduksi", "sefaNonSterilKemasan"] },
   { key: "sefaSteril", title: "Sefalosporin Steril", items: ["sefaSterilProduksi", "sefaSterilKemasan"] },
   { key: "gbb", title: "Gudang Bahan Baku (GBB)", items: ["gbbNbl", "gbbBl", "gbbSefa"] },
-  { key: "qc", title: "Laboratorium QC", singleKey: "qc" },
-  { key: "rnd", title: "Research & Development (RND)", singleKey: "rnd" },
-  { key: "pkrt", title: "PKRT", singleKey: "pkrt" },
-  { key: "alkes", title: "Alat Kesehatan (Alkes)", singleKey: "alkes" },
-  { key: "gbj", title: "Gudang Barang Jadi (GBJ)", singleKey: "gbj" },
-  { key: "gbk", title: "Gudang Bahan Kemas (GBK)", singleKey: "gbk" },
+  { key: "qc", title: "Laboratorium QC", singleKey: "qc", icon: FlaskConical },
+  { key: "rnd", title: "Research & Development (RND)", singleKey: "rnd", icon: Microscope },
+  { key: "pkrt", title: "PKRT", singleKey: "pkrt", icon: Sparkles },
+  { key: "alkes", title: "Alat Kesehatan (Alkes)", singleKey: "alkes", icon: Stethoscope },
+  { key: "gbj", title: "Gudang Barang Jadi (GBJ)", singleKey: "gbj", icon: Warehouse },
+  { key: "gbk", title: "Gudang Bahan Kemas (GBK)", singleKey: "gbk", icon: PackageCheck },
 ];
 
 const PARAM_DEFS = [
@@ -149,8 +213,15 @@ function liveLevelFor(rawValue, limit, paramKey) {
   const v = toNumberSafe(rawValue);
   if (v === null) return 0;
   if (!limit) return paramKey === "suhu" ? 1 : null;
-  
-  const allNull = [limit.syaratL, limit.syaratU, limit.alertL, limit.alertU, limit.actionL, limit.actionU].every((x) => toNumberSafe(x) === null);
+
+  const allNull = [
+    limit.syaratL,
+    limit.syaratU,
+    limit.alertL,
+    limit.alertU,
+    limit.actionL,
+    limit.actionU,
+  ].every((x) => toNumberSafe(x) === null);
   if (allNull) return paramKey === "suhu" ? 1 : null;
 
   if (inRange(v, limit.alertL, limit.alertU)) return 1;
@@ -168,7 +239,9 @@ const LEVEL_STYLE = {
 };
 
 function levelStyle(level) {
-  if (level === null || level === undefined) return { label: "N/A", color: "#94a3b8", bg: "#f8fafc", dot: "#cbd5e1" };
+  if (level === null || level === undefined) {
+    return { label: "N/A", color: "#94a3b8", bg: "#f8fafc", dot: "#cbd5e1" };
+  }
   return LEVEL_STYLE[level] || LEVEL_STYLE[0];
 }
 
@@ -196,10 +269,15 @@ function facilityOverallLevel(entries) {
   return max;
 }
 
-/* ========================================================================= QR VERIFIKASI ========================================================================= */
+/* =========================================================================
+   KOMPONEN DIGITAL SIGNATURE QR (/verify)
+   ========================================================================= */
 function buildVerifyUrl(params) {
   const qs = new URLSearchParams(params).toString();
-  const base = typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://emnv.myrama.id";
+  const base =
+    typeof window !== "undefined" && window.location.origin
+      ? window.location.origin
+      : "https://emnv.myrama.id";
   return `${base}/verify?${qs}`;
 }
 
@@ -225,7 +303,13 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
   const url = buildVerifyUrl(params);
 
   return (
-    <a href={url} target="_blank" rel="noreferrer" title="Klik verifikasi TTD" className="inline-flex flex-col items-center gap-0.5 hover:opacity-80 transition">
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      title="Verifikasi Keabsahan TTD Digital"
+      className="inline-flex flex-col items-center gap-0.5 hover:opacity-80 transition transform hover:scale-105"
+    >
       <QRCodeSVG
         value={url}
         size={size}
@@ -239,11 +323,13 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
   );
 }
 
-/* ========================================================================= GRAFIK CROSS SECTION & BULANAN ========================================================================= */
+/* =========================================================================
+   KOMPONEN GRAFIK RECHARTS LENGKAP & AMAN
+   ========================================================================= */
 function ChartDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
   const style = levelStyle(payload?.level);
-  return <circle cx={cx} cy={cy} r={4} fill={style.color} stroke="#fff" strokeWidth={1.5} />;
+  return <circle cx={cx} cy={cy} r={4.5} fill={style.color} stroke="#fff" strokeWidth={1.5} />;
 }
 
 function ChartTooltip({ active, payload, unit }) {
@@ -253,8 +339,12 @@ function ChartTooltip({ active, payload, unit }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white/95 backdrop-blur-md px-3.5 py-2.5 text-xs shadow-xl space-y-1">
       <p className="font-semibold text-slate-800">{p.label}</p>
-      <p className="text-sm font-extrabold" style={{ color: style.color }}>{p.value} {unit}</p>
-      <p className="font-medium text-[11px]" style={{ color: style.color }}>{style.label}</p>
+      <p className="text-sm font-extrabold" style={{ color: style.color }}>
+        {p.value} {unit}
+      </p>
+      <p className="font-medium text-[11px]" style={{ color: style.color }}>
+        {style.label}
+      </p>
     </div>
   );
 }
@@ -270,25 +360,45 @@ function LegendChip({ color, label }) {
 
 function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [], paramKey, paramLabel, unit }) {
   const data = useMemo(() => {
-    return (activeRoomNames || []).map((name) => {
-      const rObj = (rooms || []).find((r) => r?.name === name);
-      const rowAm = (currentDayEntries || []).find((e) => e?.roomName === name && e?.jam === "08:00");
-      const rowPm = (currentDayEntries || []).find((e) => e?.roomName === name && e?.jam === "13:00");
-      const vAm = toNumberSafe(rowAm?.[paramKey]);
-      const vPm = toNumberSafe(rowPm?.[paramKey]);
-      const lim = rObj?.limits?.[paramKey];
+    return (activeRoomNames || [])
+      .map((name) => {
+        const rObj = (rooms || []).find((r) => r?.name === name);
+        const rowAm = (currentDayEntries || []).find((e) => e?.roomName === name && e?.jam === "08:00");
+        const rowPm = (currentDayEntries || []).find((e) => e?.roomName === name && e?.jam === "13:00");
+        const vAm = toNumberSafe(rowAm?.[paramKey]);
+        const vPm = toNumberSafe(rowPm?.[paramKey]);
+        const lim = rObj?.limits?.[paramKey];
 
-      const points = [];
-      if (vAm !== null) points.push({ label: `${name} (08:00)`, roomName: name, jam: "08:00", value: vAm, level: liveLevelFor(vAm, lim, paramKey), lim });
-      if (vPm !== null) points.push({ label: `${name} (13:00)`, roomName: name, jam: "13:00", value: vPm, level: liveLevelFor(vPm, lim, paramKey), lim });
-      return points;
-    }).flat();
+        const points = [];
+        if (vAm !== null) {
+          points.push({
+            label: `${name} (08:00)`,
+            roomName: name,
+            jam: "08:00",
+            value: vAm,
+            level: liveLevelFor(vAm, lim, paramKey),
+            lim,
+          });
+        }
+        if (vPm !== null) {
+          points.push({
+            label: `${name} (13:00)`,
+            roomName: name,
+            jam: "13:00",
+            value: vPm,
+            level: liveLevelFor(vPm, lim, paramKey),
+            lim,
+          });
+        }
+        return points;
+      })
+      .flat();
   }, [activeRoomNames, rooms, currentDayEntries, paramKey]);
 
   if (!data || data.length === 0) {
     return (
       <div className="p-8 bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
-        Belum ada data {paramLabel} yang tersimpan untuk ruangan pada tanggal ini.
+        Belum ada data pengukuran {paramLabel} yang tersimpan pada tanggal ini.
       </div>
     );
   }
@@ -301,7 +411,10 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
   const actionVal = toNumberSafe(refLim.actionU ?? refLim.actionL);
   const syaratVal = toNumberSafe(refLim.syaratU ?? refLim.syaratL);
 
-  const allVals = data.map((d) => d.value).concat([alertVal, actionVal, syaratVal]).filter((v) => v !== null && !isNaN(v));
+  const allVals = data
+    .map((d) => d.value)
+    .concat([alertVal, actionVal, syaratVal])
+    .filter((v) => v !== null && !isNaN(v));
   const minVal = Math.min(...allVals, 0);
   const maxVal = Math.max(...allVals, 10);
   const yMin = minVal - (maxVal - minVal) * 0.1;
@@ -319,9 +432,9 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <LegendChip color="#15803d" label="Terkendali" />
-          {alertVal !== null && <LegendChip color="#b45309" label={`Alert ${isDpg ? '≥ ' : ''}${alertVal}`} />}
-          {actionVal !== null && <LegendChip color="#c2410c" label={`Action ${isDpg ? '≥ ' : ''}${actionVal}`} />}
-          {syaratVal !== null && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? '≥ ' : ''}${syaratVal}`} />}
+          {alertVal !== null && <LegendChip color="#b45309" label={`Alert ${isDpg ? "≥ " : ""}${alertVal}`} />}
+          {actionVal !== null && <LegendChip color="#c2410c" label={`Action ${isDpg ? "≥ " : ""}${actionVal}`} />}
+          {syaratVal !== null && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? "≥ " : ""}${syaratVal}`} />}
         </div>
       </div>
       <div className="p-4">
@@ -341,7 +454,15 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
             <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={35} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
-            <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke="#16a34a"
+              strokeWidth={2}
+              dot={<ChartDot />}
+              activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }}
+              isAnimationActive={false}
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -351,16 +472,20 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
 
 function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, limit, isGlobal = false }) {
   const data = useMemo(() => {
-    return (entriesData || []).map((e) => {
-      const v = toNumberSafe(e?.[paramKey]);
-      if (v === null) return null;
-      return {
-        label: isGlobal ? `${String(e?.tanggal || "").slice(-2)} (${e?.roomName || ""})` : `${String(e?.tanggal || "").slice(-2)}/${e?.jam || ""}`,
-        value: v,
-        level: e?.level?.[paramKey] ?? 0,
-        roomName: e?.roomName || "",
-      };
-    }).filter(Boolean);
+    return (entriesData || [])
+      .map((e) => {
+        const v = toNumberSafe(e?.[paramKey]);
+        if (v === null) return null;
+        return {
+          label: isGlobal
+            ? `${String(e?.tanggal || "").slice(-2)} (${e?.roomName || ""})`
+            : `${String(e?.tanggal || "").slice(-2)}/${e?.jam || ""}`,
+          value: v,
+          level: e?.level?.[paramKey] ?? 0,
+          roomName: e?.roomName || "",
+        };
+      })
+      .filter(Boolean);
   }, [entriesData, paramKey, isGlobal]);
 
   if (!data || data.length === 0) return null;
@@ -372,7 +497,10 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
   const actionVal = toNumberSafe(limit?.actionU ?? limit?.actionL);
   const syaratVal = toNumberSafe(limit?.syaratU ?? limit?.syaratL);
 
-  const allVals = data.map((d) => d.value).concat([alertVal, actionVal, syaratVal]).filter((v) => v !== null && !isNaN(v));
+  const allVals = data
+    .map((d) => d.value)
+    .concat([alertVal, actionVal, syaratVal])
+    .filter((v) => v !== null && !isNaN(v));
   const minVal = Math.min(...allVals, 0);
   const maxVal = Math.max(...allVals, 10);
   const yMin = minVal - (maxVal - minVal) * 0.1;
@@ -383,16 +511,18 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 bg-slate-50/60">
         <div>
-          <p className="text-xs font-bold text-slate-800">{paramLabel} — {isGlobal ? "Tren Global Fasilitas" : "Tren 1 Bulan"}</p>
+          <p className="text-xs font-bold text-slate-800">
+            {paramLabel} — {isGlobal ? "Tren Global Fasilitas" : "Tren 1 Bulan"}
+          </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Tertinggi: <span className="font-semibold text-slate-800">{peak.value} {unit}</span> ({peak.roomName})
+            Nilai Tertinggi: <span className="font-semibold text-slate-800">{peak.value} {unit}</span> ({peak.roomName})
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LegendChip color="#15803d" label="Terkendali" />
-          {alertVal !== null && <LegendChip color="#b45309" label={`Alert ${isDpg ? '≥ ' : ''}${alertVal}`} />}
-          {actionVal !== null && <LegendChip color="#c2410c" label={`Action ${isDpg ? '≥ ' : ''}${actionVal}`} />}
-          {syaratVal !== null && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? '≥ ' : ''}${syaratVal}`} />}
+          {alertVal !== null && <LegendChip color="#b45309" label={`Alert ${isDpg ? "≥ " : ""}${alertVal}`} />}
+          {actionVal !== null && <LegendChip color="#c2410c" label={`Action ${isDpg ? "≥ " : ""}${actionVal}`} />}
+          {syaratVal !== null && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? "≥ " : ""}${syaratVal}`} />}
         </div>
       </div>
       <div className="p-3">
@@ -412,7 +542,15 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
             <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10, fill: "#64748b" }} width={35} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
-            <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={2} dot={<ChartDot />} activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }} isAnimationActive={false} />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke="#16a34a"
+              strokeWidth={2}
+              dot={<ChartDot />}
+              activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }}
+              isAnimationActive={false}
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -420,8 +558,10 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
   );
 }
 
-/* ========================================================================= SIDEBAR (TEMA HITAM PEKAT) ========================================================================= */
-function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onClose }) {
+/* =========================================================================
+   SIDEBAR COMPONENT (THEME BLACK ZINC-950 + FULL ICONS + BOTTOM AUTH)
+   ========================================================================= */
+function Sidebar({ session, view, setView, status = {}, onNeedLogin, onLogout, onProfileClick, isOpen, onClose }) {
   const [expandedGroups, setExpandedGroups] = useState({ nbl: true, gbb: true });
 
   const toggleGroup = (k) => {
@@ -440,10 +580,17 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
   return (
     <>
       {isOpen && (
-        <div onClick={onClose} className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden transition-opacity" />
+        <div
+          onClick={onClose}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden transition-opacity duration-300"
+        />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 text-zinc-300 border-r border-zinc-800/80 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 text-zinc-300 border-r border-zinc-800/80 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         {/* Brand Header */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-zinc-800/80 bg-black/70">
           <button onClick={() => navigateTo({ page: "dashboard" })} className="flex items-center gap-3 text-left">
@@ -464,7 +611,11 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
             <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">Menu Utama</p>
             <button
               onClick={() => navigateTo({ page: "dashboard" })}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${view.page === "dashboard" ? "bg-rose-900 text-white shadow-lg shadow-rose-950/50" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                view.page === "dashboard"
+                  ? "bg-rose-900 text-white shadow-lg shadow-rose-950/50"
+                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+              }`}
             >
               <LayoutDashboard size={16} />
               <span>Dashboard Global</span>
@@ -472,7 +623,11 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
             {session && hasAccess(session, "Supervisor", "QA") && (
               <button
                 onClick={() => navigateTo({ page: "pengkajian", facility: view.facility || "nblProduksi", room: "" })}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${view.page === "pengkajian" && !view.room ? "bg-rose-900 text-white shadow-lg shadow-rose-950/50" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  view.page === "pengkajian" && !view.room
+                    ? "bg-rose-900 text-white shadow-lg shadow-rose-950/50"
+                    : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                }`}
               >
                 <ClipboardList size={16} />
                 <span>Pengkajian QA Global</span>
@@ -481,7 +636,11 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
             {session && hasAccess(session, "Supervisor") && (
               <button
                 onClick={() => navigateTo({ page: "activity" })}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${view.page === "activity" ? "bg-rose-900 text-white shadow-lg shadow-rose-950/50" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  view.page === "activity"
+                    ? "bg-rose-900 text-white shadow-lg shadow-rose-950/50"
+                    : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                }`}
               >
                 <History size={16} />
                 <span>Riwayat Aktivitas</span>
@@ -496,15 +655,23 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
                 const fac = FACILITIES.find((f) => f.key === g.singleKey);
                 const st = status?.[g.singleKey];
                 const active = view.page === "facility" && view.facility === g.singleKey;
-                const dotColor = st?.hasData ? (levelStyle(st.level).dot) : "#52525b";
+                const dotColor = st?.hasData ? levelStyle(st.level).dot : "#52525b";
+                const SingleIcon = g.icon || Building2;
 
                 return (
                   <button
                     key={g.key}
                     onClick={() => navigateTo({ page: "facility", facility: g.singleKey })}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${active ? "bg-rose-900/70 text-white border border-rose-700/50" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${
+                      active
+                        ? "bg-rose-900/70 text-white border border-rose-700/50"
+                        : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                    }`}
                   >
-                    <span className="truncate">{fac?.label || g.title}</span>
+                    <div className="flex items-center gap-2.5 truncate">
+                      <SingleIcon size={14} className="text-zinc-400 shrink-0" />
+                      <span className="truncate">{fac?.label || g.title}</span>
+                    </div>
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
                   </button>
                 );
@@ -518,13 +685,18 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
                 <div key={g.key} className="space-y-0.5">
                   <button
                     onClick={() => toggleGroup(g.key)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${isGroupActive ? "text-rose-300" : "text-zinc-300 hover:bg-zinc-900"}`}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                      isGroupActive ? "text-rose-300" : "text-zinc-300 hover:bg-zinc-900"
+                    }`}
                   >
-                    <div className="flex items-center gap-2 truncate">
-                      <GroupIcon size={14} className="text-zinc-400" />
+                    <div className="flex items-center gap-2.5 truncate">
+                      <GroupIcon size={14} className="text-zinc-400 shrink-0" />
                       <span className="truncate">{g.title}</span>
                     </div>
-                    <ChevronDown size={14} className={`text-zinc-500 transition-transform duration-200 ${isOpenGroup ? "rotate-180" : ""}`} />
+                    <ChevronDown
+                      size={14}
+                      className={`text-zinc-500 transition-transform duration-200 ${isOpenGroup ? "rotate-180" : ""}`}
+                    />
                   </button>
 
                   {isOpenGroup && (
@@ -533,13 +705,17 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
                         const fac = FACILITIES.find((f) => f.key === facKey);
                         const st = status?.[facKey];
                         const active = view.page === "facility" && view.facility === facKey;
-                        const dotColor = st?.hasData ? (levelStyle(st.level).dot) : "#52525b";
+                        const dotColor = st?.hasData ? levelStyle(st.level).dot : "#52525b";
 
                         return (
                           <button
                             key={facKey}
                             onClick={() => navigateTo({ page: "facility", facility: facKey })}
-                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] transition ${active ? "bg-rose-900 text-white font-semibold" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"}`}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] transition ${
+                              active
+                                ? "bg-rose-900 text-white font-semibold"
+                                : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                            }`}
                           >
                             <span className="truncate">{fac?.label}</span>
                             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: dotColor }} />
@@ -554,9 +730,40 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
           </div>
         </div>
 
-        <div className="p-3 border-t border-zinc-800/80 bg-black/40 text-[10px] text-zinc-500 flex justify-between items-center">
-          <span>SOP POS.QA.025</span>
-          <span className="text-emerald-500 font-semibold">Online Sync</span>
+        {/* User Account & Login / Logout Action di Bawah Sidebar */}
+        <div className="p-3 border-t border-zinc-800/80 bg-black/40">
+          {session ? (
+            <div className="space-y-2">
+              <button
+                onClick={onProfileClick}
+                className="w-full flex items-center gap-2.5 p-2 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 text-left transition"
+              >
+                <div className="w-7 h-7 rounded-lg bg-rose-900 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                  {(session?.nama || session?.username || "U").charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-white truncate">{session?.nama || session?.username}</p>
+                  <p className="text-[10px] text-zinc-400 truncate">{session?.role || "User"}</p>
+                </div>
+              </button>
+
+              <button
+                onClick={onLogout}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-zinc-800 bg-zinc-900/50 hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-900/50 text-xs font-semibold text-zinc-400 transition"
+              >
+                <LogOut size={13} />
+                <span>Keluar Akun</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onNeedLogin}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-rose-900 hover:bg-rose-950 text-white text-xs font-bold shadow-sm transition"
+            >
+              <LogIn size={14} />
+              <span>Masuk Sistem</span>
+            </button>
+          )}
         </div>
       </aside>
     </>
@@ -626,7 +833,9 @@ function HeaderBar({ session, onLoginClick, onLogout, onProfileClick, month, set
   );
 }
 
-/* ========================================================================= DASHBOARD VIEW UTAMA ========================================================================= */
+/* =========================================================================
+   DASHBOARD VIEW UTAMA
+   ========================================================================= */
 function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }) {
   const perluCount = FACILITIES.filter((f) => (status?.[f.key]?.level || 0) === 3).length;
   const tmsCount = FACILITIES.filter((f) => (status?.[f.key]?.level || 0) >= 4).length;
@@ -634,7 +843,10 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
   const belumAdaCount = FACILITIES.filter((f) => !status?.[f.key]?.hasData).length;
 
   function handleOpenFacility(facKey) {
-    if (!session) { onNeedLogin(); return; }
+    if (!session) {
+      onNeedLogin();
+      return;
+    }
     setView({ page: "facility", facility: facKey });
   }
 
@@ -649,7 +861,8 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Status Fasilitas EM Non Viable</h1>
           <p className="text-xs sm:text-sm text-rose-100/80 max-w-2xl leading-relaxed">
-            Pemantauan berkala parameter Suhu, Kelembaban Relatif (RH), dan Perbedaan Tekanan Ruang (DPG) seluruh gedung produksi periode <b>{monthLabelID(month)}</b>.
+            Pemantauan berkala parameter Suhu, Kelembaban Relatif (RH), dan Perbedaan Tekanan Ruang (DPG) seluruh gedung
+            produksi periode <b>{monthLabelID(month)}</b>.
           </p>
         </div>
       </div>
@@ -681,7 +894,9 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
       {/* Matriks Fasilitas */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Matriks 17 Fasilitas — {monthLabelID(month)}</h2>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Matriks 17 Fasilitas — {monthLabelID(month)}
+          </h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -690,6 +905,7 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
               const fac = FACILITIES.find((f) => f.key === g.singleKey);
               const st = status?.[g.singleKey];
               const lvl = levelStyle(st?.hasData ? st.level : null);
+              const SingleIcon = g.icon || Building2;
 
               return (
                 <div
@@ -700,14 +916,17 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center group-hover:bg-rose-50 group-hover:text-rose-900 transition">
-                        <Building2 size={20} />
+                        <SingleIcon size={20} />
                       </div>
                       <div>
                         <h3 className="text-sm font-bold text-slate-800">{fac?.label || g.title}</h3>
                         <p className="text-xs text-slate-400">Departemen {fac?.department}</p>
                       </div>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full font-semibold shrink-0" style={{ background: lvl.bg, color: lvl.color }}>
+                    <span
+                      className="text-xs px-2.5 py-1 rounded-full font-semibold shrink-0"
+                      style={{ background: lvl.bg, color: lvl.color }}
+                    >
                       {st?.hasData ? lvl.label : "Belum Ada Data"}
                     </span>
                   </div>
@@ -744,7 +963,10 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
                           <p className="text-[10px] text-slate-400">Dept: {fac?.department}</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: lvl.bg, color: lvl.color }}>
+                          <span
+                            className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: lvl.bg, color: lvl.color }}
+                          >
                             {st?.hasData ? lvl.label : "Belum Ada Data"}
                           </span>
                           <ChevronRight size={14} className="text-slate-300" />
@@ -762,7 +984,9 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
   );
 }
 
-/* ========================================================================= MODAL PROFIL & GANTI PASSWORD ========================================================================= */
+/* =========================================================================
+   MODAL PROFIL & GANTI PASSWORD
+   ========================================================================= */
 function ProfileModal({ session, onClose, onChangePasswordClick }) {
   if (!session) return null;
   return (
@@ -798,7 +1022,11 @@ function ProfileModal({ session, onClose, onChangePasswordClick }) {
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+          >
             Tutup
           </button>
           <button
@@ -838,14 +1066,23 @@ function ChangePasswordModal({ session, onClose }) {
       const res = await fetch("/api", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "changePassword", token: session?.token, oldPassword, newPassword }),
-      }).then((r) => r.json()).catch(() => ({ ok: true }));
+        body: JSON.stringify({
+          action: "changePassword",
+          token: session?.token,
+          oldPassword,
+          newPassword,
+        }),
+      })
+        .then((r) => r.json())
+        .catch(() => ({ ok: true }));
 
       if (res && res.error) {
         setError(res.error);
       } else {
         setSuccess(true);
-        setTimeout(() => { onClose(); }, 1500);
+        setTimeout(() => {
+          onClose();
+        }, 1500);
       }
     } catch (err) {
       setError(err.message || "Gagal mengganti password.");
@@ -902,7 +1139,11 @@ function ChangePasswordModal({ session, onClose }) {
             {error && <p className="p-2 bg-red-50 text-red-600 text-xs rounded-xl border border-red-200">{error}</p>}
 
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={onClose} className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
                 Batal
               </button>
               <button
@@ -969,7 +1210,11 @@ function LoginModal({ onClose, onLogin }) {
           </div>
           {error && <p className="rounded-xl bg-red-50 p-2.5 text-xs text-red-600 border border-red-200">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600"
+            >
               Batal
             </button>
             <button
@@ -986,12 +1231,18 @@ function LoginModal({ onClose, onLogin }) {
   );
 }
 
-/* ========================================================================= FASILITAS INTEGRATED PAGE ========================================================================= */
+/* =========================================================================
+   HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK)
+   ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
   const canInput = hasFacilityAccess(session, "Staff", cfg);
   const canApproveSPV = hasFacilityAccess(session, "Supervisor", cfg);
-  const isOperator = session?.role === "Staff" || session?.role === "Operator" || session?.role === "Admin" || session?.role === "Administrator";
+  const isOperator =
+    session?.role === "Staff" ||
+    session?.role === "Operator" ||
+    session?.role === "Admin" ||
+    session?.role === "Administrator";
   const canDraftQA = hasAccess(session, "Supervisor", "QA");
   const canFinalQA = hasAccess(session, "Manager", "QA");
 
@@ -1021,8 +1272,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         fetchEntries(facilityKey, month),
         fetchReport(facilityKey, month, session?.token),
       ]);
-      const roomList = Array.isArray(roomRes) ? roomRes : (roomRes?.rooms || []);
-      const entryList = Array.isArray(entryRes) ? entryRes : (entryRes?.entries || []);
+      const roomList = Array.isArray(roomRes) ? roomRes : roomRes?.rooms || [];
+      const entryList = Array.isArray(entryRes) ? entryRes : entryRes?.entries || [];
 
       setRooms(roomList);
       setMonthEntries(entryList);
@@ -1037,7 +1288,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }, [facilityKey, month, session?.token]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     if (!rooms || rooms.length === 0) return;
@@ -1088,7 +1341,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   }
 
   function handleCellChange(roomName, jam, field, val) {
-    const normalized = (field === "suhu" || field === "rh" || field === "dpg") ? val.replace(/\./g, ",") : val;
+    const normalized = field === "suhu" || field === "rh" || field === "dpg" ? val.replace(/\./g, ",") : val;
     setGridValues((prev) => ({
       ...prev,
       [roomName]: {
@@ -1109,9 +1362,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         const v = gridValues[rName]?.[jam] || {};
         const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
         if (anyFilled) {
-          const sVal = !rObj?.required?.suhu ? (v.suhu || "-") : v.suhu;
-          const rVal = !rObj?.required?.rh ? (v.rh || "-") : v.rh;
-          const dVal = !rObj?.required?.dpg ? (v.dpg || "-") : v.dpg;
+          const sVal = !rObj?.required?.suhu ? v.suhu || "-" : v.suhu;
+          const rVal = !rObj?.required?.rh ? v.rh || "-" : v.rh;
+          const dVal = !rObj?.required?.dpg ? v.dpg || "-" : v.dpg;
 
           todayRows.push({
             id: `${rName}|${selectedDate}|${jam}`,
@@ -1224,19 +1477,35 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     try {
       await apiSaveReport(facilityKey, month, { pendahuluan, kesimpulanUmum, perParameter }, session?.token);
       await loadData();
-    } catch (err) { setError(err.message); }
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function handleGenerateAI() {
     setGenerating(true);
     setError("");
     try {
-      const facilityStats = buildFacilityStats({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), entries: monthEntries, rooms });
+      const facilityStats = buildFacilityStats({
+        facilityLabel: cfg.label,
+        monthLabel: monthLabelID(month),
+        entries: monthEntries,
+        rooms,
+      });
       let narrative;
       try {
-        narrative = await generateNarrative({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), stats: facilityStats.stats });
+        narrative = await generateNarrative({
+          facilityLabel: cfg.label,
+          monthLabel: monthLabelID(month),
+          stats: facilityStats.stats,
+        });
       } catch (aiErr) {
-        narrative = generateLocalNarrative({ facilityLabel: cfg.label, monthLabel: monthLabelID(month), entries: monthEntries, rooms });
+        narrative = generateLocalNarrative({
+          facilityLabel: cfg.label,
+          monthLabel: monthLabelID(month),
+          entries: monthEntries,
+          rooms,
+        });
         setError("Narasi AI gagal (" + aiErr.message + ") — digunakan draf lokal.");
       }
       setPendahuluan(narrative.pendahuluan || "");
@@ -1250,10 +1519,21 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   }
 
   async function handleDikaji() {
-    try { await apiApproveDikaji(facilityKey, month, session?.token); await loadData(); } catch (err) { setError(err.message); }
+    try {
+      await apiApproveDikaji(facilityKey, month, session?.token);
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    }
   }
+
   async function handleMengetahui() {
-    try { await apiApproveMengetahui(facilityKey, month, session?.token); await loadData(); } catch (err) { setError(err.message); }
+    try {
+      await apiApproveMengetahui(facilityKey, month, session?.token);
+      await loadData();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   const currentDayEntries = useMemo(() => {
@@ -1347,9 +1627,16 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             <div className="flex items-start gap-4">
               <img src="/logo-rama.png" alt="Logo" className="h-12 w-12 object-contain brightness-0 invert" />
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
-                <h1 className="text-xl font-bold text-white tracking-tight">Data Pemantauan &amp; Evaluasi Harian EM Non Viable</h1>
-                <p className="text-xs text-rose-100/90 mt-0.5">Fasilitas: <span className="font-semibold text-white">{cfg?.label}</span> · Periode: <span className="font-semibold text-white">{monthLabelID(month)}</span></p>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-300">
+                  PT. Rama Emerald Multi Sukses — QA
+                </p>
+                <h1 className="text-xl font-bold text-white tracking-tight">
+                  Data Pemantauan &amp; Evaluasi Harian EM Non Viable
+                </h1>
+                <p className="text-xs text-rose-100/90 mt-0.5">
+                  Fasilitas: <span className="font-semibold text-white">{cfg?.label}</span> · Periode:{" "}
+                  <span className="font-semibold text-white">{monthLabelID(month)}</span>
+                </p>
               </div>
             </div>
             <p className="text-right text-[11px] text-rose-200 font-mono">FM.QA.024/R11</p>
@@ -1357,7 +1644,10 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
         <div className="flex items-center justify-between bg-white px-6 py-3 border-t border-slate-100 text-xs">
           <span className="text-slate-400">Status Fasilitas:</span>
-          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 font-bold" style={{ background: levelStyle(currentLevel).bg, color: levelStyle(currentLevel).color }}>
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 font-bold"
+            style={{ background: levelStyle(currentLevel).bg, color: levelStyle(currentLevel).color }}
+          >
             <span className="w-1.5 h-1.5 rounded-full" style={{ background: levelStyle(currentLevel).dot }} />
             {levelStyle(currentLevel).label}
           </span>
@@ -1372,9 +1662,17 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1.5">
               <label className="text-xs font-bold text-slate-700">Tanggal:</label>
-              <input type="date" value={selectedDate} max={todayStr()} onChange={(e) => setSelectedDate(e.target.value)}
-                className="border rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:border-rose-700 bg-slate-50" />
-              <button onClick={() => setSelectedDate(todayStr())} className="text-xs bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-xl font-medium text-slate-600 no-print transition">
+              <input
+                type="date"
+                value={selectedDate}
+                max={todayStr()}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="border rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none focus:border-rose-700 bg-slate-50"
+              />
+              <button
+                onClick={() => setSelectedDate(todayStr())}
+                className="text-xs bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-xl font-medium text-slate-600 no-print transition"
+              >
                 Hari Ini
               </button>
             </div>
@@ -1389,7 +1687,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   <option value="">+ Tambah Ruangan...</option>
                   {unselectedRooms.map((r) => {
                     const st = roomStatusToday[r.name];
-                    const labelSuffix = st === "spv" ? " ✓ disetujui" : st === "opr" ? " • diapprove OPR" : st === "filled" ? " • terisi" : "";
+                    const labelSuffix =
+                      st === "spv" ? " ✓ disetujui" : st === "opr" ? " • diapprove OPR" : st === "filled" ? " • terisi" : "";
                     return (
                       <option key={r.code + r.name} value={r.name}>
                         {r.code} — {r.name} ({r.persyaratanKey || "—"}){labelSuffix}
@@ -1410,21 +1709,30 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           <div className="flex flex-wrap items-center gap-2 no-print">
             {canInput && hasUnapprovedRoomsInActive && (
               <>
-                <button onClick={handleSaveDataOnly} disabled={saving}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 transition">
+                <button
+                  onClick={handleSaveDataOnly}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 transition"
+                >
                   {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Simpan Draf
                 </button>
                 {isOperator && (
-                  <button onClick={handleApproveOprBatch} disabled={saving || activeRoomNames.length === 0}
-                    className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm disabled:opacity-50 transition">
+                  <button
+                    onClick={handleApproveOprBatch}
+                    disabled={saving || activeRoomNames.length === 0}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm disabled:opacity-50 transition"
+                  >
                     <CheckCheck size={14} /> Approve OPR (Semua)
                   </button>
                 )}
               </>
             )}
             {canApproveSPV && hasUnapprovedRoomsInActive && (
-              <button onClick={handleApproveSpvBatch} disabled={saving || activeRoomNames.length === 0}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl bg-rose-900 hover:bg-rose-950 text-white shadow-sm disabled:opacity-50 transition">
+              <button
+                onClick={handleApproveSpvBatch}
+                disabled={saving || activeRoomNames.length === 0}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl bg-rose-900 hover:bg-rose-950 text-white shadow-sm disabled:opacity-50 transition"
+              >
                 <FileCheck2 size={14} /> Approve SPV &amp; Kunci (Semua)
               </button>
             )}
@@ -1435,7 +1743,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         {activeRoomNames.length === 0 ? (
           <div className="p-10 text-center bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs space-y-1.5">
             <p className="font-bold text-slate-700">Belum ada ruangan yang dipilih pada tanggal {selectedDate}.</p>
-            <p className="text-slate-400">Silakan klik dropdown <b>"+ Tambah Ruangan..."</b> di atas untuk mulai mengisi data ruangan.</p>
+            <p className="text-slate-400">
+              Silakan klik dropdown <b>"+ Tambah Ruangan..."</b> di atas untuk mulai mengisi data ruangan.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto print:overflow-visible">
@@ -1458,7 +1768,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   const rObj = (rooms || []).find((r) => r?.name === rName);
                   if (!rObj) return null;
                   const st = roomStatusToday[rName];
-                  const labelSuffix = st === "spv" ? "✓ Disetujui SPV" : st === "opr" ? "• Diapprove OPR" : st === "filled" ? "• Terisi" : "";
+                  const labelSuffix =
+                    st === "spv" ? "✓ Disetujui SPV" : st === "opr" ? "• Diapprove OPR" : st === "filled" ? "• Terisi" : "";
 
                   const hasOprApproved = SESI.every((jam) => !!gridValues[rName]?.[jam]?.opr);
                   const isLocked = st === "spv";
@@ -1474,9 +1785,19 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                         {jamIdx === 0 ? (
                           <>
                             <td rowSpan={2} className="px-3 py-2 align-middle border-r border-slate-100">
-                              <div className="font-bold text-slate-800 text-xs">{rObj.code} — {rObj.name}</div>
+                              <div className="font-bold text-slate-800 text-xs">
+                                {rObj.code} — {rObj.name}
+                              </div>
                               {labelSuffix && (
-                                <span className={`inline-block mt-0.5 text-[9px] font-medium px-2 py-0.2 rounded-full ${st === "spv" ? "bg-rose-50 text-rose-800" : st === "opr" ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
+                                <span
+                                  className={`inline-block mt-0.5 text-[9px] font-medium px-2 py-0.2 rounded-full ${
+                                    st === "spv"
+                                      ? "bg-rose-50 text-rose-800"
+                                      : st === "opr"
+                                      ? "bg-emerald-50 text-emerald-800"
+                                      : "bg-slate-100 text-slate-600"
+                                  }`}
+                                >
                                   {labelSuffix}
                                 </span>
                               )}
@@ -1490,22 +1811,43 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                         ) : null}
                         <td className="px-2 py-1.5 text-center font-medium text-slate-500">{jam}</td>
                         <td className="px-2 py-1.5 text-center">
-                          <input value={v.suhu ?? ""} onChange={(e) => handleCellChange(rName, jam, "suhu", e.target.value)}
-                            placeholder="" disabled={isLocked || !canInput}
+                          <input
+                            value={v.suhu ?? ""}
+                            onChange={(e) => handleCellChange(rName, jam, "suhu", e.target.value)}
+                            placeholder=""
+                            disabled={isLocked || !canInput}
                             className="w-14 text-center border rounded-lg px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium text-xs shadow-2xs"
-                            style={{ background: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).bg : undefined, color: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).color : undefined }} />
+                            style={{
+                              background: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).bg : undefined,
+                              color: v.suhu && v.suhu !== "-" ? levelStyle(sLvl).color : undefined,
+                            }}
+                          />
                         </td>
                         <td className="px-2 py-1.5 text-center">
-                          <input value={v.rh ?? ""} onChange={(e) => handleCellChange(rName, jam, "rh", e.target.value)}
-                            placeholder={rObj.required?.rh ? "" : "N/A"} disabled={isLocked || !rObj.required?.rh || !canInput}
+                          <input
+                            value={v.rh ?? ""}
+                            onChange={(e) => handleCellChange(rName, jam, "rh", e.target.value)}
+                            placeholder={rObj.required?.rh ? "" : "N/A"}
+                            disabled={isLocked || !rObj.required?.rh || !canInput}
                             className="w-14 text-center border rounded-lg px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium text-xs shadow-2xs"
-                            style={{ background: v.rh && v.rh !== "-" ? levelStyle(rLvl).bg : undefined, color: v.rh && v.rh !== "-" ? levelStyle(rLvl).color : undefined }} />
+                            style={{
+                              background: v.rh && v.rh !== "-" ? levelStyle(rLvl).bg : undefined,
+                              color: v.rh && v.rh !== "-" ? levelStyle(rLvl).color : undefined,
+                            }}
+                          />
                         </td>
                         <td className="px-2 py-1.5 text-center">
-                          <input value={v.dpg ?? ""} onChange={(e) => handleCellChange(rName, jam, "dpg", e.target.value)}
-                            placeholder={rObj.required?.dpg ? "" : "N/A"} disabled={isLocked || !rObj.required?.dpg || !canInput}
+                          <input
+                            value={v.dpg ?? ""}
+                            onChange={(e) => handleCellChange(rName, jam, "dpg", e.target.value)}
+                            placeholder={rObj.required?.dpg ? "" : "N/A"}
+                            disabled={isLocked || !rObj.required?.dpg || !canInput}
                             className="w-14 text-center border rounded-lg px-1 py-1 focus:outline-none focus:ring-1 focus:ring-rose-700 disabled:bg-slate-50 font-medium text-xs shadow-2xs"
-                            style={{ background: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).bg : undefined, color: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).color : undefined }} />
+                            style={{
+                              background: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).bg : undefined,
+                              color: v.dpg && v.dpg !== "-" ? levelStyle(dLvl).color : undefined,
+                            }}
+                          />
                         </td>
 
                         {/* KOLOM OPR */}
@@ -1513,7 +1855,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                           {v.opr ? (
                             <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200">
                               <span className="font-medium text-[10px] truncate max-w-[65px]">{v.opr}</span>
-                              <VerifyQR type="harian" facility={facilityKey} period={selectedDate} roomName={rName} jam={jam} signerRole="OPR" signerName={v.opr} />
+                              <VerifyQR
+                                type="harian"
+                                facility={facilityKey}
+                                period={selectedDate}
+                                roomName={rName}
+                                jam={jam}
+                                signerRole="OPR"
+                                signerName={v.opr}
+                              />
                             </div>
                           ) : isOperator && !isLocked ? (
                             <button
@@ -1521,7 +1871,12 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                               disabled={busyRow === rName + "|opr"}
                               className="no-print inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs disabled:opacity-50 transition"
                             >
-                              {busyRow === rName + "|opr" ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />} Approve
+                              {busyRow === rName + "|opr" ? (
+                                <Loader2 size={10} className="animate-spin" />
+                              ) : (
+                                <CheckCircle2 size={10} />
+                              )}
+                              Approve
                             </button>
                           ) : (
                             <span className="text-slate-300 italic text-[11px]">—</span>
@@ -1533,7 +1888,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                           {v.spv ? (
                             <div className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-900 px-2 py-0.5 rounded-lg border border-rose-200">
                               <span className="font-medium text-[10px] truncate max-w-[65px]">{v.spv}</span>
-                              <VerifyQR type="harian" facility={facilityKey} period={selectedDate} roomName={rName} jam={jam} signerRole="SPV" signerName={v.spv} />
+                              <VerifyQR
+                                type="harian"
+                                facility={facilityKey}
+                                period={selectedDate}
+                                roomName={rName}
+                                jam={jam}
+                                signerRole="SPV"
+                                signerName={v.spv}
+                              />
                             </div>
                           ) : canApproveSPV && !isLocked && hasOprApproved ? (
                             <button
@@ -1541,7 +1904,12 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                               disabled={busyRow === rName + "|spv"}
                               className="no-print inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold rounded-lg bg-rose-900 hover:bg-rose-950 text-white shadow-xs disabled:opacity-50 transition"
                             >
-                              {busyRow === rName + "|spv" ? <Loader2 size={10} className="animate-spin" /> : <FileCheck2 size={10} />} Approve
+                              {busyRow === rName + "|spv" ? (
+                                <Loader2 size={10} className="animate-spin" />
+                              ) : (
+                                <FileCheck2 size={10} />
+                              )}
+                              Approve
                             </button>
                           ) : (
                             <span className="text-slate-300 italic text-[11px]">—</span>
@@ -1551,7 +1919,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                         {jamIdx === 0 ? (
                           <td rowSpan={2} className="px-2 py-1.5 text-center align-middle no-print">
                             {!isLocked && (
-                              <button onClick={() => handleRemoveActiveRoom(rName)} className="text-slate-400 hover:text-red-600 p-1 transition" title="Hapus baris ini">
+                              <button
+                                onClick={() => handleRemoveActiveRoom(rName)}
+                                className="text-slate-400 hover:text-red-600 p-1 transition"
+                                title="Hapus baris ini"
+                              >
                                 <Trash2 size={14} />
                               </button>
                             )}
@@ -1570,7 +1942,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       {/* SECTION 2: CARD PERSYARATAN & LIMIT */}
       {Object.keys(activeDistinctLimits).length > 0 && (
         <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3.5 print-card avoid-break">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+            Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)
+          </h3>
           <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-xs text-left">
               <thead>
@@ -1587,7 +1961,14 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   return PARAM_DEFS.map((p) => {
                     const lim = limits?.[p.key];
                     if (!lim) return null;
-                    const allNull = [lim.syaratL, lim.syaratU, lim.alertL, lim.alertU, lim.actionL, lim.actionU].every((x) => toNumberSafe(x) === null);
+                    const allNull = [
+                      lim.syaratL,
+                      lim.syaratU,
+                      lim.alertL,
+                      lim.alertU,
+                      lim.actionL,
+                      lim.actionU,
+                    ].every((x) => toNumberSafe(x) === null);
                     if (allNull) return null;
                     const isDpg = p.key === "dpg";
 
@@ -1595,9 +1976,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                       <tr key={pKey + p.key}>
                         <td className="px-3.5 py-2 font-bold text-slate-800">{pKey}</td>
                         <td className="px-3.5 py-2 font-semibold text-slate-700">{p.label}</td>
-                        <td className="px-3.5 py-2 text-slate-800">{formatRange(lim.syaratL, lim.syaratU, p.unit, isDpg)}</td>
-                        <td className="px-3.5 py-2 text-amber-700">{formatRange(lim.alertL, lim.alertU, p.unit, isDpg)}</td>
-                        <td className="px-3.5 py-2 text-orange-700">{formatRange(lim.actionL, lim.actionU, p.unit, isDpg)}</td>
+                        <td className="px-3.5 py-2 text-slate-800">
+                          {formatRange(lim.syaratL, lim.syaratU, p.unit, isDpg)}
+                        </td>
+                        <td className="px-3.5 py-2 text-amber-700">
+                          {formatRange(lim.alertL, lim.alertU, p.unit, isDpg)}
+                        </td>
+                        <td className="px-3.5 py-2 text-orange-700">
+                          {formatRange(lim.actionL, lim.actionU, p.unit, isDpg)}
+                        </td>
                       </tr>
                     );
                   });
@@ -1606,21 +1993,52 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             </table>
           </div>
           <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-500">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"/> Terkendali</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"/> Alert</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-500"/> Action</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500"/> Melebihi Syarat</span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Terkendali
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Alert
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-500" /> Action
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Melebihi Syarat
+            </span>
           </div>
         </div>
       )}
 
       {/* SECTION 3: GRAFIK CROSS-SECTIONAL */}
       <div className="space-y-4">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Grafik Perbandingan Ruangan Terisi ({selectedDate})</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          Grafik Perbandingan Ruangan Terisi ({selectedDate})
+        </h2>
         <div className="space-y-4">
-          <DayParamChart activeRoomNames={activeRoomNames} rooms={rooms} currentDayEntries={currentDayEntries} paramKey="suhu" paramLabel="Suhu" unit="°C" />
-          <DayParamChart activeRoomNames={activeRoomNames} rooms={rooms} currentDayEntries={currentDayEntries} paramKey="rh" paramLabel="Kelembaban Relatif (RH)" unit="%" />
-          <DayParamChart activeRoomNames={activeRoomNames} rooms={rooms} currentDayEntries={currentDayEntries} paramKey="dpg" paramLabel="Perbedaan Tekanan (DPG)" unit="Pa" />
+          <DayParamChart
+            activeRoomNames={activeRoomNames}
+            rooms={rooms}
+            currentDayEntries={currentDayEntries}
+            paramKey="suhu"
+            paramLabel="Suhu"
+            unit="°C"
+          />
+          <DayParamChart
+            activeRoomNames={activeRoomNames}
+            rooms={rooms}
+            currentDayEntries={currentDayEntries}
+            paramKey="rh"
+            paramLabel="Kelembaban Relatif (RH)"
+            unit="%"
+          />
+          <DayParamChart
+            activeRoomNames={activeRoomNames}
+            rooms={rooms}
+            currentDayEntries={currentDayEntries}
+            paramKey="dpg"
+            paramLabel="Perbedaan Tekanan (DPG)"
+            unit="Pa"
+          />
         </div>
       </div>
 
@@ -1633,11 +2051,17 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
           {canDraftQA && !isFinalApproved && (
             <div className="flex items-center gap-2 no-print">
-              <button onClick={handleGenerateAI} disabled={generating}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-900 hover:bg-rose-950 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-60 transition">
+              <button
+                onClick={handleGenerateAI}
+                disabled={generating}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-900 hover:bg-rose-950 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-60 transition"
+              >
                 {generating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} Generate AI
               </button>
-              <button onClick={handleSaveReport} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white transition">
+              <button
+                onClick={handleSaveReport}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white transition"
+              >
                 <Save size={13} /> Simpan Draf
               </button>
             </div>
@@ -1645,39 +2069,75 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
 
         <div>
-          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Pendahuluan</label>
+          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+            Pendahuluan
+          </label>
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Pendahuluan</p>
-          <textarea value={pendahuluan} onChange={(e) => setPendahuluan(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={2}
-            className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+          <textarea
+            value={pendahuluan}
+            onChange={(e) => setPendahuluan(e.target.value)}
+            disabled={!canDraftQA || isFinalApproved}
+            rows={2}
+            className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50"
+          />
           <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
         </div>
 
         {PARAM_DEFS.map((p) => (
           <div key={p.key} className="space-y-1.5 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80">
-            <label className="block text-xs font-bold text-slate-700">Hasil, Tren &amp; Kesimpulan — {p.label} ({p.unit})</label>
-            <textarea value={perParameter[p.key] || ""} onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
-              disabled={!canDraftQA || isFinalApproved} rows={3}
+            <label className="block text-xs font-bold text-slate-700">
+              Hasil, Tren &amp; Kesimpulan — {p.label} ({p.unit})
+            </label>
+            <textarea
+              value={perParameter[p.key] || ""}
+              onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
+              disabled={!canDraftQA || isFinalApproved}
+              rows={3}
               placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
-              className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50" />
-            <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{perParameter[p.key] || "-"}</p>
+              className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50"
+            />
+            <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
+              {perParameter[p.key] || "-"}
+            </p>
           </div>
         ))}
 
         <div>
-          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Kesimpulan Umum</label>
+          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+            Kesimpulan Umum
+          </label>
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Kesimpulan Umum</p>
-          <textarea value={kesimpulanUmum} onChange={(e) => setKesimpulanUmum(e.target.value)} disabled={!canDraftQA || isFinalApproved} rows={3}
-            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
-          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulanUmum || "-"}</p>
+          <textarea
+            value={kesimpulanUmum}
+            onChange={(e) => setKesimpulanUmum(e.target.value)}
+            disabled={!canDraftQA || isFinalApproved}
+            rows={3}
+            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50"
+          />
+          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
+            {kesimpulanUmum || "-"}
+          </p>
         </div>
 
         {/* Tanda Tangan */}
         <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
           <div className="border rounded-2xl p-5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[150px]">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Dikaji Oleh (Supervisor QA)
+            </p>
             {report?.signoff?.dinilai?.nama ? (
               <div className="space-y-1.5 my-auto">
-                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName="" signerRole="Dikaji Oleh" signerName={report.signoff.dinilai.nama} size={54} /></div>
+                <div className="flex justify-center">
+                  <VerifyQR
+                    type="pengkajian"
+                    facility={facilityKey}
+                    period={month}
+                    roomName=""
+                    signerRole="Dikaji Oleh"
+                    signerName={report.signoff.dinilai.nama}
+                    size={54}
+                  />
+                </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
                 <p className="text-[10px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
               </div>
@@ -1685,7 +2145,10 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               <div className="my-auto space-y-2">
                 <p className="text-xs italic text-slate-400">Belum disetujui</p>
                 {canDraftQA && (
-                  <button onClick={handleDikaji} className="no-print px-4 py-1.5 bg-rose-900 hover:bg-rose-950 text-white rounded-xl text-xs font-semibold shadow-xs">
+                  <button
+                    onClick={handleDikaji}
+                    className="no-print px-4 py-1.5 bg-rose-900 hover:bg-rose-950 text-white rounded-xl text-xs font-semibold shadow-xs"
+                  >
                     Approve "Dikaji Oleh"
                   </button>
                 )}
@@ -1694,18 +2157,37 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
 
           <div className="border rounded-2xl p-5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[150px]">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Mengetahui (Manager QA)</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Mengetahui (Manager QA)
+            </p>
             {report?.signoff?.diperiksa?.nama ? (
               <div className="space-y-1.5 my-auto">
-                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName="" signerRole="Mengetahui" signerName={report.signoff.diperiksa.nama} size={54} /></div>
+                <div className="flex justify-center">
+                  <VerifyQR
+                    type="pengkajian"
+                    facility={facilityKey}
+                    period={month}
+                    roomName=""
+                    signerRole="Mengetahui"
+                    signerName={report.signoff.diperiksa.nama}
+                    size={54}
+                  />
+                </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
                 <p className="text-[10px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
               </div>
             ) : (
               <div className="my-auto space-y-2">
-                <p className="text-xs italic text-slate-400">{report?.signoff?.dinilai?.nama ? "Menunggu approval Manager QA" : "Menunggu approval 'Dikaji Oleh' terlebih dahulu"}</p>
+                <p className="text-xs italic text-slate-400">
+                  {report?.signoff?.dinilai?.nama
+                    ? "Menunggu approval Manager QA"
+                    : "Menunggu approval 'Dikaji Oleh' terlebih dahulu"}
+                </p>
                 {canFinalQA && report?.signoff?.dinilai?.nama && (
-                  <button onClick={handleMengetahui} className="no-print px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold shadow-xs">
+                  <button
+                    onClick={handleMengetahui}
+                    className="no-print px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold shadow-xs"
+                  >
                     Approve Final "Mengetahui"
                   </button>
                 )}
@@ -1718,7 +2200,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   );
 }
 
-/* ========================================================================= PENGKAJIAN RESMI QA PAGE ========================================================================= */
+/* =========================================================================
+   PENGKAJIAN QA BULANAN / RESMI (POS.QA.025)
+   ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoom || "");
@@ -1745,15 +2229,19 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         fetchMaster(facilityKey),
         fetchEntries(facilityKey, month),
       ]);
-      const roomList = Array.isArray(roomRes) ? roomRes : (roomRes?.rooms || []);
-      const allEntries = Array.isArray(entryRes) ? entryRes : (entryRes?.entries || []);
+      const roomList = Array.isArray(roomRes) ? roomRes : roomRes?.rooms || [];
+      const allEntries = Array.isArray(entryRes) ? entryRes : entryRes?.entries || [];
 
       setReport(r);
       setPendahuluan(r?.narrative?.pendahuluan || "");
       setKesimpulanUmum(r?.narrative?.kesimpulanUmum || "");
       setPerParameter(r?.narrative?.perParameter || {});
       setRooms(roomList);
-      setMonthEntries(selectedRoomName ? (allEntries || []).filter((e) => e?.roomName === selectedRoomName) : (allEntries || []));
+      setMonthEntries(
+        selectedRoomName
+          ? (allEntries || []).filter((e) => e?.roomName === selectedRoomName)
+          : allEntries || []
+      );
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1761,26 +2249,46 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
     }
   }, [facilityKey, month, session?.token, selectedRoomName]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const isFinal = !!report?.signoff?.diperiksa?.nama;
 
   async function handleSave() {
     setError("");
     try {
-      await apiSaveReport(facilityKey, month, { pendahuluan, kesimpulanUmum, perParameter }, session?.token, selectedRoomName);
+      await apiSaveReport(
+        facilityKey,
+        month,
+        { pendahuluan, kesimpulanUmum, perParameter },
+        session?.token,
+        selectedRoomName
+      );
       await load();
-    } catch (err) { setError(err.message); }
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function handleDikaji() {
     setError("");
-    try { await apiApproveDikaji(facilityKey, month, session?.token, selectedRoomName); await load(); } catch (err) { setError(err.message); }
+    try {
+      await apiApproveDikaji(facilityKey, month, session?.token, selectedRoomName);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function handleMengetahui() {
     setError("");
-    try { await apiApproveMengetahui(facilityKey, month, session?.token, selectedRoomName); await load(); } catch (err) { setError(err.message); }
+    try {
+      await apiApproveMengetahui(facilityKey, month, session?.token, selectedRoomName);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function handleGenerateAI() {
@@ -1788,12 +2296,26 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
     setError("");
     try {
       const targetLabel = cfg.label + (selectedRoomName ? ` — ${selectedRoomName}` : "");
-      const facilityStats = buildFacilityStats({ facilityLabel: targetLabel, monthLabel: monthLabelID(month), entries: monthEntries, rooms });
+      const facilityStats = buildFacilityStats({
+        facilityLabel: targetLabel,
+        monthLabel: monthLabelID(month),
+        entries: monthEntries,
+        rooms,
+      });
       let narrative;
       try {
-        narrative = await generateNarrative({ facilityLabel: targetLabel, monthLabel: monthLabelID(month), stats: facilityStats.stats });
+        narrative = await generateNarrative({
+          facilityLabel: targetLabel,
+          monthLabel: monthLabelID(month),
+          stats: facilityStats.stats,
+        });
       } catch (aiErr) {
-        narrative = generateLocalNarrative({ facilityLabel: targetLabel, monthLabel: monthLabelID(month), entries: monthEntries, rooms });
+        narrative = generateLocalNarrative({
+          facilityLabel: targetLabel,
+          monthLabel: monthLabelID(month),
+          entries: monthEntries,
+          rooms,
+        });
         setError("Narasi AI gagal (" + aiErr.message + ") — digunakan draf lokal.");
       }
       setPendahuluan(narrative.pendahuluan || "");
@@ -1808,7 +2330,9 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
   const distinctReportLimits = useMemo(() => {
     const map = {};
-    const relevantRooms = selectedRoomName ? (rooms || []).filter((r) => r?.name === selectedRoomName) : (rooms || []);
+    const relevantRooms = selectedRoomName
+      ? (rooms || []).filter((r) => r?.name === selectedRoomName)
+      : rooms || [];
     relevantRooms.forEach((rObj) => {
       if (rObj && rObj.persyaratanKey) {
         map[rObj.persyaratanKey] = rObj.limits;
@@ -1850,13 +2374,23 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             <div className="flex items-start gap-4">
               <img src="/logo-rama.png" alt="Logo" className="h-12 w-12 object-contain brightness-0 invert" />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-rose-300">PT. Rama Emerald Multi Sukses — QA</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-rose-300">
+                  PT. Rama Emerald Multi Sukses — QA
+                </p>
                 <h1 className="text-xl font-bold text-white tracking-tight">
-                  {selectedRoomName ? `Pengkajian Tren Ruangan — ${selectedRoomName}` : `Pengkajian Trend Data EM Non Viable (Global)`}
+                  {selectedRoomName
+                    ? `Pengkajian Tren Ruangan — ${selectedRoomName}`
+                    : `Pengkajian Trend Data EM Non Viable (Global)`}
                 </h1>
                 <p className="text-xs text-rose-100/90 mt-0.5">
-                  Fasilitas: <span className="font-semibold text-white">{cfg?.label}</span> · Periode: <span className="font-semibold text-white">{monthLabelID(month)}</span>
-                  {selectedRoomName && <span> · Ruangan: <span className="font-semibold text-white">{selectedRoomName}</span></span>}
+                  Fasilitas: <span className="font-semibold text-white">{cfg?.label}</span> · Periode:{" "}
+                  <span className="font-semibold text-white">{monthLabelID(month)}</span>
+                  {selectedRoomName && (
+                    <span>
+                      {" "}
+                      · Ruangan: <span className="font-semibold text-white">{selectedRoomName}</span>
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -1872,8 +2406,15 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           {FACILITIES.map((f) => (
             <button
               key={f.key}
-              onClick={() => { setFacilityKey(f.key); setSelectedRoomName(""); }}
-              className={`text-xs rounded-full px-3 py-1 font-semibold transition ${facilityKey === f.key ? "bg-rose-900 text-white shadow-xs" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+              onClick={() => {
+                setFacilityKey(f.key);
+                setSelectedRoomName("");
+              }}
+              className={`text-xs rounded-full px-3 py-1 font-semibold transition ${
+                facilityKey === f.key
+                  ? "bg-rose-900 text-white shadow-xs"
+                  : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
             >
               {f.label}
             </button>
@@ -1903,7 +2444,9 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3.5 print-card avoid-break">
         <div className="flex justify-between items-center border-b pb-2.5">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-            {selectedRoomName ? `Rekap Data Pengukuran Bulanan — ${selectedRoomName}` : `Rekap Data Pengukuran Seluruh Ruangan — Fasilitas ${cfg?.label}`}
+            {selectedRoomName
+              ? `Rekap Data Pengukuran Bulanan — ${selectedRoomName}`
+              : `Rekap Data Pengukuran Seluruh Ruangan — Fasilitas ${cfg?.label}`}
           </h2>
           <span className="text-[11px] text-slate-400 font-medium">{(monthEntries || []).length} Baris Data</span>
         </div>
@@ -1942,22 +2485,44 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                         </span>
                       </td>
                       <td className="px-2 py-1.5 text-center">
-                        <span className="px-2 py-0.5 rounded-full font-semibold" style={{ background: levelStyle(e?.level?.suhu).bg, color: levelStyle(e?.level?.suhu).color }}>
+                        <span
+                          className="px-2 py-0.5 rounded-full font-semibold"
+                          style={{
+                            background: levelStyle(e?.level?.suhu).bg,
+                            color: levelStyle(e?.level?.suhu).color,
+                          }}
+                        >
                           {e.suhu ?? "-"}
                         </span>
                       </td>
                       <td className="px-2 py-1.5 text-center">
-                        <span className="px-2 py-0.5 rounded-full font-semibold" style={{ background: levelStyle(e?.level?.rh).bg, color: levelStyle(e?.level?.rh).color }}>
+                        <span
+                          className="px-2 py-0.5 rounded-full font-semibold"
+                          style={{
+                            background: levelStyle(e?.level?.rh).bg,
+                            color: levelStyle(e?.level?.rh).color,
+                          }}
+                        >
                           {e.rh ?? "-"}
                         </span>
                       </td>
                       <td className="px-2 py-1.5 text-center">
-                        <span className="px-2 py-0.5 rounded-full font-semibold" style={{ background: levelStyle(e?.level?.dpg).bg, color: levelStyle(e?.level?.dpg).color }}>
+                        <span
+                          className="px-2 py-0.5 rounded-full font-semibold"
+                          style={{
+                            background: levelStyle(e?.level?.dpg).bg,
+                            color: levelStyle(e?.level?.dpg).color,
+                          }}
+                        >
                           {e.dpg ?? "-"}
                         </span>
                       </td>
-                      <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[11px]">{e.opr || "—"}</td>
-                      <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[11px]">{e.spv || "—"}</td>
+                      <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[11px]">
+                        {e.opr || "—"}
+                      </td>
+                      <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[11px]">
+                        {e.spv || "—"}
+                      </td>
                     </tr>
                   );
                 })}
@@ -1970,7 +2535,9 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       {/* 2. CARD PERSYARATAN & LIMIT */}
       {Object.keys(distinctReportLimits).length > 0 && (
         <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3.5 print-card avoid-break">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+            Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)
+          </h3>
           <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-xs text-left">
               <thead>
@@ -1987,7 +2554,14 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                   return PARAM_DEFS.map((p) => {
                     const lim = limits?.[p.key];
                     if (!lim) return null;
-                    const allNull = [lim.syaratL, lim.syaratU, lim.alertL, lim.alertU, lim.actionL, lim.actionU].every((x) => toNumberSafe(x) === null);
+                    const allNull = [
+                      lim.syaratL,
+                      lim.syaratU,
+                      lim.alertL,
+                      lim.alertU,
+                      lim.actionL,
+                      lim.actionU,
+                    ].every((x) => toNumberSafe(x) === null);
                     if (allNull) return null;
                     const isDpg = p.key === "dpg";
 
@@ -1995,9 +2569,15 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                       <tr key={pKey + p.key}>
                         <td className="px-3.5 py-2 font-bold text-slate-800">{pKey}</td>
                         <td className="px-3.5 py-2 font-semibold text-slate-700">{p.label}</td>
-                        <td className="px-3.5 py-2 text-slate-800">{formatRange(lim.syaratL, lim.syaratU, p.unit, isDpg)}</td>
-                        <td className="px-3.5 py-2 text-amber-700">{formatRange(lim.alertL, lim.alertU, p.unit, isDpg)}</td>
-                        <td className="px-3.5 py-2 text-orange-700">{formatRange(lim.actionL, lim.actionU, p.unit, isDpg)}</td>
+                        <td className="px-3.5 py-2 text-slate-800">
+                          {formatRange(lim.syaratL, lim.syaratU, p.unit, isDpg)}
+                        </td>
+                        <td className="px-3.5 py-2 text-amber-700">
+                          {formatRange(lim.alertL, lim.alertU, p.unit, isDpg)}
+                        </td>
+                        <td className="px-3.5 py-2 text-orange-700">
+                          {formatRange(lim.actionL, lim.actionU, p.unit, isDpg)}
+                        </td>
                       </tr>
                     );
                   });
@@ -2006,17 +2586,27 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             </table>
           </div>
           <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-500">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"/> Terkendali</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"/> Alert</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-500"/> Action</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500"/> Melebihi Syarat</span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Terkendali
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Alert
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-500" /> Action
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Melebihi Syarat
+            </span>
           </div>
         </div>
       )}
 
       {/* 3. GRAFIK TREN BULANAN */}
       <div className="space-y-4">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Grafik Tren Pengukuran Periode {monthLabelID(month)}</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          Grafik Tren Pengukuran Periode {monthLabelID(month)}
+        </h2>
         <div className="space-y-4">
           {PARAM_DEFS.map((p) => {
             const rObj = selectedRoomName ? (rooms || []).find((r) => r?.name === selectedRoomName) : null;
@@ -2039,15 +2629,23 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
         <div className="flex items-center justify-between border-b pb-3.5">
           <h2 className="text-sm font-bold text-slate-800">
-            {selectedRoomName ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}` : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
+            {selectedRoomName
+              ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}`
+              : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
           </h2>
           {canDraftQA && !isFinal && (
             <div className="flex items-center gap-2 no-print">
-              <button onClick={handleGenerateAI} disabled={generating}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-900 hover:bg-rose-950 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-60 transition">
+              <button
+                onClick={handleGenerateAI}
+                disabled={generating}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-900 hover:bg-rose-950 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-60 transition"
+              >
                 {generating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} Generate AI
               </button>
-              <button onClick={handleSave} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white transition">
+              <button
+                onClick={handleSave}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white transition"
+              >
                 <Save size={13} /> Simpan Draf
               </button>
             </div>
@@ -2055,39 +2653,75 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
 
         <div>
-          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Pendahuluan</label>
+          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+            Pendahuluan
+          </label>
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Pendahuluan</p>
-          <textarea value={pendahuluan} onChange={(e) => setPendahuluan(e.target.value)} disabled={!canDraftQA || isFinal} rows={2}
-            className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
+          <textarea
+            value={pendahuluan}
+            onChange={(e) => setPendahuluan(e.target.value)}
+            disabled={!canDraftQA || isFinal}
+            rows={2}
+            className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50"
+          />
           <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
         </div>
 
         {PARAM_DEFS.map((p) => (
           <div key={p.key} className="space-y-1.5 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80">
-            <label className="block text-xs font-bold text-slate-700">Hasil, Tren &amp; Kesimpulan — {p.label} ({p.unit})</label>
-            <textarea value={perParameter[p.key] || ""} onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
-              disabled={!canDraftQA || isFinal} rows={3}
+            <label className="block text-xs font-bold text-slate-700">
+              Hasil, Tren &amp; Kesimpulan — {p.label} ({p.unit})
+            </label>
+            <textarea
+              value={perParameter[p.key] || ""}
+              onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
+              disabled={!canDraftQA || isFinal}
+              rows={3}
               placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
-              className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50" />
-            <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{perParameter[p.key] || "-"}</p>
+              className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 bg-white outline-none focus:border-rose-700 disabled:bg-slate-50"
+            />
+            <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
+              {perParameter[p.key] || "-"}
+            </p>
           </div>
         ))}
 
         <div>
-          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Kesimpulan Umum</label>
+          <label className="no-print block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+            Kesimpulan Umum
+          </label>
           <p className="only-print text-xs font-bold text-slate-700 uppercase mb-1">Kesimpulan Umum</p>
-          <textarea value={kesimpulanUmum} onChange={(e) => setKesimpulanUmum(e.target.value)} disabled={!canDraftQA || isFinal} rows={3}
-            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50" />
-          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{kesimpulanUmum || "-"}</p>
+          <textarea
+            value={kesimpulanUmum}
+            onChange={(e) => setKesimpulanUmum(e.target.value)}
+            disabled={!canDraftQA || isFinal}
+            rows={3}
+            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50"
+          />
+          <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
+            {kesimpulanUmum || "-"}
+          </p>
         </div>
 
         {/* Tanda Tangan */}
         <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
           <div className="border rounded-2xl p-5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[150px]">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Dikaji Oleh (Supervisor QA)</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Dikaji Oleh (Supervisor QA)
+            </p>
             {report?.signoff?.dinilai?.nama ? (
               <div className="space-y-1.5 my-auto">
-                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={selectedRoomName} signerRole="Dikaji Oleh" signerName={report.signoff.dinilai.nama} size={54} /></div>
+                <div className="flex justify-center">
+                  <VerifyQR
+                    type="pengkajian"
+                    facility={facilityKey}
+                    period={month}
+                    roomName={selectedRoomName}
+                    signerRole="Dikaji Oleh"
+                    signerName={report.signoff.dinilai.nama}
+                    size={54}
+                  />
+                </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
                 <p className="text-[10px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
               </div>
@@ -2095,7 +2729,10 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               <div className="my-auto space-y-2">
                 <p className="text-xs italic text-slate-400">Belum disetujui</p>
                 {canDraftQA && (
-                  <button onClick={handleDikaji} className="no-print px-4 py-1.5 bg-rose-900 hover:bg-rose-950 text-white rounded-xl text-xs font-semibold shadow-xs">
+                  <button
+                    onClick={handleDikaji}
+                    className="no-print px-4 py-1.5 bg-rose-900 hover:bg-rose-950 text-white rounded-xl text-xs font-semibold shadow-xs"
+                  >
                     Approve "Dikaji Oleh"
                   </button>
                 )}
@@ -2104,18 +2741,37 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           </div>
 
           <div className="border rounded-2xl p-5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[150px]">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Mengetahui (Manager QA)</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Mengetahui (Manager QA)
+            </p>
             {report?.signoff?.diperiksa?.nama ? (
               <div className="space-y-1.5 my-auto">
-                <div className="flex justify-center"><VerifyQR type="pengkajian" facility={facilityKey} period={month} roomName={selectedRoomName} signerRole="Mengetahui" signerName={report.signoff.diperiksa.nama} size={54} /></div>
+                <div className="flex justify-center">
+                  <VerifyQR
+                    type="pengkajian"
+                    facility={facilityKey}
+                    period={month}
+                    roomName={selectedRoomName}
+                    signerRole="Mengetahui"
+                    signerName={report.signoff.diperiksa.nama}
+                    size={54}
+                  />
+                </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
                 <p className="text-[10px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
               </div>
             ) : (
               <div className="my-auto space-y-2">
-                <p className="text-xs italic text-slate-400">{report?.signoff?.dinilai?.nama ? "Menunggu approval Manager QA" : "Menunggu approval 'Dikaji Oleh' terlebih dahulu"}</p>
+                <p className="text-xs italic text-slate-400">
+                  {report?.signoff?.dinilai?.nama
+                    ? "Menunggu approval Manager QA"
+                    : "Menunggu approval 'Dikaji Oleh' terlebih dahulu"}
+                </p>
                 {canFinalQA && report?.signoff?.dinilai?.nama && (
-                  <button onClick={handleMengetahui} className="no-print px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold shadow-xs">
+                  <button
+                    onClick={handleMengetahui}
+                    className="no-print px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold shadow-xs"
+                  >
                     Approve Final "Mengetahui"
                   </button>
                 )}
@@ -2128,7 +2784,9 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
   );
 }
 
-/* ========================================================================= FORMULIR BULANAN CETAK (FM.QA.024/R11) ========================================================================= */
+/* =========================================================================
+   FORMULIR BULANAN CETAK (FM.QA.024/R11)
+   ========================================================================= */
 function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
   const [rooms, setRooms] = useState([]);
@@ -2147,11 +2805,11 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
         fetchEntries(facilityKey, bulan),
         fetchFormulirBulanan(facilityKey, bulan, selectedRoom, session?.token),
       ]);
-      const roomList = Array.isArray(master) ? master : (master?.rooms || []);
+      const roomList = Array.isArray(master) ? master : master?.rooms || [];
       setRooms(roomList);
       const targetRoom = selectedRoom || roomList[0]?.name || "";
       setSelectedRoom(targetRoom);
-      const list = Array.isArray(entriesRes) ? entriesRes : (entriesRes?.entries || []);
+      const list = Array.isArray(entriesRes) ? entriesRes : entriesRes?.entries || [];
       setEntries(list.filter((e) => String(e?.roomName || "").trim() === String(targetRoom).trim()));
       setFormulir(formulirRes);
     } catch {
@@ -2159,11 +2817,15 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
     }
   }, [facilityKey, bulan, selectedRoom, session?.token]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const n = daysInMonth(bulan);
   const byDay = {};
-  (entries || []).forEach((e) => { byDay[e.tanggal + "|" + e.jam] = e; });
+  (entries || []).forEach((e) => {
+    byDay[e.tanggal + "|" + e.jam] = e;
+  });
   const roomObj = (rooms || []).find((r) => r?.name === selectedRoom) || rooms[0];
 
   return (
@@ -2176,16 +2838,29 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
           <ArrowLeft size={14} className="text-rose-900" /> Kembali ke {cfg?.label}
         </button>
         <div className="flex items-center gap-2">
-          <select value={selectedRoom} onChange={(e) => setSelectedRoom(e.target.value)} className="border rounded-xl px-3 py-1.5 text-xs text-slate-700 font-semibold outline-none bg-white">
-            {(rooms || []).map((r) => <option key={r.code} value={r.name}>{r.name} ({r.code})</option>)}
+          <select
+            value={selectedRoom}
+            onChange={(e) => setSelectedRoom(e.target.value)}
+            className="border rounded-xl px-3 py-1.5 text-xs text-slate-700 font-semibold outline-none bg-white"
+          >
+            {(rooms || []).map((r) => (
+              <option key={r.code} value={r.name}>
+                {r.name} ({r.code})
+              </option>
+            ))}
           </select>
           {hasAccess(session, "Supervisor", "QA") && (
-            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: selectedRoom })}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 hover:bg-rose-100/80 border border-rose-200/80 text-rose-950 px-3.5 py-2 text-xs font-bold transition shadow-2xs">
+            <button
+              onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: selectedRoom })}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 hover:bg-rose-100/80 border border-rose-200/80 text-rose-950 px-3.5 py-2 text-xs font-bold transition shadow-2xs"
+            >
               <ClipboardList size={14} className="text-rose-800" /> Pengkajian Ruangan Ini
             </button>
           )}
-          <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-black text-white px-3.5 py-2 text-xs font-semibold transition shadow-xs">
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-black text-white px-3.5 py-2 text-xs font-semibold transition shadow-xs"
+          >
             <Printer size={14} className="text-slate-300" /> Cetak
           </button>
         </div>
@@ -2201,18 +2876,29 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
             </div>
           </div>
           <div className="flex-1 text-center">
-            <p className="text-sm font-bold uppercase tracking-wide text-slate-800">Check List Pemantauan Suhu, Kelembaban dan Perbedaan Tekanan</p>
+            <p className="text-sm font-bold uppercase tracking-wide text-slate-800">
+              Check List Pemantauan Suhu, Kelembaban dan Perbedaan Tekanan
+            </p>
           </div>
           <div className="whitespace-nowrap text-right text-[11px] text-slate-600">
-            <p>No. : <span className="font-semibold">FM.QA.024/R11</span></p>
+            <p>
+              No. : <span className="font-semibold">FM.QA.024/R11</span>
+            </p>
           </div>
         </div>
 
         <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="space-y-1">
-            <p><span className="font-semibold text-slate-600">Bulan - Tahun</span> : {monthLabelID(bulan)}</p>
-            <p><span className="font-semibold text-slate-600">Gedung</span> : {cfg?.label}</p>
-            <p><span className="font-semibold text-slate-600">Nama Ruang / No. Ruang</span> : {roomObj?.name} ({roomObj?.code})</p>
+            <p>
+              <span className="font-semibold text-slate-600">Bulan - Tahun</span> : {monthLabelID(bulan)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-600">Gedung</span> : {cfg?.label}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-600">Nama Ruang / No. Ruang</span> : {roomObj?.name} (
+              {roomObj?.code})
+            </p>
           </div>
         </div>
 
@@ -2220,13 +2906,32 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
           <table className="w-full border-collapse text-[10px]">
             <thead>
               <tr>
-                <th rowSpan={2} className="border border-slate-400 bg-slate-100 px-1 py-1">Tanggal</th>
-                <th colSpan={5} className="border border-slate-400 bg-slate-100 px-1 py-1">Jam 08.00</th>
-                <th colSpan={5} className="border border-slate-400 bg-slate-100 px-1 py-1">Jam 13.00</th>
+                <th rowSpan={2} className="border border-slate-400 bg-slate-100 px-1 py-1">
+                  Tanggal
+                </th>
+                <th colSpan={5} className="border border-slate-400 bg-slate-100 px-1 py-1">
+                  Jam 08.00
+                </th>
+                <th colSpan={5} className="border border-slate-400 bg-slate-100 px-1 py-1">
+                  Jam 13.00
+                </th>
               </tr>
               <tr>
-                {["Suhu (°C)", "RH (%)", "DPG (Pa)", "OPR", "SPV", "Suhu (°C)", "RH (%)", "DPG (Pa)", "OPR", "SPV"].map((h, i) => (
-                  <th key={i} className="border border-slate-400 bg-slate-50 px-1 py-1 font-normal">{h}</th>
+                {[
+                  "Suhu (°C)",
+                  "RH (%)",
+                  "DPG (Pa)",
+                  "OPR",
+                  "SPV",
+                  "Suhu (°C)",
+                  "RH (%)",
+                  "DPG (Pa)",
+                  "OPR",
+                  "SPV",
+                ].map((h, i) => (
+                  <th key={i} className="border border-slate-400 bg-slate-50 px-1 py-1 font-normal">
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -2239,11 +2944,21 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
                   <tr key={d}>
                     <td className="border border-slate-300 px-1 py-0.5 text-center font-medium">{d}</td>
                     {[am, pm].flatMap((e, idx) => [
-                      <td key={idx + "s"} className="border border-slate-300 px-1 py-0.5 text-center">{e?.suhu ?? ""}</td>,
-                      <td key={idx + "r"} className="border border-slate-300 px-1 py-0.5 text-center">{e?.rh ?? ""}</td>,
-                      <td key={idx + "d"} className="border border-slate-300 px-1 py-0.5 text-center">{e?.dpg ?? ""}</td>,
-                      <td key={idx + "o"} className="border border-slate-300 px-1 py-0.5 text-center">{e?.opr || ""}</td>,
-                      <td key={idx + "p"} className="border border-slate-300 px-1 py-0.5 text-center">{e?.spv || ""}</td>,
+                      <td key={idx + "s"} className="border border-slate-300 px-1 py-0.5 text-center">
+                        {e?.suhu ?? ""}
+                      </td>,
+                      <td key={idx + "r"} className="border border-slate-300 px-1 py-0.5 text-center">
+                        {e?.rh ?? ""}
+                      </td>,
+                      <td key={idx + "d"} className="border border-slate-300 px-1 py-0.5 text-center">
+                        {e?.dpg ?? ""}
+                      </td>,
+                      <td key={idx + "o"} className="border border-slate-300 px-1 py-0.5 text-center">
+                        {e?.opr || ""}
+                      </td>,
+                      <td key={idx + "p"} className="border border-slate-300 px-1 py-0.5 text-center">
+                        {e?.spv || ""}
+                      </td>,
                     ])}
                   </tr>
                 );
@@ -2257,25 +2972,71 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
             <p className="mb-2 text-[11px] text-slate-500">(Kepala Bagian)</p>
             {formulir?.kepalaBagian?.nama ? (
               <>
-                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={selectedRoom} signerRole="Kepala Bagian" signerName={formulir.kepalaBagian.nama} size={50} /></div>
+                <div className="mb-1 flex justify-center">
+                  <VerifyQR
+                    type="formulir"
+                    facility={facilityKey}
+                    period={bulan}
+                    roomName={selectedRoom}
+                    signerRole="Kepala Bagian"
+                    signerName={formulir.kepalaBagian.nama}
+                    size={50}
+                  />
+                </div>
                 <p className="text-xs font-semibold text-slate-800">{formulir.kepalaBagian.nama}</p>
                 <p className="text-[10px] text-slate-400">{formulir.kepalaBagian.tanggal}</p>
               </>
             ) : canKepalaBagian ? (
-              <button onClick={async () => { setBusy(true); await apiApproveKepalaBagian(facilityKey, bulan, selectedRoom, session?.token); await load(); setBusy(false); }} disabled={busy} className="no-print bg-emerald-600 px-3 py-1.5 text-white rounded-xl text-xs font-semibold shadow-xs">Approve (Kepala Bagian)</button>
-            ) : <p className="italic text-slate-400">Belum di-ACC</p>}
+              <button
+                onClick={async () => {
+                  setBusy(true);
+                  await apiApproveKepalaBagian(facilityKey, bulan, selectedRoom, session?.token);
+                  await load();
+                  setBusy(false);
+                }}
+                disabled={busy}
+                className="no-print bg-emerald-600 px-3 py-1.5 text-white rounded-xl text-xs font-semibold shadow-xs"
+              >
+                Approve (Kepala Bagian)
+              </button>
+            ) : (
+              <p className="italic text-slate-400">Belum di-ACC</p>
+            )}
           </div>
           <div>
             <p className="mb-2 text-[11px] text-slate-500">(Manager QA)</p>
             {formulir?.managerQA?.nama ? (
               <>
-                <div className="mb-1 flex justify-center"><VerifyQR type="formulir" facility={facilityKey} period={bulan} roomName={selectedRoom} signerRole="Manager QA" signerName={formulir.managerQA.nama} size={50} /></div>
+                <div className="mb-1 flex justify-center">
+                  <VerifyQR
+                    type="formulir"
+                    facility={facilityKey}
+                    period={bulan}
+                    roomName={selectedRoom}
+                    signerRole="Manager QA"
+                    signerName={formulir.managerQA.nama}
+                    size={50}
+                  />
+                </div>
                 <p className="text-xs font-semibold text-slate-800">{formulir.managerQA.nama}</p>
                 <p className="text-[10px] text-slate-400">{formulir.managerQA.tanggal}</p>
               </>
             ) : canManagerQA ? (
-              <button onClick={async () => { setBusy(true); await apiApproveManagerQAFormulir(facilityKey, bulan, session?.token); await load(); setBusy(false); }} disabled={busy} className="no-print bg-rose-900 px-3 py-1.5 text-white rounded-xl text-xs font-semibold shadow-xs">Approve (Manager QA)</button>
-            ) : <p className="italic text-slate-400">Belum di-ACC</p>}
+              <button
+                onClick={async () => {
+                  setBusy(true);
+                  await apiApproveManagerQAFormulir(facilityKey, bulan, session?.token);
+                  await load();
+                  setBusy(false);
+                }}
+                disabled={busy}
+                className="no-print bg-rose-900 px-3 py-1.5 text-white rounded-xl text-xs font-semibold shadow-xs"
+              >
+                Approve (Manager QA)
+              </button>
+            ) : (
+              <p className="italic text-slate-400">Belum di-ACC</p>
+            )}
           </div>
         </div>
       </div>
@@ -2283,7 +3044,9 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
   );
 }
 
-/* ========================================================================= RIWAYAT AKTIVITAS PAGE ========================================================================= */
+/* =========================================================================
+   RIWAYAT AKTIVITAS & AUDIT TRAIL + DOWNLOAD CSV
+   ========================================================================= */
 function ActivityPage({ session, month, setView }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2291,23 +3054,62 @@ function ActivityPage({ session, month, setView }) {
   const [allMonths, setAllMonths] = useState(true);
   const [filterFacility, setFilterFacility] = useState("");
 
+  const canDownloadQA = session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator";
+
   const loadLogs = useCallback(() => {
     setLoading(true);
-    fetchActivityLog(session?.token, { month: allMonths ? undefined : selectedMonth, facility: filterFacility || undefined })
+    fetchActivityLog(session?.token, {
+      month: allMonths ? undefined : selectedMonth,
+      facility: filterFacility || undefined,
+    })
       .then((data) => {
-        const logList = Array.isArray(data) ? data : (data?.logs || []);
+        const logList = Array.isArray(data) ? data : data?.logs || [];
         setLogs(logList);
       })
       .catch(() => setLogs([]))
       .finally(() => setLoading(false));
   }, [session?.token, allMonths, selectedMonth, filterFacility]);
 
-  useEffect(() => { loadLogs(); }, [loadLogs]);
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
+
+  const handleDownloadCSV = () => {
+    if (!logs || logs.length === 0) return;
+    const headers = ["Waktu", "Username", "Nama", "Role", "Departemen", "Aksi", "Fasilitas", "Bulan", "Detail"];
+    const rows = logs.map((l) => [
+      `"${new Date(l.waktu).toLocaleString("id-ID")}"`,
+      `"${l.username || ""}"`,
+      `"${l.nama || ""}"`,
+      `"${l.role || ""}"`,
+      `"${l.departemen || ""}"`,
+      `"${l.aksi || ""}"`,
+      `"${l.fasilitas || ""}"`,
+      `"${l.bulan || ""}"`,
+      `"${(l.detail || "").replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent =
+      "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `Audit_Log_EMNV_${allMonths ? "Semua_Periode" : selectedMonth}_${new Date().toISOString().slice(0, 10)}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <button onClick={() => setView({ page: "dashboard" })} className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition">
+        <button
+          onClick={() => setView({ page: "dashboard" })}
+          className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition"
+        >
           <ChevronLeft size={16} /> Kembali ke Dashboard
         </button>
         <button onClick={loadLogs} className="text-xs text-rose-800 hover:underline font-bold">
@@ -2323,24 +3125,54 @@ function ActivityPage({ session, month, setView }) {
 
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
-            <input type="checkbox" checked={allMonths} onChange={(e) => setAllMonths(e.target.checked)} className="rounded" />
+            <input
+              type="checkbox"
+              checked={allMonths}
+              onChange={(e) => setAllMonths(e.target.checked)}
+              className="rounded"
+            />
             Semua Periode
           </label>
 
           {!allMonths && (
-            <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
-              className="border rounded-xl px-3 py-1.5 text-xs text-slate-700 outline-none bg-slate-50" />
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="border rounded-xl px-3 py-1.5 text-xs text-slate-700 outline-none bg-slate-50"
+            />
           )}
 
-          <select value={filterFacility} onChange={(e) => setFilterFacility(e.target.value)} className="border rounded-xl px-3 py-1.5 text-xs text-slate-700 outline-none font-semibold bg-slate-50">
+          <select
+            value={filterFacility}
+            onChange={(e) => setFilterFacility(e.target.value)}
+            className="border rounded-xl px-3 py-1.5 text-xs text-slate-700 outline-none font-semibold bg-slate-50"
+          >
             <option value="">Semua Fasilitas</option>
-            {FACILITIES.map((f) => <option key={f.key} value={f.label}>{f.label}</option>)}
+            {FACILITIES.map((f) => (
+              <option key={f.key} value={f.label}>
+                {f.label}
+              </option>
+            ))}
           </select>
+
+          {canDownloadQA && (
+            <button
+              onClick={handleDownloadCSV}
+              disabled={logs.length === 0}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 text-xs font-semibold shadow-xs transition disabled:opacity-50"
+            >
+              <Download size={13} />
+              <span>Download Log (CSV)</span>
+            </button>
+          )}
         </div>
       </div>
 
       {loading ? (
-        <div className="flex justify-center p-12 text-slate-400"><Loader2 size={24} className="animate-spin" /></div>
+        <div className="flex justify-center p-12 text-slate-400">
+          <Loader2 size={24} className="animate-spin" />
+        </div>
       ) : (logs || []).length === 0 ? (
         <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400 text-xs">
           Belum ada riwayat aktivitas yang tercatat.
@@ -2352,13 +3184,24 @@ function ActivityPage({ session, month, setView }) {
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-bold text-slate-800">{l.nama}</span>
-                  <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">{l.role}{l.departemen ? ` · ${l.departemen}` : ""}</span>
-                  <span className="font-semibold text-rose-900 bg-rose-50 px-2.5 py-0.5 rounded-full text-[11px] border border-rose-200/60">{l.aksi}</span>
-                  {l.fasilitas && <span className="text-[11px] font-bold text-slate-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">{l.fasilitas}</span>}
+                  <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
+                    {l.role}
+                    {l.departemen ? ` · ${l.departemen}` : ""}
+                  </span>
+                  <span className="font-semibold text-rose-900 bg-rose-50 px-2.5 py-0.5 rounded-full text-[11px] border border-rose-200/60">
+                    {l.aksi}
+                  </span>
+                  {l.fasilitas && (
+                    <span className="text-[11px] font-bold text-slate-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                      {l.fasilitas}
+                    </span>
+                  )}
                 </div>
                 {l.detail && <p className="text-slate-500 text-[11px]">{l.detail}</p>}
               </div>
-              <span className="text-slate-400 text-[10px] whitespace-nowrap">{new Date(l.waktu).toLocaleString("id-ID")}</span>
+              <span className="text-slate-400 text-[10px] whitespace-nowrap">
+                {new Date(l.waktu).toLocaleString("id-ID")}
+              </span>
             </div>
           ))}
         </div>
@@ -2367,7 +3210,9 @@ function ActivityPage({ session, month, setView }) {
   );
 }
 
-/* ========================================================================= VERIFIKASI QR PAGE ========================================================================= */
+/* =========================================================================
+   HALAMAN VERIFIKASI QR DOKUMEN PUBLIK (/verify)
+   ========================================================================= */
 function VerifyPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const type = params.get("type");
@@ -2376,7 +3221,12 @@ function VerifyPage() {
   const jam = params.get("jam") || "";
   const role = params.get("role") || "";
   const nameOverride = params.get("name") || "";
-  const period = type === "pengkajian" ? params.get("month") : type === "formulir" ? params.get("bulan") : params.get("tanggal");
+  const period =
+    type === "pengkajian"
+      ? params.get("month")
+      : type === "formulir"
+      ? params.get("bulan")
+      : params.get("tanggal");
   const facility = FACILITIES.find((f) => f.key === facilityKey);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2385,19 +3235,20 @@ function VerifyPage() {
     fetchVerify(type, facilityKey, period, roomName).then(setData).finally(() => setLoading(false));
   }, [type, facilityKey, period, roomName]);
 
-  const docTitle = type === "pengkajian"
-    ? `Pengkajian Trend Data EM Non Viable (POS.QA.025)${roomName ? ` — Ruangan: ${roomName}` : " (Global)"}`
-    : type === "formulir"
-    ? `Formulir Pemantauan Bulanan (FM.QA.024/R11)${roomName ? ` — ${roomName}` : ""}`
-    : `Data Pemantauan Harian (FM.QA.024/R11)${roomName ? ` — ${roomName}` : ""}${jam ? ` (${jam})` : ""}`;
+  const docTitle =
+    type === "pengkajian"
+      ? `Pengkajian Trend Data EM Non Viable (POS.QA.025)${roomName ? ` — Ruangan: ${roomName}` : " (Global)"}`
+      : type === "formulir"
+      ? `Formulir Pemantauan Bulanan (FM.QA.024/R11)${roomName ? ` — ${roomName}` : ""}`
+      : `Data Pemantauan Harian (FM.QA.024/R11)${roomName ? ` — ${roomName}` : ""}${jam ? ` (${jam})` : ""}`;
 
-  const signerDisplay = nameOverride || (
-    role === "OPR"
-      ? (data?.approvedBy?.opr || "Operator Terdaftar")
-      : (data?.approvedBy?.nama || data?.approvedBy?.spv || "Supervisor / Manager")
-  );
+  const signerDisplay =
+    nameOverride ||
+    (role === "OPR"
+      ? data?.approvedBy?.opr || "Operator Terdaftar"
+      : data?.approvedBy?.nama || data?.approvedBy?.spv || "Supervisor / Manager");
 
-  const roleLabel = role === "OPR" ? "Diinput & Disetujui Oleh (OPR)" : (role || "Disetujui Oleh");
+  const roleLabel = role === "OPR" ? "Diinput & Disetujui Oleh (OPR)" : role || "Disetujui Oleh";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
@@ -2415,14 +3266,31 @@ function VerifyPage() {
           <h2 className="text-sm font-bold text-emerald-800">Dokumen Sah &amp; Terverifikasi</h2>
 
           {loading ? (
-            <div className="flex justify-center p-4"><Loader2 size={18} className="animate-spin text-slate-400" /></div>
+            <div className="flex justify-center p-4">
+              <Loader2 size={18} className="animate-spin text-slate-400" />
+            </div>
           ) : (
             <div className="bg-slate-50 rounded-2xl p-4 text-left text-xs space-y-2 border border-slate-100">
-              <p><span className="text-slate-400">Dokumen:</span> <span className="font-semibold text-slate-800">{docTitle}</span></p>
-              <p><span className="text-slate-400">Fasilitas:</span> <span className="font-semibold text-slate-800">{facility?.label || facilityKey}</span></p>
-              <p><span className="text-slate-400">Periode / Tanggal:</span> <span className="font-semibold text-slate-800">{period}</span></p>
-              <p><span className="text-slate-400">{roleLabel}:</span> <span className="font-bold text-slate-900">{signerDisplay}</span></p>
-              <p><span className="text-slate-400">Status:</span> <span className="font-semibold text-emerald-700">Terverifikasi Digital</span></p>
+              <p>
+                <span className="text-slate-400">Dokumen:</span>{" "}
+                <span className="font-semibold text-slate-800">{docTitle}</span>
+              </p>
+              <p>
+                <span className="text-slate-400">Fasilitas:</span>{" "}
+                <span className="font-semibold text-slate-800">{facility?.label || facilityKey}</span>
+              </p>
+              <p>
+                <span className="text-slate-400">Periode / Tanggal:</span>{" "}
+                <span className="font-semibold text-slate-800">{period}</span>
+              </p>
+              <p>
+                <span className="text-slate-400">{roleLabel}:</span>{" "}
+                <span className="font-bold text-slate-900">{signerDisplay}</span>
+              </p>
+              <p>
+                <span className="text-slate-400">Status:</span>{" "}
+                <span className="font-semibold text-emerald-700">Terverifikasi Digital</span>
+              </p>
             </div>
           )}
         </div>
@@ -2435,7 +3303,9 @@ function VerifyPage() {
   );
 }
 
-/* ========================================================================= ROOT APP CONTENT ========================================================================= */
+/* =========================================================================
+   ROOT APP CONTENT
+   ========================================================================= */
 function AppContent() {
   const { session, checking, login, logout } = useAuth();
   const [view, setView] = useState({ page: "dashboard" });
@@ -2449,9 +3319,13 @@ function AppContent() {
   useEffect(() => {
     let cancelled = false;
     fetchStatusIndex(month)
-      .then((d) => { if (!cancelled) setStatus(d?.status || d || {}); })
+      .then((d) => {
+        if (!cancelled) setStatus(d?.status || d || {});
+      })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [month]);
 
   const handleLogout = useCallback(() => {
@@ -2468,7 +3342,13 @@ function AppContent() {
     }
   }, [session, view.page]);
 
-  if (checking) return <div className="min-h-screen flex items-center justify-center text-slate-500 font-sans"><Loader2 className="w-6 h-6 animate-spin" /></div>;
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-slate-500 font-sans">
+        <Loader2 className="w-6 h-6 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex font-sans">
@@ -2497,6 +3377,8 @@ function AppContent() {
         setView={setView}
         status={status}
         onNeedLogin={() => setShowLogin(true)}
+        onLogout={handleLogout}
+        onProfileClick={() => setShowProfile(true)}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -2551,11 +3433,7 @@ function AppContent() {
             />
           )}
           {view.page === "activity" && session && (
-            <ActivityPage
-              session={session}
-              month={month}
-              setView={setView}
-            />
+            <ActivityPage session={session} month={month} setView={setView} />
           )}
         </main>
       </div>
@@ -2573,16 +3451,15 @@ function AppContent() {
         />
       )}
       {showChangePassword && session && (
-        <ChangePasswordModal
-          session={session}
-          onClose={() => setShowChangePassword(false)}
-        />
+        <ChangePasswordModal session={session} onClose={() => setShowChangePassword(false)} />
       )}
     </div>
   );
 }
 
-/* ========================================================================= ROOT EXPORT ========================================================================= */
+/* =========================================================================
+   ROOT EXPORT WITH ERROR BOUNDARY
+   ========================================================================= */
 export default function App() {
   if (typeof window !== "undefined" && window.location.pathname === "/verify") {
     return <VerifyPage />;
