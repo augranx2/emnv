@@ -1203,7 +1203,7 @@ function LoginModal({ onClose, onLogin }) {
 }
 
 /* =========================================================================
-   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + FIX ISOLASI STATE)
+   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + FIX ANTI-HILANG)
    ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -1236,6 +1236,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const [perParameter, setPerParameter] = useState({ suhu: "", rh: "", dpg: "" });
   const [generating, setGenerating] = useState(false);
 
+  // Memori cache lokal berbasis state agar perpindahan antar-fasilitas berjalan cepat dan persisten
+  const [narrativeMemory, setNarrativeMemory] = useState({});
+
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 3500);
@@ -1247,25 +1250,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     target.style.height = `${target.scrollHeight}px`;
   };
 
-  // Bersihkan form seketika saat user mengklik menu fasilitas lain di sidebar
-  useEffect(() => {
-    setPendahuluan("");
-    setKesimpulanUmum("");
-    setPerParameter({ suhu: "", rh: "", dpg: "" });
-    setReport(null);
-    setLastSavedTime("");
-  }, [facilityKey]);
+  const currentMemKey = `${facilityKey}_${selectedDate}`;
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
-
-    // Reset state form seketika saat berpindah fasilitas / tanggal agar teks lama tidak menempel
-    setPendahuluan("");
-    setKesimpulanUmum("");
-    setPerParameter({ suhu: "", rh: "", dpg: "" });
-    setReport(null);
-    setLastSavedTime("");
 
     try {
       const [roomRes, entryRes] = await Promise.all([
@@ -1278,21 +1267,33 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       setRooms(roomList);
       setMonthEntries(entryList);
 
-      // Ambil laporan khusus fasilitas dan tanggal aktif
-      const reportRes = await fetchReport(facilityKey, month, session?.token, selectedDate).catch(() => null);
+      // 1. Ambil data dari backend (roomName = "" karena laporan harian mencakup seluruh fasilitas)
+      let reportRes = await fetchReport(facilityKey, month, session?.token, "").catch(() => null);
 
       if (reportRes?.narrative?.pendahuluan || reportRes?.narrative?.kesimpulanUmum) {
         setReport(reportRes);
         setPendahuluan(reportRes.narrative.pendahuluan || "");
         setKesimpulanUmum(reportRes.narrative.kesimpulanUmum || "");
         setPerParameter(reportRes.narrative.perParameter || { suhu: "", rh: "", dpg: "" });
+      } else if (narrativeMemory[currentMemKey]) {
+        // 2. Ambil dari memory state jika backend belum selesai sinkronisasi
+        const mem = narrativeMemory[currentMemKey];
+        setPendahuluan(mem.pendahuluan || "");
+        setKesimpulanUmum(mem.kesimpulanUmum || "");
+        setPerParameter(mem.perParameter || { suhu: "", rh: "", dpg: "" });
+      } else {
+        // 3. Bersihkan form jika fasilitas/tanggal ini memang belum memiliki data
+        setReport(null);
+        setPendahuluan("");
+        setKesimpulanUmum("");
+        setPerParameter({ suhu: "", rh: "", dpg: "" });
       }
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [facilityKey, month, selectedDate, session?.token]);
+  }, [facilityKey, month, session?.token, currentMemKey, narrativeMemory]);
 
   useEffect(() => {
     loadData();
@@ -1483,20 +1484,25 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  /* Simpan Report Harian Secara Terisolasi ke Backend */
   async function handleSaveReport() {
     setError("");
     setSaving(true);
     try {
       const payload = { pendahuluan, kesimpulanUmum, perParameter };
 
-      // Kirim ke backend dengan key month dan identifier selectedDate
+      // Simpan di memory state lokal
+      setNarrativeMemory((prev) => ({
+        ...prev,
+        [currentMemKey]: payload,
+      }));
+
+      // Kirim ke backend (roomName = "" agar cocok dengan kolom spreadsheet)
       await apiSaveReport(
         facilityKey,
         month,
         payload,
         session?.token,
-        selectedDate
+        ""
       );
 
       const now = new Date();
@@ -1510,7 +1516,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  /* Generate AI Harian */
   async function handleGenerateAI() {
     setGenerating(true);
     setError("");
@@ -1551,9 +1556,24 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       }
 
       if (narrative) {
-        setPendahuluan(narrative.pendahuluan || "");
-        setPerParameter(narrative.perParameter || { suhu: "", rh: "", dpg: "" });
-        setKesimpulanUmum(narrative.kesimpulanUmum || "");
+        const nextPendahuluan = narrative.pendahuluan || "";
+        const nextPerParam = narrative.perParameter || { suhu: "", rh: "", dpg: "" };
+        const nextKesimpulan = narrative.kesimpulanUmum || "";
+
+        setPendahuluan(nextPendahuluan);
+        setPerParameter(nextPerParam);
+        setKesimpulanUmum(nextKesimpulan);
+
+        // Catat ke memory state
+        setNarrativeMemory((prev) => ({
+          ...prev,
+          [currentMemKey]: {
+            pendahuluan: nextPendahuluan,
+            perParameter: nextPerParam,
+            kesimpulanUmum: nextKesimpulan,
+          },
+        }));
+
         showToast("Draf narasi harian berhasil dibuat!");
       }
     } catch (err) {
@@ -1566,7 +1586,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   async function handleDikaji() {
     try {
-      await apiApproveDikaji(facilityKey, month, session?.token, selectedDate);
+      await apiApproveDikaji(facilityKey, month, session?.token, "");
       await loadData();
       showToast("Status 'Dikaji Oleh' berhasil disetujui!");
     } catch (err) {
@@ -1576,7 +1596,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   async function handleMengetahui() {
     try {
-      await apiApproveMengetahui(facilityKey, month, session?.token, selectedDate);
+      await apiApproveMengetahui(facilityKey, month, session?.token, "");
       await loadData();
       showToast("Status 'Mengetahui' Final berhasil disetujui!");
     } catch (err) {
@@ -2213,7 +2233,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                     type="pengkajian"
                     facility={facilityKey}
                     period={month}
-                    roomName={selectedDate}
+                    roomName=""
                     signerRole="Dikaji Oleh"
                     signerName={report.signoff.dinilai.nama}
                     size={54}
@@ -2248,7 +2268,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                     type="pengkajian"
                     facility={facilityKey}
                     period={month}
-                    roomName={selectedDate}
+                    roomName=""
                     signerRole="Mengetahui"
                     signerName={report.signoff.diperiksa.nama}
                     size={54}
