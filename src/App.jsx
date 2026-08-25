@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, Component, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, Component } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ComposedChart,
@@ -308,7 +308,7 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
       href={url}
       target="_blank"
       rel="noreferrer"
-      title="Verifikasi Keabsahan TTD Digital"
+      title="Verifikasi Tanda Tangan Digital"
       className="inline-flex flex-col items-center gap-0.5 hover:opacity-80 transition transform hover:scale-105"
     >
       <QRCodeSVG
@@ -731,7 +731,7 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
           </div>
         </div>
 
-        {/* Status SOP POS.QA.025 & Online Sync Footer */}
+        {/* Status SOP POS.QA.025 & Online Sync Footer (Clean & Modern) */}
         <div className="px-4 py-3 border-t border-zinc-800/80 bg-black/70 text-[10px] text-zinc-400 flex justify-between items-center select-none">
           <span className="font-mono text-zinc-400">SOP POS.QA.025</span>
           <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
@@ -1203,7 +1203,7 @@ function LoginModal({ onClose, onLogin }) {
 }
 
 /* =========================================================================
-   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK)
+   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + PEMISAHAN NARASI HARIAN)
    ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -1225,6 +1225,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const [saving, setSaving] = useState(false);
   const [busyRow, setBusyRow] = useState(null);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
+  const [lastSavedTime, setLastSavedTime] = useState("");
 
   const [activeRoomNames, setActiveRoomNames] = useState([]);
   const [gridValues, setGridValues] = useState({});
@@ -1234,7 +1236,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const [perParameter, setPerParameter] = useState({ suhu: "", rh: "", dpg: "" });
   const [generating, setGenerating] = useState(false);
 
-  // Helper untuk Auto-Resize Textarea agar otomatis melebar ke bawah
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3500);
+  };
+
   const handleAutoResize = (e) => {
     const target = e.target;
     target.style.height = "auto";
@@ -1245,10 +1251,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setLoading(true);
     setError("");
     try {
+      // Pemisahan narasi: Harian menggunakan tanggal unik selectedDate
       const [roomRes, entryRes, reportRes] = await Promise.all([
         fetchMaster(facilityKey),
         fetchEntries(facilityKey, month),
-        fetchReport(facilityKey, month, session?.token),
+        fetchReport(facilityKey, selectedDate, session?.token, `HARIAN_${selectedDate}`),
       ]);
       const roomList = Array.isArray(roomRes) ? roomRes : roomRes?.rooms || [];
       const entryList = Array.isArray(entryRes) ? entryRes : entryRes?.entries || [];
@@ -1264,7 +1271,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     } finally {
       setLoading(false);
     }
-  }, [facilityKey, month, session?.token]);
+  }, [facilityKey, month, selectedDate, session?.token]);
 
   useEffect(() => {
     loadData();
@@ -1370,6 +1377,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       const otherRows = (monthEntries || []).filter((e) => e?.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session?.token);
       await loadData();
+      showToast("Data pengukuran harian berhasil disimpan.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1392,6 +1400,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         await apiApproveOpr(facilityKey, selectedDate, rName, session?.token);
       }
       await loadData();
+      showToast("Approval Operator berhasil disimpan.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1411,6 +1420,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       await apiApproveDay(facilityKey, selectedDate, session?.token);
       await loadData();
+      showToast("Approval SPV berhasil, seluruh data tanggal ini terkunci.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1427,6 +1437,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session?.token);
       await apiApproveOpr(facilityKey, selectedDate, roomName, session?.token);
       await loadData();
+      showToast(`Approval Operator ruangan ${roomName} berhasil.`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1443,6 +1454,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session?.token);
       await apiApproveSpv(facilityKey, selectedDate, roomName, session?.token);
       await loadData();
+      showToast(`Approval SPV ruangan ${roomName} berhasil.`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1452,11 +1464,24 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   async function handleSaveReport() {
     setError("");
+    setSaving(true);
     try {
-      await apiSaveReport(facilityKey, month, { pendahuluan, kesimpulanUmum, perParameter }, session?.token);
+      await apiSaveReport(
+        facilityKey,
+        selectedDate,
+        { pendahuluan, kesimpulanUmum, perParameter },
+        session?.token,
+        `HARIAN_${selectedDate}`
+      );
       await loadData();
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+      setLastSavedTime(timeStr);
+      showToast(`Narasi evaluasi harian (${selectedDate}) berhasil disimpan!`);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -1464,31 +1489,33 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setGenerating(true);
     setError("");
     try {
+      const currentDayRooms = (rooms || []).filter((r) => activeRoomNames.includes(r.name));
       const facilityStats = buildFacilityStats({
-        facilityLabel: cfg.label,
-        monthLabel: monthLabelID(month),
-        entries: monthEntries,
-        rooms,
+        facilityLabel: `${cfg.label} (Harian: ${selectedDate})`,
+        monthLabel: fullDateID(selectedDate),
+        entries: currentDayEntries,
+        rooms: currentDayRooms,
       });
       let narrative;
       try {
         narrative = await generateNarrative({
-          facilityLabel: cfg.label,
-          monthLabel: monthLabelID(month),
+          facilityLabel: `${cfg.label} (Harian: ${selectedDate})`,
+          monthLabel: fullDateID(selectedDate),
           stats: facilityStats.stats,
         });
       } catch (aiErr) {
         narrative = generateLocalNarrative({
-          facilityLabel: cfg.label,
-          monthLabel: monthLabelID(month),
-          entries: monthEntries,
-          rooms,
+          facilityLabel: `${cfg.label} (Harian: ${selectedDate})`,
+          monthLabel: fullDateID(selectedDate),
+          entries: currentDayEntries,
+          rooms: currentDayRooms,
         });
-        setError("Narasi AI gagal (" + aiErr.message + ") — digunakan draf lokal.");
+        showToast("Narasi AI offline, menggunakan draf evaluator lokal.");
       }
       setPendahuluan(narrative.pendahuluan || "");
       setPerParameter(narrative.perParameter || {});
       setKesimpulanUmum(narrative.kesimpulanUmum || "");
+      showToast("Draf narasi harian berhasil di-generate!");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1498,8 +1525,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   async function handleDikaji() {
     try {
-      await apiApproveDikaji(facilityKey, month, session?.token);
+      await apiApproveDikaji(facilityKey, selectedDate, session?.token, `HARIAN_${selectedDate}`);
       await loadData();
+      showToast("Status 'Dikaji Oleh' berhasil disetujui!");
     } catch (err) {
       setError(err.message);
     }
@@ -1507,14 +1535,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   async function handleMengetahui() {
     try {
-      await apiApproveMengetahui(facilityKey, month, session?.token);
+      await apiApproveMengetahui(facilityKey, selectedDate, session?.token, `HARIAN_${selectedDate}`);
       await loadData();
+      showToast("Status 'Mengetahui' Final berhasil disetujui!");
     } catch (err) {
       setError(err.message);
     }
   }
 
-  const currentDayEntries = useMemo(() => {
+  const currentDayEntriesMemo = useMemo(() => {
     return (monthEntries || []).filter((e) => e?.tanggal === selectedDate);
   }, [monthEntries, selectedDate]);
 
@@ -1524,7 +1553,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const roomStatusToday = useMemo(() => {
     const map = {};
     (rooms || []).forEach((r) => {
-      const rows = currentDayEntries.filter((e) => e?.roomName === r?.name);
+      const rows = currentDayEntriesMemo.filter((e) => e?.roomName === r?.name);
       if (rows.length === 0) {
         map[r.name] = "empty";
       } else if (rows.every((e) => !!e.spv)) {
@@ -1536,7 +1565,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       }
     });
     return map;
-  }, [rooms, currentDayEntries]);
+  }, [rooms, currentDayEntriesMemo]);
 
   const isFacilityFullySpvApproved = useMemo(() => {
     if (!rooms || rooms.length === 0) return false;
@@ -1562,6 +1591,14 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   return (
     <div className="space-y-6">
+      {/* Toast Notification Alert */}
+      {toast && (
+        <div className="fixed top-20 right-6 z-50 flex items-center gap-2.5 bg-zinc-900/95 text-white border border-emerald-500/60 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md animate-fade-in text-xs font-semibold">
+          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          <span>{toast}</span>
+        </div>
+      )}
+
       {/* Top Action Bar */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
         <button
@@ -1717,7 +1754,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
         </div>
 
-        {/* Tabel Data */}
+        {/* Tabel Data Pengukuran */}
         {activeRoomNames.length === 0 ? (
           <div className="p-10 text-center bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs space-y-1.5">
             <p className="font-bold text-slate-700">Belum ada ruangan yang dipilih pada tanggal {selectedDate}.</p>
@@ -1996,7 +2033,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           <DayParamChart
             activeRoomNames={activeRoomNames}
             rooms={rooms}
-            currentDayEntries={currentDayEntries}
+            currentDayEntries={currentDayEntriesMemo}
             paramKey="suhu"
             paramLabel="Suhu"
             unit="°C"
@@ -2004,7 +2041,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           <DayParamChart
             activeRoomNames={activeRoomNames}
             rooms={rooms}
-            currentDayEntries={currentDayEntries}
+            currentDayEntries={currentDayEntriesMemo}
             paramKey="rh"
             paramLabel="Kelembaban Relatif (RH)"
             unit="%"
@@ -2012,7 +2049,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           <DayParamChart
             activeRoomNames={activeRoomNames}
             rooms={rooms}
-            currentDayEntries={currentDayEntries}
+            currentDayEntries={currentDayEntriesMemo}
             paramKey="dpg"
             paramLabel="Perbedaan Tekanan (DPG)"
             unit="Pa"
@@ -2020,15 +2057,24 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* SECTION 4: PEMBAHASAN & NARASI HARIAN (AUTO-RESIZE TEXTAREA) */}
+      {/* SECTION 4: PEMBAHASAN & NARASI HARIAN (AUTO-GROWING TEXTAREA + NOTIFIKASI SUKSES) */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
-        <div className="flex items-center justify-between border-b pb-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3.5">
           <div>
-            <h2 className="text-base font-bold text-slate-800">Pembahasan &amp; Narasi Evaluasi Harian</h2>
-            <p className="text-xs text-slate-400">Catatan pemantauan operasional mengacu pada Protap POS.QA.025</p>
+            <h2 className="text-base font-bold text-slate-800">
+              Pembahasan &amp; Narasi Evaluasi Harian ({selectedDate})
+            </h2>
+            <p className="text-xs text-slate-400">
+              Catatan pemantauan operasional tanggal {selectedDate} mengacu pada Protap POS.QA.025
+            </p>
           </div>
           {canDraftQA && !isFinalApproved && (
-            <div className="flex items-center gap-2 no-print">
+            <div className="flex flex-wrap items-center gap-2.5 no-print">
+              {lastSavedTime && (
+                <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200/60">
+                  ✓ Tersimpan {lastSavedTime}
+                </span>
+              )}
               <button
                 onClick={handleGenerateAI}
                 disabled={generating}
@@ -2038,9 +2084,10 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               </button>
               <button
                 onClick={handleSaveReport}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white transition"
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white transition disabled:opacity-60"
               >
-                <Save size={13} /> Simpan Draf
+                {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Simpan Draf
               </button>
             </div>
           )}
@@ -2105,7 +2152,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             disabled={!canDraftQA || isFinalApproved}
             rows={3}
             style={{ minHeight: "80px", overflow: "hidden" }}
-            className="no-print w-full border rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+            className="no-print w-full border rounded-lg p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
           />
           <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
             {kesimpulanUmum || "-"}
@@ -2124,8 +2171,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   <VerifyQR
                     type="pengkajian"
                     facility={facilityKey}
-                    period={month}
-                    roomName=""
+                    period={selectedDate}
+                    roomName={`HARIAN_${selectedDate}`}
                     signerRole="Dikaji Oleh"
                     signerName={report.signoff.dinilai.nama}
                     size={54}
@@ -2159,8 +2206,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   <VerifyQR
                     type="pengkajian"
                     facility={facilityKey}
-                    period={month}
-                    roomName=""
+                    period={selectedDate}
+                    roomName={`HARIAN_${selectedDate}`}
                     signerRole="Mengetahui"
                     signerName={report.signoff.diperiksa.nama}
                     size={54}
@@ -2194,7 +2241,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 }
 
 /* =========================================================================
-   10. HALAMAN PENGKAJIAN QA RESMI (POS.QA.025)
+   10. HALAMAN PENGKAJIAN QA RESMI (PENGKAJIAN GLOBAL & PENGKAJIAN RUANGAN)
    ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
@@ -2204,7 +2251,10 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
   const [kesimpulanUmum, setKesimpulanUmum] = useState("");
   const [perParameter, setPerParameter] = useState({});
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
+  const [lastSavedTime, setLastSavedTime] = useState("");
   const [generating, setGenerating] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [monthEntries, setMonthEntries] = useState([]);
@@ -2212,6 +2262,11 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
   const canDraftQA = hasAccess(session, "Supervisor", "QA");
   const canFinalQA = hasAccess(session, "Manager", "QA");
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3500);
+  };
 
   const handleAutoResize = (e) => {
     const target = e.target;
@@ -2256,6 +2311,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
   async function handleSave() {
     setError("");
+    setSaving(true);
     try {
       await apiSaveReport(
         facilityKey,
@@ -2265,8 +2321,18 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         selectedRoomName
       );
       await load();
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+      setLastSavedTime(timeStr);
+      showToast(
+        selectedRoomName
+          ? `Narasi Pengkajian Ruangan (${selectedRoomName}) berhasil disimpan!`
+          : `Narasi Pengkajian Global Fasilitas (${cfg?.label}) berhasil disimpan!`
+      );
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -2275,6 +2341,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
     try {
       await apiApproveDikaji(facilityKey, month, session?.token, selectedRoomName);
       await load();
+      showToast("Status 'Dikaji Oleh' berhasil disetujui!");
     } catch (err) {
       setError(err.message);
     }
@@ -2285,6 +2352,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
     try {
       await apiApproveMengetahui(facilityKey, month, session?.token, selectedRoomName);
       await load();
+      showToast("Status 'Mengetahui' Final berhasil disetujui!");
     } catch (err) {
       setError(err.message);
     }
@@ -2315,11 +2383,12 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           entries: monthEntries,
           rooms,
         });
-        setError("Narasi AI gagal (" + aiErr.message + ") — digunakan draf lokal.");
+        showToast("Narasi AI offline, menggunakan draf evaluator lokal.");
       }
       setPendahuluan(narrative.pendahuluan || "");
       setPerParameter(narrative.perParameter || {});
       setKesimpulanUmum(narrative.kesimpulanUmum || "");
+      showToast("Draf narasi pengkajian berhasil di-generate!");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -2350,6 +2419,14 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
   return (
     <div className="space-y-6">
+      {/* Toast Alert */}
+      {toast && (
+        <div className="fixed top-20 right-6 z-50 flex items-center gap-2.5 bg-zinc-900/95 text-white border border-emerald-500/60 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md animate-fade-in text-xs font-semibold">
+          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          <span>{toast}</span>
+        </div>
+      )}
+
       <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
         <button
           onClick={() => setView({ page: "facility", facility: facilityKey })}
@@ -2624,16 +2701,26 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
       </div>
 
-      {/* 4. FORM NARASI & APPROVAL QA (AUTO-RESIZE TEXTAREA) */}
+      {/* 4. FORM NARASI & APPROVAL QA (AUTO-GROWING TEXTAREA + NOTIFIKASI SUKSES) */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
-        <div className="flex items-center justify-between border-b pb-3.5">
-          <h2 className="text-sm font-bold text-slate-800">
-            {selectedRoomName
-              ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}`
-              : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
-          </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3.5">
+          <div>
+            <h2 className="text-sm font-bold text-slate-800">
+              {selectedRoomName
+                ? `Pembahasan & Narasi Pengkajian Ruangan — ${selectedRoomName}`
+                : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
+            </h2>
+            <p className="text-xs text-slate-400">
+              Evaluasi tren bulanan {selectedRoomName ? `ruangan ${selectedRoomName}` : `seluruh area ${cfg?.label}`}
+            </p>
+          </div>
           {canDraftQA && !isFinal && (
-            <div className="flex items-center gap-2 no-print">
+            <div className="flex flex-wrap items-center gap-2.5 no-print">
+              {lastSavedTime && (
+                <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200/60">
+                  ✓ Tersimpan {lastSavedTime}
+                </span>
+              )}
               <button
                 onClick={handleGenerateAI}
                 disabled={generating}
@@ -2643,9 +2730,10 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               </button>
               <button
                 onClick={handleSave}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white transition"
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white transition disabled:opacity-60"
               >
-                <Save size={13} /> Simpan Draf
+                {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Simpan Draf
               </button>
             </div>
           )}
@@ -2799,7 +2887,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 }
 
 /* =========================================================================
-   12. FORMULIR BULANAN CETAK (FM.QA.024/R11)
+   11. FORMULIR BULANAN CETAK (FM.QA.024/R11)
    ========================================================================= */
 function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -3059,7 +3147,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
 }
 
 /* =========================================================================
-   13. RIWAYAT AKTIVITAS & AUDIT TRAIL + DOWNLOAD CSV
+   12. RIWAYAT AKTIVITAS & AUDIT TRAIL + DOWNLOAD CSV
    ========================================================================= */
 function ActivityPage({ session, month, setView }) {
   const [logs, setLogs] = useState([]);
@@ -3225,7 +3313,7 @@ function ActivityPage({ session, month, setView }) {
 }
 
 /* =========================================================================
-   14. HALAMAN VERIFIKASI QR DOKUMEN PUBLIK (/verify)
+   13. HALAMAN VERIFIKASI QR DOKUMEN PUBLIK (/verify)
    ========================================================================= */
 function VerifyPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -3318,7 +3406,7 @@ function VerifyPage() {
 }
 
 /* =========================================================================
-   15. APP CONTENT CONTROLLER
+   14. APP CONTENT CONTROLLER
    ========================================================================= */
 function AppContent() {
   const { session, checking, login, logout } = useAuth();
@@ -3471,7 +3559,7 @@ function AppContent() {
 }
 
 /* =========================================================================
-   16. ROOT EXPORT
+   15. ROOT EXPORT
    ========================================================================= */
 export default function App() {
   if (typeof window !== "undefined" && window.location.pathname === "/verify") {
