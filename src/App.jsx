@@ -1203,7 +1203,7 @@ function LoginModal({ onClose, onLogin }) {
 }
 
 /* =========================================================================
-   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + FIX GENERATE AI HARIAN)
+   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + FIX ANTI-HILANG)
    ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -1261,23 +1261,28 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       setRooms(roomList);
       setMonthEntries(entryList);
 
-      // Sinkronisasi ganda: cek via roomName = selectedDate dan fallback via selectedDate langsung
-      let reportRes = await fetchReport(facilityKey, month, session?.token, selectedDate).catch(() => null);
-      if (!reportRes?.narrative?.pendahuluan && !reportRes?.narrative?.kesimpulanUmum) {
-        const fallbackRes = await fetchReport(facilityKey, selectedDate, session?.token).catch(() => null);
-        if (fallbackRes?.narrative) reportRes = fallbackRes;
-      }
+      // Cek data dari backend
+      const reportRes = await fetchReport(facilityKey, month, session?.token, selectedDate).catch(() => null);
 
-      if (reportRes?.narrative) {
+      if (reportRes?.narrative?.pendahuluan || reportRes?.narrative?.kesimpulanUmum) {
         setReport(reportRes);
         setPendahuluan(reportRes.narrative.pendahuluan || "");
         setKesimpulanUmum(reportRes.narrative.kesimpulanUmum || "");
         setPerParameter(reportRes.narrative.perParameter || { suhu: "", rh: "", dpg: "" });
       } else {
-        setReport(null);
-        setPendahuluan("");
-        setKesimpulanUmum("");
-        setPerParameter({ suhu: "", rh: "", dpg: "" });
+        // Coba baca dari localStorage sebagai cache persisten agar tidak hilang saat backend lambat sync
+        const cacheKey = `emnv_harian_${facilityKey}_${selectedDate}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            setPendahuluan(parsed.pendahuluan || "");
+            setKesimpulanUmum(parsed.kesimpulanUmum || "");
+            setPerParameter(parsed.perParameter || { suhu: "", rh: "", dpg: "" });
+          } catch {
+            // ignore
+          }
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -1475,19 +1480,26 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
+  /* Simpan Report Harian: Tulis ke Backend dan Simpan ke LocalStorage agar Form Tidak Ter-reset */
   async function handleSaveReport() {
     setError("");
     setSaving(true);
     try {
-      // Simpan dengan key Bulan dan identifier roomName = selectedDate agar tidak bentrok
+      const payload = { pendahuluan, kesimpulanUmum, perParameter };
+
+      // Simpan ke localStorage agar teks tidak hilang
+      const cacheKey = `emnv_harian_${facilityKey}_${selectedDate}`;
+      localStorage.setItem(cacheKey, JSON.stringify(payload));
+
+      // Kirim ke backend
       await apiSaveReport(
         facilityKey,
         month,
-        { pendahuluan, kesimpulanUmum, perParameter },
+        payload,
         session?.token,
         selectedDate
       );
-      await loadData();
+
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
       setLastSavedTime(timeStr);
@@ -1499,7 +1511,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   }
 
-  /* Perbaikan Logika Generate AI Harian */
+  /* Generate AI Harian */
   async function handleGenerateAI() {
     setGenerating(true);
     setError("");
@@ -1540,9 +1552,22 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       }
 
       if (narrative) {
-        setPendahuluan(narrative.pendahuluan || "");
-        setPerParameter(narrative.perParameter || { suhu: "", rh: "", dpg: "" });
-        setKesimpulanUmum(narrative.kesimpulanUmum || "");
+        const nextPendahuluan = narrative.pendahuluan || "";
+        const nextPerParam = narrative.perParameter || { suhu: "", rh: "", dpg: "" };
+        const nextKesimpulan = narrative.kesimpulanUmum || "";
+
+        setPendahuluan(nextPendahuluan);
+        setPerParameter(nextPerParam);
+        setKesimpulanUmum(nextKesimpulan);
+
+        // Langsung simpan di cache lokal
+        const cacheKey = `emnv_harian_${facilityKey}_${selectedDate}`;
+        localStorage.setItem(cacheKey, JSON.stringify({
+          pendahuluan: nextPendahuluan,
+          perParameter: nextPerParam,
+          kesimpulanUmum: nextKesimpulan,
+        }));
+
         showToast("Draf narasi harian berhasil dibuat!");
       }
     } catch (err) {
@@ -2087,7 +2112,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* SECTION 4: PEMBAHASAN & NARASI HARIAN (AUTO-GROWING TEXTAREA + NOTIFIKASI SUKSES) */}
+      {/* SECTION 4: PEMBAHASAN & NARASI HARIAN */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3.5">
           <div>
@@ -2658,7 +2683,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                   <th className="px-3.5 py-2">PARAMETER</th>
                   <th className="px-3.5 py-2">SYARAT</th>
                   <th className="px-3.5 py-2">ALERT LIMIT</th>
-                  <th className="px-3.5 py-2">ACTION LIMIT</th>
+                  <th className="px-3.5 py-2.5">ACTION LIMIT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
