@@ -9,7 +9,7 @@ import {
   Lock, History, Save, FileCheck2, ClipboardList,
   Printer, Sparkles, Calendar, Trash2, CheckCheck, CheckCircle2,
   ChevronRight, ChevronDown, AlertTriangle, KeyRound, LayoutDashboard,
-  Menu, X, ShieldCheck, Activity, Layers,
+  Menu, X, ShieldCheck, Activity, Layers, ArrowLeft,
 } from "lucide-react";
 import {
   fetchMaster, fetchEntries, saveEntries as apiSaveEntries,
@@ -373,22 +373,22 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
   const gradId = `monthGrad-${paramKey}-${isGlobal ? "global" : "room"}`;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs print-card avoid-break w-full">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3.5 bg-slate-50/60">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 bg-slate-50/60">
         <div>
           <p className="text-xs font-bold text-slate-800">{paramLabel} — {isGlobal ? "Tren Global Fasilitas" : "Tren 1 Bulan"}</p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Nilai Tertinggi: <span className="font-semibold text-slate-800">{peak.value} {unit}</span> ({peak.roomName})
+            Tertinggi: <span className="font-semibold text-slate-800">{peak.value} {unit}</span> ({peak.roomName})
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           <LegendChip color="#15803d" label="Terkendali" />
           {alertVal !== null && <LegendChip color="#b45309" label={`Alert ${isDpg ? '≥ ' : ''}${alertVal}`} />}
           {actionVal !== null && <LegendChip color="#c2410c" label={`Action ${isDpg ? '≥ ' : ''}${actionVal}`} />}
           {syaratVal !== null && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? '≥ ' : ''}${syaratVal}`} />}
         </div>
       </div>
-      <div className="p-4">
+      <div className="p-3">
         <ResponsiveContainer width="100%" height={240}>
           <ComposedChart data={data} margin={{ top: 15, right: 20, left: 0, bottom: 40 }}>
             <defs>
@@ -432,7 +432,6 @@ function Sidebar({ session, view, setView, status, onNeedLogin, isOpen, onClose 
 
   return (
     <>
-      {/* Overlay mobile */}
       {isOpen && (
         <div onClick={onClose} className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs lg:hidden transition-opacity" />
       )}
@@ -442,9 +441,9 @@ function Sidebar({ session, view, setView, status, onNeedLogin, isOpen, onClose 
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800/80 bg-black/40">
           <button onClick={() => navigateTo({ page: "dashboard" })} className="flex items-center gap-3 text-left">
             <img src="/logo-rama.png" alt="Logo" className="h-9 w-9 object-contain brightness-0 invert" />
-            <div>
-              <p className="text-sm font-bold text-white tracking-tight leading-tight">EM Non Viable</p>
-              <p className="text-[10px] font-medium text-rose-400">PT. Rama Emerald</p>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white tracking-tight leading-tight truncate">EM Non Viable</p>
+              <p className="text-[10px] font-medium text-rose-400 truncate">PT. Rama Emerald Multi Sukses</p>
             </div>
           </button>
           <button onClick={onClose} className="text-slate-400 hover:text-white lg:hidden p-1">
@@ -454,7 +453,6 @@ function Sidebar({ session, view, setView, status, onNeedLogin, isOpen, onClose 
 
         {/* Menu Navigation */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin">
-          {/* Main Navigation */}
           <div className="space-y-1">
             <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Menu Utama</p>
             <button
@@ -484,7 +482,6 @@ function Sidebar({ session, view, setView, status, onNeedLogin, isOpen, onClose 
             )}
           </div>
 
-          {/* Fasilitas & Gedung */}
           <div className="space-y-1">
             <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Area &amp; Fasilitas</p>
             {GROUPS.map((g) => {
@@ -549,7 +546,6 @@ function Sidebar({ session, view, setView, status, onNeedLogin, isOpen, onClose 
           </div>
         </div>
 
-        {/* Footer Quick Info */}
         <div className="p-3 border-t border-slate-800/80 bg-black/20 text-[10px] text-slate-500 flex justify-between items-center">
           <span>SOP POS.QA.025</span>
           <span className="text-emerald-500 font-semibold">Online Sync</span>
@@ -1291,26 +1287,37 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   return (
     <div className="space-y-6">
-      {/* Action Header */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-3">
-        <button onClick={() => setView({ page: "dashboard" })} className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition">
-          <ChevronLeft size={16} /> Kembali ke Dashboard
+      {/* Top Action Bar Berwarna Tema */}
+      <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <button
+          onClick={() => setView({ page: "dashboard" })}
+          className="inline-flex items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 text-xs font-bold transition shadow-2xs"
+        >
+          <ArrowLeft size={14} className="text-rose-900" /> Kembali ke Dashboard
         </button>
+
         <div className="flex flex-wrap items-center gap-2">
           {canDraftQA && (
-            <button onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: "" })}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-900 hover:bg-rose-950 text-white px-3.5 py-1.5 text-xs font-semibold shadow-xs transition">
-              <ClipboardList size={13} /> Pengkajian QA Global
+            <button
+              onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: "" })}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-rose-900 to-rose-950 hover:from-rose-950 hover:to-black text-white px-3.5 py-2 text-xs font-semibold shadow-xs transition"
+            >
+              <ClipboardList size={14} className="text-rose-300" /> Pengkajian QA Global
             </button>
           )}
           {rooms && rooms.length > 0 && (
-            <button onClick={() => setView({ page: "formulir", facility: facilityKey, room: rooms[0]?.name, bulan: month })}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition">
-              <FileCheck2 size={13} /> Formulir Bulanan (FM.QA.024/R11)
+            <button
+              onClick={() => setView({ page: "formulir", facility: facilityKey, room: rooms[0]?.name, bulan: month })}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 hover:bg-rose-100/80 border border-rose-200/80 text-rose-950 px-3.5 py-2 text-xs font-bold transition shadow-2xs"
+            >
+              <FileCheck2 size={14} className="text-rose-800" /> Formulir Bulanan (FM.QA.024/R11)
             </button>
           )}
-          <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition">
-            <Printer size={13} /> Cetak Harian
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-black text-white px-3.5 py-2 text-xs font-semibold transition shadow-xs"
+          >
+            <Printer size={14} className="text-slate-300" /> Cetak Harian
           </button>
         </div>
       </div>
@@ -1803,12 +1810,18 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
   return (
     <div className="space-y-6">
-      <div className="no-print flex flex-wrap items-center justify-between gap-3">
-        <button onClick={() => setView({ page: "facility", facility: facilityKey })} className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition">
-          <ChevronLeft size={16} /> Kembali ke {cfg?.label}
+      <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <button
+          onClick={() => setView({ page: "facility", facility: facilityKey })}
+          className="inline-flex items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 text-xs font-bold transition shadow-2xs"
+        >
+          <ArrowLeft size={14} className="text-rose-900" /> Kembali ke {cfg?.label}
         </button>
-        <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition">
-          <Printer size={14} /> Cetak Pengkajian
+        <button
+          onClick={() => window.print()}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-black text-white px-3.5 py-2 text-xs font-semibold transition shadow-xs"
+        >
+          <Printer size={14} className="text-slate-300" /> Cetak Pengkajian
         </button>
       </div>
 
@@ -2008,7 +2021,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       {/* 4. FORM NARASI & APPROVAL QA */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
         <div className="flex items-center justify-between border-b pb-3.5">
-          <h2 className="text-base font-bold text-slate-800">
+          <h2 className="text-sm font-bold text-slate-800">
             {selectedRoomName ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}` : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
           </h2>
           {canDraftQA && !isFinal && (
@@ -2138,9 +2151,12 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
 
   return (
     <div className="max-w-5xl mx-auto space-y-4 print:max-w-none print:p-0">
-      <div className="no-print flex flex-wrap items-center justify-between gap-2">
-        <button onClick={() => setView({ page: "facility", facility: facilityKey })} className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition">
-          <ChevronLeft size={16} /> Kembali ke {cfg?.label}
+      <div className="no-print flex flex-wrap items-center justify-between gap-2 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <button
+          onClick={() => setView({ page: "facility", facility: facilityKey })}
+          className="inline-flex items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 text-xs font-bold transition shadow-2xs"
+        >
+          <ArrowLeft size={14} className="text-rose-900" /> Kembali ke {cfg?.label}
         </button>
         <div className="flex items-center gap-2">
           <select value={selectedRoom} onChange={(e) => setSelectedRoom(e.target.value)} className="border rounded-xl px-3 py-1.5 text-xs text-slate-700 font-semibold outline-none bg-white">
@@ -2148,12 +2164,12 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
           </select>
           {hasAccess(session, "Supervisor", "QA") && (
             <button onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: selectedRoom })}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
-              <ClipboardList size={13} /> Pengkajian Ruangan Ini
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 hover:bg-rose-100/80 border border-rose-200/80 text-rose-950 px-3.5 py-2 text-xs font-bold transition shadow-2xs">
+              <ClipboardList size={14} className="text-rose-800" /> Pengkajian Ruangan Ini
             </button>
           )}
-          <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
-            <Printer size={14} /> Cetak
+          <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-black text-white px-3.5 py-2 text-xs font-semibold transition shadow-xs">
+            <Printer size={14} className="text-slate-300" /> Cetak
           </button>
         </div>
       </div>
@@ -2439,7 +2455,7 @@ export default function App() {
     }
   }, [session, view.page]);
 
-  if (checking) return <div className="min-h-screen flex items-center justify-center text-slate-500"><Loader2 className="w-6 h-6 animate-spin" /></div>;
+  if (checking) return <div className="min-h-screen flex items-center justify-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin" /></div>;
 
   return (
     <ErrorBoundary>
