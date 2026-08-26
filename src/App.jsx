@@ -51,6 +51,9 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  Bell,
+  AlertOctagon,
+  Clock,
 } from "lucide-react";
 import {
   fetchMaster,
@@ -171,7 +174,6 @@ const GROUPS = [
   { key: "gbk", title: "Gudang Bahan Kemas (GBK)", singleKey: "gbk", icon: PackageCheck },
 ];
 
-/* Pemetaan Denah Gambar Ruangan */
 const DENAH_MAP = {
   nblProduksi: "/denah/nbl.png",
   nblKemasan: "/denah/nbl.png",
@@ -761,8 +763,25 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
   );
 }
 
-function HeaderBar({ session, onLoginClick, onLogout, onProfileClick, month, setMonth, onToggleSidebar }) {
+/* =========================================================================
+   HEADER BAR DENGAN PUSAT NOTIFIKASI REAL-TIME
+   ========================================================================= */
+function HeaderBar({
+  session,
+  onLoginClick,
+  onLogout,
+  onProfileClick,
+  month,
+  setMonth,
+  onToggleSidebar,
+  notifications = [],
+  onSelectNotification,
+}) {
+  const [showNotifPopover, setShowNotifPopover] = useState(false);
   const avatarLetter = (session?.nama || session?.username || "U").charAt(0).toUpperCase();
+
+  const criticalCount = notifications.filter((n) => n.type === "critical").length;
+  const pendingCount = notifications.filter((n) => n.type === "pending_spv").length;
 
   return (
     <header className="no-print sticky top-0 z-30 h-16 border-b border-slate-200 bg-white/90 backdrop-blur-md px-4 lg:px-8">
@@ -787,6 +806,104 @@ function HeaderBar({ session, onLoginClick, onLogout, onProfileClick, month, set
               className="bg-transparent border-none outline-none font-semibold text-xs text-slate-800 [color-scheme:light]"
             />
           </label>
+
+          {/* Lonceng Notifikasi QA & SPV */}
+          {session && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowNotifPopover(!showNotifPopover)}
+                className="relative p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs"
+                title="Pusat Notifikasi & Alarm Integritas Data"
+              >
+                <Bell size={16} />
+                {notifications.length > 0 && (
+                  <span
+                    className={`absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full text-[9px] font-extrabold text-white animate-pulse shadow-sm ${
+                      criticalCount > 0 ? "bg-red-600" : "bg-amber-500"
+                    }`}
+                  >
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Popover Card Notifikasi */}
+              {showNotifPopover && (
+                <>
+                  <div
+                    onClick={() => setShowNotifPopover(false)}
+                    className="fixed inset-0 z-40 bg-transparent"
+                  />
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-3xl bg-white shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in">
+                    <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <Bell size={14} className="text-rose-800" />
+                        <h4 className="text-xs font-bold text-slate-800">Pusat Notifikasi &amp; Alert</h4>
+                      </div>
+                      <span className="text-[10px] font-semibold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+                        {notifications.length} Item
+                      </span>
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 p-1 text-xs">
+                      {notifications.length === 0 ? (
+                        <div className="p-6 text-center text-slate-400 space-y-1">
+                          <CheckCircle2 size={24} className="mx-auto text-emerald-500 mb-1.5" />
+                          <p className="font-semibold text-slate-700 text-xs">Semua Parameter Terkendali</p>
+                          <p className="text-[10px] text-slate-400">Tidak ada deviasi batas limit ataupun antrean approval.</p>
+                        </div>
+                      ) : (
+                        notifications.map((item, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              onSelectNotification(item);
+                              setShowNotifPopover(false);
+                            }}
+                            className={`p-3 transition cursor-pointer hover:bg-slate-50 flex items-start gap-2.5 ${
+                              item.type === "critical" ? "bg-red-50/40" : "bg-amber-50/30"
+                            }`}
+                          >
+                            <div className="shrink-0 mt-0.5">
+                              {item.type === "critical" ? (
+                                <AlertOctagon size={16} className="text-red-600" />
+                              ) : (
+                                <Clock size={16} className="text-amber-600" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-0.5">
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="font-bold text-slate-800 text-[11px] truncate">{item.title}</p>
+                                <span className="text-[9px] text-slate-400 whitespace-nowrap">{item.time || "Hari Ini"}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 leading-snug">{item.desc}</p>
+                              <div className="flex items-center gap-1.5 pt-0.5">
+                                <span className="text-[9px] font-semibold text-slate-700 bg-white border border-slate-200 px-1.5 py-0.2 rounded-md">
+                                  {item.facilityLabel}
+                                </span>
+                                {item.tag && (
+                                  <span
+                                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
+                                      item.type === "critical"
+                                        ? "bg-red-100 text-red-700"
+                                        : "bg-amber-100 text-amber-800"
+                                    }`}
+                                  >
+                                    {item.tag}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {session ? (
             <div className="flex items-center gap-2">
@@ -821,157 +938,6 @@ function HeaderBar({ session, onLoginClick, onLogout, onProfileClick, month, set
         </div>
       </div>
     </header>
-  );
-}
-
-/* =========================================================================
-   7. DASHBOARD OVERVIEW COMPONENT (DENGAN ANIMASI INTERAKTIF HOVER / SCALE)
-   ========================================================================= */
-function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }) {
-  const perluCount = FACILITIES.filter((f) => (status?.[f.key]?.level || 0) === 3).length;
-  const tmsCount = FACILITIES.filter((f) => (status?.[f.key]?.level || 0) >= 4).length;
-  const terkendaliCount = FACILITIES.filter((f) => status?.[f.key]?.hasData && (status?.[f.key]?.level || 0) < 3).length;
-  const belumAdaCount = FACILITIES.filter((f) => !status?.[f.key]?.hasData).length;
-
-  function handleOpenFacility(facKey) {
-    if (!session) {
-      onNeedLogin();
-      return;
-    }
-    setView({ page: "facility", facility: facKey });
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Banner Utama */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-black via-zinc-950 to-rose-950 p-6 sm:p-8 text-white shadow-xl transition-all duration-300 hover:shadow-2xl">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-rose-600/20 blur-3xl animate-pulse" />
-        <div className="relative space-y-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/20 border border-rose-500/30 px-3 py-0.5 text-[11px] font-semibold text-rose-200">
-            <ShieldCheck size={13} /> Sistem Pemantauan CPOB Non Viable
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Status Fasilitas EM Non Viable</h1>
-          <p className="text-xs sm:text-sm text-rose-100/80 max-w-2xl leading-relaxed">
-            Pemantauan berkala parameter Suhu, Kelembaban Relatif (RH), dan Perbedaan Tekanan Ruang (DPG) seluruh gedung
-            produksi periode <b>{monthLabelID(month)}</b>.
-          </p>
-        </div>
-      </div>
-
-      {/* Kartu Statistik dengan Animasi Menggembung/Hover Efek EM Viable */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:border-slate-300 cursor-default select-none">
-          <p className="text-xs font-semibold text-slate-400">Total Fasilitas</p>
-          <p className="text-2xl font-bold text-slate-800 mt-1">{FACILITIES.length}</p>
-        </div>
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:shadow-emerald-500/10 hover:border-emerald-300 cursor-default select-none">
-          <p className="text-xs font-semibold text-emerald-700">Terkendali</p>
-          <p className="text-2xl font-bold text-emerald-800 mt-1">{terkendaliCount}</p>
-        </div>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:shadow-amber-500/10 hover:border-amber-300 cursor-default select-none">
-          <p className="text-xs font-semibold text-amber-700">Perlu Perhatian</p>
-          <p className="text-2xl font-bold text-amber-800 mt-1">{perluCount}</p>
-        </div>
-        <div className="rounded-2xl border border-red-200 bg-red-50/50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:shadow-red-500/10 hover:border-red-300 cursor-default select-none">
-          <p className="text-xs font-semibold text-red-700">Melebihi Syarat</p>
-          <p className="text-2xl font-bold text-red-800 mt-1">{tmsCount}</p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:border-slate-300 cursor-default select-none">
-          <p className="text-xs font-semibold text-slate-400">Belum Ada Data</p>
-          <p className="text-2xl font-bold text-slate-700 mt-1">{belumAdaCount}</p>
-        </div>
-      </div>
-
-      {/* Matriks Fasilitas & Sub-Area dengan Animasi */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Matriks 17 Fasilitas — {monthLabelID(month)}
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {GROUPS.map((g) => {
-            if (g.singleKey) {
-              const fac = FACILITIES.find((f) => f.key === g.singleKey);
-              const st = status?.[g.singleKey];
-              const lvl = levelStyle(st?.hasData ? st.level : null);
-              const SingleIcon = g.icon || Building2;
-
-              return (
-                <div
-                  key={g.key}
-                  onClick={() => handleOpenFacility(g.singleKey)}
-                  className="cursor-pointer rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.02] hover:border-rose-400 hover:shadow-xl hover:shadow-rose-950/5 group"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-rose-50 group-hover:text-rose-900 shadow-2xs">
-                        <SingleIcon size={20} />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-800 transition-colors group-hover:text-rose-900">{fac?.label || g.title}</h3>
-                        <p className="text-xs text-slate-400">Departemen {fac?.department}</p>
-                      </div>
-                    </div>
-                    <span
-                      className="text-xs px-2.5 py-1 rounded-full font-semibold shrink-0 transition-transform duration-300 group-hover:scale-105"
-                      style={{ background: lvl.bg, color: lvl.color }}
-                    >
-                      {st?.hasData ? lvl.label : "Belum Ada Data"}
-                    </span>
-                  </div>
-                </div>
-              );
-            }
-
-            const GroupIcon = g.key === "gbb" ? Boxes : Building2;
-
-            return (
-              <div key={g.key} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all duration-300 hover:shadow-md hover:border-slate-300 space-y-3">
-                <div className="flex items-center justify-between border-b pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <GroupIcon size={16} className="text-rose-800" />
-                    <h3 className="text-sm font-bold text-slate-800">{g.title}</h3>
-                  </div>
-                  <span className="text-[11px] text-slate-400 font-medium">{g.items.length} Sub-Area</span>
-                </div>
-
-                <div className="grid grid-cols-1 gap-2">
-                  {g.items.map((facKey) => {
-                    const fac = FACILITIES.find((f) => f.key === facKey);
-                    const st = status?.[facKey];
-                    const lvl = levelStyle(st?.hasData ? st.level : null);
-
-                    return (
-                      <button
-                        key={facKey}
-                        onClick={() => handleOpenFacility(facKey)}
-                        className="w-full flex items-center justify-between p-2.5 rounded-xl border border-slate-100 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:scale-[1.015] hover:border-rose-300 hover:bg-rose-50/50 hover:shadow-sm text-left group/btn"
-                      >
-                        <div>
-                          <p className="text-xs font-bold text-slate-800 transition-colors group-hover/btn:text-rose-900">{fac?.label}</p>
-                          <p className="text-[10px] text-slate-400">Dept: {fac?.department}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="text-[11px] px-2 py-0.5 rounded-full font-medium transition-transform duration-200 group-hover/btn:scale-105"
-                            style={{ background: lvl.bg, color: lvl.color }}
-                          >
-                            {st?.hasData ? lvl.label : "Belum Ada Data"}
-                          </span>
-                          <ChevronRight size={14} className="text-slate-300 transition-transform duration-200 group-hover/btn:translate-x-1 group-hover/btn:text-rose-800" />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -1229,8 +1195,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
   const canInput = hasFacilityAccess(session, "Staff", cfg);
   const canApproveSPV = hasFacilityAccess(session, "Supervisor", cfg);
-  
-  // SPV, Asst Manager, Manager yang memiliki hak input/SPV otomatis dapat melakukan approve OPR
   const canApproveOPR = canInput || canApproveSPV;
   
   const canDraftQA = hasAccess(session, "Supervisor", "QA");
@@ -1322,7 +1286,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       setRooms(roomList);
       setMonthEntries(entryList);
 
-      // Ambil data laporan fasilitas harian dari backend dengan kunci unik selectedDate
       let reportRes = await fetchReport(facilityKey, selectedDate, session?.token, "").catch(() => null);
       if (!reportRes?.narrative?.pendahuluan && !reportRes?.narrative?.kesimpulanUmum) {
         reportRes = await fetchReport(facilityKey, month, session?.token, selectedDate).catch(() => null);
@@ -1396,7 +1359,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   function handleAddRoom(roomName) {
     if (!roomName || activeRoomNames.includes(roomName)) return;
-    // Tambahkan ruangan baru di urutan paling atas
     setActiveRoomNames((prev) => [roomName, ...prev]);
   }
 
@@ -1498,7 +1460,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session?.token);
 
       const uniqueRooms = Array.from(new Set(todayRows.map((r) => r.roomName)));
-      // Jika OPR masih kosong, lengkapi otomatis agar data valid
       for (const rName of uniqueRooms) {
         const rows = todayRows.filter((r) => r.roomName === rName);
         const oprEmpty = rows.some((r) => !r.opr);
@@ -1562,7 +1523,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         [currentMemKey]: payload,
       }));
 
-      // Simpan menggunakan kunci tanggal terpilih (selectedDate)
       await apiSaveReport(
         facilityKey,
         selectedDate,
@@ -3632,7 +3592,7 @@ function VerifyPage() {
 }
 
 /* =========================================================================
-   14. APP CONTENT CONTROLLER
+   14. APP CONTENT CONTROLLER (DENGAN REAL-TIME NOTIFICATION GENERATOR)
    ========================================================================= */
 function AppContent() {
   const { session, checking, login, logout } = useAuth();
@@ -3643,6 +3603,9 @@ function AppContent() {
   const [showLogin, setShowLogin] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+
+  // Data Notifikasi Real-time
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3655,6 +3618,104 @@ function AppContent() {
       cancelled = true;
     };
   }, [month]);
+
+  // Evaluator Notifikasi Real-time: Mengecek Deviasi Limit (Action / TMS) & Pending SPV
+  useEffect(() => {
+    if (!session) {
+      setNotifications([]);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchNotifs = async () => {
+      try {
+        const notifList = [];
+        const tglHariIni = todayStr();
+
+        // Cek fasilitas yang memiliki status deviasi atau status data aktif
+        const relevantFacilities = FACILITIES.filter((f) => {
+          if (session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator") {
+            return true;
+          }
+          return hasFacilityAccess(session, "Staff", f);
+        });
+
+        // Loop pemeriksaan paralel
+        await Promise.all(
+          relevantFacilities.slice(0, 8).map(async (fac) => {
+            try {
+              const [entriesRes, masterRes] = await Promise.all([
+                fetchEntries(fac.key, month).catch(() => []),
+                fetchMaster(fac.key).catch(() => []),
+              ]);
+
+              const entryList = Array.isArray(entriesRes) ? entriesRes : entriesRes?.entries || [];
+              const roomList = Array.isArray(masterRes) ? masterRes : masterRes?.rooms || [];
+
+              const todayEntries = entryList.filter((e) => e?.tanggal === tglHariIni);
+
+              // 1. Cek Deviasi Kritis (Action Limit = level 3 / TMS = level 4)
+              todayEntries.forEach((e) => {
+                PARAM_DEFS.forEach((p) => {
+                  const lvl = e?.level?.[p.key];
+                  if (lvl >= 3) {
+                    notifList.push({
+                      type: "critical",
+                      facilityKey: fac.key,
+                      facilityLabel: fac.label,
+                      title: `Peringatan ${lvl === 4 ? "TMS (Melebihi Syarat)" : "Action Limit"}`,
+                      desc: `Ruangan ${e.roomName} parameter ${p.label}: ${e[p.key]} ${p.unit} (Jam ${e.jam}).`,
+                      tag: lvl === 4 ? "TMS" : "Action Limit",
+                      time: e.jam,
+                    });
+                  }
+                });
+              });
+
+              // 2. Cek Pending Approval SPV (OPR sudah isi & approve, tapi SPV belum)
+              const pendingRooms = roomList.filter((r) => {
+                const rEntries = todayEntries.filter((e) => e?.roomName === r?.name);
+                return rEntries.length > 0 && rEntries.some((e) => !!e.opr) && rEntries.some((e) => !e.spv);
+              });
+
+              if (pendingRooms.length > 0) {
+                notifList.push({
+                  type: "pending_spv",
+                  facilityKey: fac.key,
+                  facilityLabel: fac.label,
+                  title: "Menunggu Approval SPV",
+                  desc: `${pendingRooms.length} ruangan telah di-approve OPR dan siap ditinjau.`,
+                  tag: "Pending SPV",
+                  time: "Hari Ini",
+                });
+              }
+            } catch {
+              // ignore per-facility error
+            }
+          })
+        );
+
+        if (isMounted) {
+          setNotifications(notifList);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 45000); // Polling otomatis tiap 45 detik
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [session, month]);
+
+  const handleSelectNotification = (notif) => {
+    if (notif.facilityKey) {
+      setView({ page: "facility", facility: notif.facilityKey });
+    }
+  };
 
   const handleLogout = useCallback(() => {
     logout();
@@ -3720,6 +3781,8 @@ function AppContent() {
           month={month}
           setMonth={setMonth}
           onToggleSidebar={() => setSidebarOpen(true)}
+          notifications={notifications}
+          onSelectNotification={handleSelectNotification}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
