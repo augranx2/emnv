@@ -54,6 +54,7 @@ import {
   Bell,
   AlertOctagon,
   Clock,
+  FileText,
 } from "lucide-react";
 import {
   fetchMaster,
@@ -579,9 +580,9 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
 }
 
 /* =========================================================================
-   6. SIDEBAR COMPONENT
+   6. SIDEBAR COMPONENT (DENGAN MENU NOTIFIKASI AKTIF)
    ========================================================================= */
-function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onClose }) {
+function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onClose, notifications = [] }) {
   const [expandedGroups, setExpandedGroups] = useState({ nbl: true, gbb: true });
 
   const toggleGroup = (k) => {
@@ -596,6 +597,8 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
     setView(newView);
     if (window.innerWidth < 1024) onClose();
   };
+
+  const criticalCount = notifications.filter((n) => n.type === "critical").length;
 
   return (
     <>
@@ -640,6 +643,33 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
               <LayoutDashboard size={16} />
               <span>Dashboard Global</span>
             </button>
+
+            {/* Menu Notifikasi di Sidebar */}
+            {session && (
+              <button
+                onClick={() => navigateTo({ page: "notifications" })}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  view.page === "notifications"
+                    ? "bg-rose-900 text-white shadow-lg shadow-rose-950/50"
+                    : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Bell size={16} />
+                  <span>Pusat Notifikasi</span>
+                </div>
+                {notifications.length > 0 && (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold text-white ${
+                      criticalCount > 0 ? "bg-red-600 animate-pulse" : "bg-amber-500"
+                    }`}
+                  >
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
+            )}
+
             {session && hasAccess(session, "Supervisor", "QA") && (
               <button
                 onClick={() => navigateTo({ page: "pengkajian", facility: view.facility || "nblProduksi", room: "" })}
@@ -764,7 +794,7 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
 }
 
 /* =========================================================================
-   7. DASHBOARD OVERVIEW COMPONENT (DENGAN ANIMASI INTERAKTIF HOVER / SCALE)
+   7. DASHBOARD OVERVIEW COMPONENT
    ========================================================================= */
 function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }) {
   const perluCount = FACILITIES.filter((f) => (status?.[f.key]?.level || 0) === 3).length;
@@ -1001,7 +1031,7 @@ function HeaderBar({
                         <div className="p-6 text-center text-slate-400 space-y-1">
                           <CheckCircle2 size={24} className="mx-auto text-emerald-500 mb-1.5" />
                           <p className="font-semibold text-slate-700 text-xs">Semua Parameter Terkendali</p>
-                          <p className="text-[10px] text-slate-400">Tidak ada deviasi batas limit ataupun antrean approval.</p>
+                          <p className="text-[10px] text-slate-400">Tidak ada deviasi batas limit ataupun tugas evaluasi.</p>
                         </div>
                       ) : (
                         notifications.map((item, idx) => (
@@ -1012,12 +1042,18 @@ function HeaderBar({
                               setShowNotifPopover(false);
                             }}
                             className={`p-3 transition cursor-pointer hover:bg-slate-50 flex items-start gap-2.5 ${
-                              item.type === "critical" ? "bg-red-50/40" : "bg-amber-50/30"
+                              item.type === "critical"
+                                ? "bg-red-50/40"
+                                : item.type === "qa_global"
+                                ? "bg-blue-50/40"
+                                : "bg-amber-50/30"
                             }`}
                           >
                             <div className="shrink-0 mt-0.5">
                               {item.type === "critical" ? (
                                 <AlertOctagon size={16} className="text-red-600" />
+                              ) : item.type === "qa_global" ? (
+                                <FileText size={16} className="text-blue-600" />
                               ) : (
                                 <Clock size={16} className="text-amber-600" />
                               )}
@@ -1037,6 +1073,8 @@ function HeaderBar({
                                     className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
                                       item.type === "critical"
                                         ? "bg-red-100 text-red-700"
+                                        : item.type === "qa_global"
+                                        ? "bg-blue-100 text-blue-800"
                                         : "bg-amber-100 text-amber-800"
                                     }`}
                                   >
@@ -1092,7 +1130,108 @@ function HeaderBar({
 }
 
 /* =========================================================================
-   9. MODAL PROFIL & GANTI PASSWORD & LOGIN
+   9. HALAMAN DETAIL PUSAT NOTIFIKASI DI SIDEBAR
+   ========================================================================= */
+function NotificationsPage({ notifications = [], onSelectNotification, setView }) {
+  return (
+    <div className="space-y-4 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setView({ page: "dashboard" })}
+          className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition"
+        >
+          <ChevronLeft size={16} /> Kembali ke Dashboard
+        </button>
+      </div>
+
+      <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b pb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-800 flex items-center justify-center">
+              <Bell size={20} />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-800">Pusat Notifikasi &amp; Alert CPOB</h2>
+              <p className="text-xs text-slate-400">Daftar pemantauan deviasi limit, respon QA, dan alur persetujuan</p>
+            </div>
+          </div>
+          <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1 rounded-full">
+            {notifications.length} Notifikasi Aktif
+          </span>
+        </div>
+
+        {notifications.length === 0 ? (
+          <div className="p-12 text-center text-slate-400 space-y-2">
+            <CheckCircle2 size={36} className="mx-auto text-emerald-500 mb-2" />
+            <p className="font-bold text-slate-700 text-sm">Seluruh Fasilitas Berada Dalam Kondisi Terkendali</p>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              Tidak ada parameter yang mencapai batas Action Limit/TMS, dan tidak ada tugas evaluasi pengkajian tertunda.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {notifications.map((item, idx) => (
+              <div
+                key={idx}
+                onClick={() => onSelectNotification(item)}
+                className={`p-4 transition cursor-pointer hover:bg-slate-50 flex items-start justify-between gap-4 rounded-2xl ${
+                  item.type === "critical"
+                    ? "bg-red-50/40 border border-red-100 my-1.5"
+                    : item.type === "qa_global"
+                    ? "bg-blue-50/40 border border-blue-100 my-1.5"
+                    : "bg-amber-50/30 border border-amber-100 my-1.5"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5">
+                    {item.type === "critical" ? (
+                      <AlertOctagon size={20} className="text-red-600" />
+                    ) : item.type === "qa_global" ? (
+                      <FileText size={20} className="text-blue-600" />
+                    ) : (
+                      <Clock size={20} className="text-amber-600" />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-slate-800 text-xs">{item.title}</p>
+                      {item.tag && (
+                        <span
+                          className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                            item.type === "critical"
+                              ? "bg-red-100 text-red-700"
+                              : item.type === "qa_global"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          {item.tag}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600">{item.desc}</p>
+                    <p className="text-[10px] font-semibold text-slate-400">
+                      Fasilitas: <span className="text-slate-700">{item.facilityLabel}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right shrink-0 flex flex-col justify-between items-end">
+                  <span className="text-[10px] text-slate-400">{item.time || "Hari Ini"}</span>
+                  <span className="text-xs text-rose-800 font-bold hover:underline inline-flex items-center gap-0.5 mt-2">
+                    Buka Detail <ChevronRight size={14} />
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   10. MODAL PROFIL & GANTI PASSWORD & LOGIN
    ========================================================================= */
 function ProfileModal({ session, onClose, onChangePasswordClick }) {
   if (!session) return null;
@@ -1339,7 +1478,7 @@ function LoginModal({ onClose, onLogin }) {
 }
 
 /* =========================================================================
-   10. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + ZOOM 500% DENAH)
+   11. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + ZOOM 500% DENAH)
    ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -1436,7 +1575,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       setRooms(roomList);
       setMonthEntries(entryList);
 
-      // Ambil data laporan fasilitas harian dari backend dengan kunci unik selectedDate
       let reportRes = await fetchReport(facilityKey, selectedDate, session?.token, "").catch(() => null);
       if (!reportRes?.narrative?.pendahuluan && !reportRes?.narrative?.kesimpulanUmum) {
         reportRes = await fetchReport(facilityKey, month, session?.token, selectedDate).catch(() => null);
@@ -1510,7 +1648,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   function handleAddRoom(roomName) {
     if (!roomName || activeRoomNames.includes(roomName)) return;
-    // Tambahkan ruangan baru di urutan paling atas
     setActiveRoomNames((prev) => [roomName, ...prev]);
   }
 
@@ -1612,7 +1749,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session?.token);
 
       const uniqueRooms = Array.from(new Set(todayRows.map((r) => r.roomName)));
-      // Jika OPR masih kosong, lengkapi otomatis agar data valid
       for (const rName of uniqueRooms) {
         const rows = todayRows.filter((r) => r.roomName === rName);
         const oprEmpty = rows.some((r) => !r.opr);
@@ -1676,7 +1812,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         [currentMemKey]: payload,
       }));
 
-      // Simpan menggunakan kunci tanggal terpilih (selectedDate)
       await apiSaveReport(
         facilityKey,
         selectedDate,
@@ -2585,7 +2720,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 }
 
 /* =========================================================================
-   11. HALAMAN PENGKAJIAN QA RESMI (PENGKAJIAN GLOBAL & RUANGAN)
+   12. HALAMAN PENGKAJIAN QA RESMI (PENGKAJIAN GLOBAL & RUANGAN)
    ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
@@ -3227,7 +3362,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 }
 
 /* =========================================================================
-   12. FORMULIR BULANAN CETAK (FM.QA.024/R11)
+   13. FORMULIR BULANAN CETAK (FM.QA.024/R11)
    ========================================================================= */
 function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -3487,7 +3622,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
 }
 
 /* =========================================================================
-   13. RIWAYAT AKTIVITAS & AUDIT TRAIL + DOWNLOAD CSV
+   14. RIWAYAT AKTIVITAS & AUDIT TRAIL + DOWNLOAD CSV
    ========================================================================= */
 function ActivityPage({ session, month, setView }) {
   const [logs, setLogs] = useState([]);
@@ -3653,7 +3788,7 @@ function ActivityPage({ session, month, setView }) {
 }
 
 /* =========================================================================
-   14. HALAMAN VERIFIKASI QR DOKUMEN PUBLIK (/verify)
+   15. HALAMAN VERIFIKASI QR DOKUMEN PUBLIK (/verify)
    ========================================================================= */
 function VerifyPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -3746,7 +3881,7 @@ function VerifyPage() {
 }
 
 /* =========================================================================
-   15. APP CONTENT CONTROLLER
+   16. APP CONTENT CONTROLLER
    ========================================================================= */
 function AppContent() {
   const { session, checking, login, logout } = useAuth();
@@ -3773,7 +3908,7 @@ function AppContent() {
     };
   }, [month]);
 
-  // Evaluator Notifikasi Real-time
+  // Evaluator Notifikasi Real-time Berbasis Role (QA vs Area SPV/Manager)
   useEffect(() => {
     if (!session) {
       setNotifications([]);
@@ -3785,28 +3920,27 @@ function AppContent() {
       try {
         const notifList = [];
         const tglHariIni = todayStr();
+        const isQA = session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator";
 
         const relevantFacilities = FACILITIES.filter((f) => {
-          if (session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator") {
-            return true;
-          }
+          if (isQA) return true;
           return hasFacilityAccess(session, "Staff", f);
         });
 
         await Promise.all(
-          relevantFacilities.slice(0, 8).map(async (fac) => {
+          relevantFacilities.map(async (fac) => {
             try {
-              const [entriesRes, masterRes] = await Promise.all([
+              const [entriesRes, masterRes, reportRes] = await Promise.all([
                 fetchEntries(fac.key, month).catch(() => []),
                 fetchMaster(fac.key).catch(() => []),
+                isQA ? fetchReport(fac.key, month, session?.token, "").catch(() => null) : null,
               ]);
 
               const entryList = Array.isArray(entriesRes) ? entriesRes : entriesRes?.entries || [];
               const roomList = Array.isArray(masterRes) ? masterRes : masterRes?.rooms || [];
 
+              // 1. Alert Deviasi Kritis (Action Limit = 3 / TMS = 4) -> Diterima oleh QA & SPV Terkait
               const todayEntries = entryList.filter((e) => e?.tanggal === tglHariIni);
-
-              // Deviasi Kritis (Action Limit = level 3 / TMS = level 4)
               todayEntries.forEach((e) => {
                 PARAM_DEFS.forEach((p) => {
                   const lvl = e?.level?.[p.key];
@@ -3824,22 +3958,41 @@ function AppContent() {
                 });
               });
 
-              // Pending Approval SPV
-              const pendingRooms = roomList.filter((r) => {
-                const rEntries = todayEntries.filter((e) => e?.roomName === r?.name);
-                return rEntries.length > 0 && rEntries.some((e) => !!e.opr) && rEntries.some((e) => !e.spv);
-              });
+              // 2. Alert Pengkajian Global Bulanan (HANYA untuk akun QA)
+              // Hanya muncul jika fasilitas tersebut ada data pengukuran di bulan ini dan Pengkajian Globalnya belum dibuat
+              if (isQA && entryList.length > 0) {
+                const hasGlobalNarrative = reportRes?.narrative?.pendahuluan || reportRes?.narrative?.kesimpulanUmum;
+                if (!hasGlobalNarrative) {
+                  notifList.push({
+                    type: "qa_global",
+                    facilityKey: fac.key,
+                    facilityLabel: fac.label,
+                    title: "Pengkajian QA Global Belum Dibuat",
+                    desc: `Terdapat ${entryList.length} data pemantauan pada bulan ${monthLabelID(month)}. Pengkajian tren global diperlukan.`,
+                    tag: "Pengkajian Global",
+                    time: "Awal Bulan",
+                  });
+                }
+              }
 
-              if (pendingRooms.length > 0) {
-                notifList.push({
-                  type: "pending_spv",
-                  facilityKey: fac.key,
-                  facilityLabel: fac.label,
-                  title: "Menunggu Approval SPV",
-                  desc: `${pendingRooms.length} ruangan telah di-approve OPR dan siap ditinjau.`,
-                  tag: "Pending SPV",
-                  time: "Hari Ini",
+              // 3. Alert Pending SPV Approval (HANYA untuk akun SPV/Manager Area Terkait, TIDAK masuk ke QA)
+              if (!isQA) {
+                const pendingRooms = roomList.filter((r) => {
+                  const rEntries = todayEntries.filter((e) => e?.roomName === r?.name);
+                  return rEntries.length > 0 && rEntries.some((e) => !!e.opr) && rEntries.some((e) => !e.spv);
                 });
+
+                if (pendingRooms.length > 0) {
+                  notifList.push({
+                    type: "pending_spv",
+                    facilityKey: fac.key,
+                    facilityLabel: fac.label,
+                    title: "Menunggu Approval SPV",
+                    desc: `${pendingRooms.length} ruangan telah di-approve OPR dan siap ditinjau.`,
+                    tag: "Pending SPV",
+                    time: "Hari Ini",
+                  });
+                }
               }
             } catch {
               // ignore
@@ -3864,7 +4017,9 @@ function AppContent() {
   }, [session, month]);
 
   const handleSelectNotification = (notif) => {
-    if (notif.facilityKey) {
+    if (notif.type === "qa_global") {
+      setView({ page: "pengkajian", facility: notif.facilityKey, room: "" });
+    } else if (notif.facilityKey) {
       setView({ page: "facility", facility: notif.facilityKey });
     }
   };
@@ -3877,7 +4032,7 @@ function AppContent() {
   }, [logout]);
 
   useEffect(() => {
-    const needsAuthPages = ["facility", "pengkajian", "formulir", "activity"];
+    const needsAuthPages = ["facility", "pengkajian", "formulir", "activity", "notifications"];
     if (needsAuthPages.includes(view.page) && !session) {
       setView({ page: "dashboard" });
     }
@@ -3921,6 +4076,7 @@ function AppContent() {
         onNeedLogin={() => setShowLogin(true)}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        notifications={notifications}
       />
 
       {/* Konten Utama Kanan */}
@@ -3945,6 +4101,13 @@ function AppContent() {
               setView={setView}
               session={session}
               onNeedLogin={() => setShowLogin(true)}
+            />
+          )}
+          {view.page === "notifications" && session && (
+            <NotificationsPage
+              notifications={notifications}
+              onSelectNotification={handleSelectNotification}
+              setView={setView}
             />
           )}
           {view.page === "facility" && session && (
@@ -4000,7 +4163,7 @@ function AppContent() {
 }
 
 /* =========================================================================
-   16. ROOT EXPORT
+   17. ROOT EXPORT
    ========================================================================= */
 export default function App() {
   if (typeof window !== "undefined" && window.location.pathname === "/verify") {
