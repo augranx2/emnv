@@ -825,7 +825,7 @@ function HeaderBar({ session, onLoginClick, onLogout, onProfileClick, month, set
 }
 
 /* =========================================================================
-   7. DASHBOARD OVERVIEW COMPONENT
+   7. DASHBOARD OVERVIEW COMPONENT (DENGAN ANIMASI INTERAKTIF HOVER / SCALE)
    ========================================================================= */
 function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }) {
   const perluCount = FACILITIES.filter((f) => (status?.[f.key]?.level || 0) === 3).length;
@@ -843,8 +843,9 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-black via-zinc-950 to-rose-950 p-6 sm:p-8 text-white shadow-xl">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-rose-600/20 blur-3xl" />
+      {/* Banner Utama */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-black via-zinc-950 to-rose-950 p-6 sm:p-8 text-white shadow-xl transition-all duration-300 hover:shadow-2xl">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-rose-600/20 blur-3xl animate-pulse" />
         <div className="relative space-y-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/20 border border-rose-500/30 px-3 py-0.5 text-[11px] font-semibold text-rose-200">
             <ShieldCheck size={13} /> Sistem Pemantauan CPOB Non Viable
@@ -857,29 +858,31 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
         </div>
       </div>
 
+      {/* Kartu Statistik dengan Animasi Menggembung/Hover Efek EM Viable */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:border-slate-300 cursor-default select-none">
           <p className="text-xs font-semibold text-slate-400">Total Fasilitas</p>
           <p className="text-2xl font-bold text-slate-800 mt-1">{FACILITIES.length}</p>
         </div>
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-xs">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:shadow-emerald-500/10 hover:border-emerald-300 cursor-default select-none">
           <p className="text-xs font-semibold text-emerald-700">Terkendali</p>
           <p className="text-2xl font-bold text-emerald-800 mt-1">{terkendaliCount}</p>
         </div>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:shadow-amber-500/10 hover:border-amber-300 cursor-default select-none">
           <p className="text-xs font-semibold text-amber-700">Perlu Perhatian</p>
           <p className="text-2xl font-bold text-amber-800 mt-1">{perluCount}</p>
         </div>
-        <div className="rounded-2xl border border-red-200 bg-red-50/50 p-4 shadow-xs">
+        <div className="rounded-2xl border border-red-200 bg-red-50/50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:shadow-red-500/10 hover:border-red-300 cursor-default select-none">
           <p className="text-xs font-semibold text-red-700">Melebihi Syarat</p>
           <p className="text-2xl font-bold text-red-800 mt-1">{tmsCount}</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-xs">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:border-slate-300 cursor-default select-none">
           <p className="text-xs font-semibold text-slate-400">Belum Ada Data</p>
           <p className="text-2xl font-bold text-slate-700 mt-1">{belumAdaCount}</p>
         </div>
       </div>
 
+      {/* Matriks Fasilitas & Sub-Area dengan Animasi */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -899,20 +902,20 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
                 <div
                   key={g.key}
                   onClick={() => handleOpenFacility(g.singleKey)}
-                  className="cursor-pointer rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs hover:border-rose-400 hover:shadow-md transition group"
+                  className="cursor-pointer rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.02] hover:border-rose-400 hover:shadow-xl hover:shadow-rose-950/5 group"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center group-hover:bg-rose-50 group-hover:text-rose-900 transition">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-rose-50 group-hover:text-rose-900 shadow-2xs">
                         <SingleIcon size={20} />
                       </div>
                       <div>
-                        <h3 className="text-sm font-bold text-slate-800">{fac?.label || g.title}</h3>
+                        <h3 className="text-sm font-bold text-slate-800 transition-colors group-hover:text-rose-900">{fac?.label || g.title}</h3>
                         <p className="text-xs text-slate-400">Departemen {fac?.department}</p>
                       </div>
                     </div>
                     <span
-                      className="text-xs px-2.5 py-1 rounded-full font-semibold shrink-0"
+                      className="text-xs px-2.5 py-1 rounded-full font-semibold shrink-0 transition-transform duration-300 group-hover:scale-105"
                       style={{ background: lvl.bg, color: lvl.color }}
                     >
                       {st?.hasData ? lvl.label : "Belum Ada Data"}
@@ -925,7 +928,7 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
             const GroupIcon = g.key === "gbb" ? Boxes : Building2;
 
             return (
-              <div key={g.key} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs space-y-3">
+              <div key={g.key} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all duration-300 hover:shadow-md hover:border-slate-300 space-y-3">
                 <div className="flex items-center justify-between border-b pb-2.5">
                   <div className="flex items-center gap-2">
                     <GroupIcon size={16} className="text-rose-800" />
@@ -944,20 +947,20 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
                       <button
                         key={facKey}
                         onClick={() => handleOpenFacility(facKey)}
-                        className="w-full flex items-center justify-between p-2.5 rounded-xl border border-slate-100 hover:border-rose-300 hover:bg-rose-50/40 transition text-left"
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl border border-slate-100 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:scale-[1.015] hover:border-rose-300 hover:bg-rose-50/50 hover:shadow-sm text-left group/btn"
                       >
                         <div>
-                          <p className="text-xs font-bold text-slate-800">{fac?.label}</p>
+                          <p className="text-xs font-bold text-slate-800 transition-colors group-hover/btn:text-rose-900">{fac?.label}</p>
                           <p className="text-[10px] text-slate-400">Dept: {fac?.department}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <span
-                            className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                            className="text-[11px] px-2 py-0.5 rounded-full font-medium transition-transform duration-200 group-hover/btn:scale-105"
                             style={{ background: lvl.bg, color: lvl.color }}
                           >
                             {st?.hasData ? lvl.label : "Belum Ada Data"}
                           </span>
-                          <ChevronRight size={14} className="text-slate-300" />
+                          <ChevronRight size={14} className="text-slate-300 transition-transform duration-200 group-hover/btn:translate-x-1 group-hover/btn:text-rose-800" />
                         </div>
                       </button>
                     );
