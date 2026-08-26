@@ -1390,7 +1390,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   function handleAddRoom(roomName) {
     if (!roomName || activeRoomNames.includes(roomName)) return;
-    setActiveRoomNames((prev) => [...prev, roomName]);
+    // Tambahkan ruangan baru di urutan paling atas
+    setActiveRoomNames((prev) => [roomName, ...prev]);
   }
 
   function handleRemoveActiveRoom(roomName) {
