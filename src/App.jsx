@@ -580,7 +580,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
 }
 
 /* =========================================================================
-   6. SIDEBAR COMPONENT (DENGAN MENU NOTIFIKASI AKTIF)
+   6. SIDEBAR COMPONENT
    ========================================================================= */
 function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onClose, notifications = [] }) {
   const [expandedGroups, setExpandedGroups] = useState({ nbl: true, gbb: true });
@@ -614,7 +614,6 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Brand Header */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-zinc-800/80 bg-black/70">
           <button onClick={() => navigateTo({ page: "dashboard" })} className="flex items-center gap-3 text-left">
             <img src="/logo-rama.png" alt="Logo" className="h-9 w-9 object-contain brightness-0 invert" />
@@ -628,7 +627,6 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
           </button>
         </div>
 
-        {/* Menu Navigation */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin">
           <div className="space-y-1">
             <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">Menu Utama</p>
@@ -644,7 +642,6 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
               <span>Dashboard Global</span>
             </button>
 
-            {/* Menu Notifikasi di Sidebar */}
             {session && (
               <button
                 onClick={() => navigateTo({ page: "notifications" })}
@@ -780,7 +777,6 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
           </div>
         </div>
 
-        {/* Status SOP POS.QA.025 & Online Sync Footer */}
         <div className="px-4 py-3 border-t border-zinc-800/80 bg-black/70 text-[10px] text-zinc-400 flex justify-between items-center select-none">
           <span className="font-mono text-zinc-400">SOP POS.QA.025</span>
           <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
@@ -812,7 +808,6 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
 
   return (
     <div className="space-y-6">
-      {/* Banner Utama */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-black via-zinc-950 to-rose-950 p-6 sm:p-8 text-white shadow-xl transition-all duration-300 hover:shadow-2xl">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-rose-600/20 blur-3xl animate-pulse" />
         <div className="relative space-y-2">
@@ -827,7 +822,6 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
         </div>
       </div>
 
-      {/* Kartu Statistik dengan Animasi Menggembung/Hover Efek EM Viable */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:border-slate-300 cursor-default select-none">
           <p className="text-xs font-semibold text-slate-400">Total Fasilitas</p>
@@ -851,7 +845,6 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
         </div>
       </div>
 
-      {/* Matriks Fasilitas & Sub-Area dengan Animasi */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -987,7 +980,7 @@ function HeaderBar({
             />
           </label>
 
-          {/* Lonceng Notifikasi QA & SPV */}
+          {/* Lonceng Notifikasi */}
           {session && (
             <div className="relative">
               <button
@@ -1966,7 +1959,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   return (
     <div className="space-y-6">
-      {/* Toast Notification Alert */}
       {toast && (
         <div className="fixed top-20 right-6 z-50 flex items-center gap-2.5 bg-zinc-900/95 text-white border border-emerald-500/60 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md animate-fade-in text-xs font-semibold">
           <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
@@ -1974,7 +1966,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       )}
 
-      {/* Top Action Bar */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
         <button
           onClick={() => setView({ page: "dashboard" })}
@@ -2018,7 +2009,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* Header Banner KOP */}
       <div className="overflow-hidden rounded-3xl border border-slate-200/80 print-card shadow-sm">
         <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-5">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-rose-600/20 blur-3xl" />
@@ -2055,7 +2045,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       {error && <p className="p-3.5 bg-red-50 text-red-600 text-xs rounded-2xl border border-red-200">{error}</p>}
 
-      {/* SECTION 1: TABEL INPUT PEMILIHAN RUANGAN */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-4 print-card avoid-break">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3.5">
           <div className="flex flex-wrap items-center gap-3">
@@ -2138,7 +2127,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
         </div>
 
-        {/* Tabel Data Pengukuran */}
         {activeRoomNames.length === 0 ? (
           <div className="p-10 text-center bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs space-y-1.5">
             <p className="font-bold text-slate-700">Belum ada ruangan yang dipilih pada tanggal {selectedDate}.</p>
@@ -2542,7 +2530,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </p>
         </div>
 
-        {/* Tanda Tangan */}
         <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
           <div className="border rounded-2xl p-5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[150px]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -2620,7 +2607,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* MODAL PREVIEW DENAH RUANGAN INTERAKTIF DENGAN ZOOM 500% & DRAG */}
       {showDenahModal && denahSrc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-fade-in no-print">
           <div className="relative max-w-6xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-200 flex flex-col h-[90vh]">
@@ -2635,7 +2621,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                 </div>
               </div>
 
-              {/* Toolbar Zoom & Actions */}
               <div className="flex items-center gap-2">
                 <div className="flex items-center bg-slate-200/80 rounded-xl p-0.5 text-xs font-semibold text-slate-700">
                   <button
@@ -2673,7 +2658,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               </div>
             </div>
 
-            {/* Viewport Canvas Drag & Zoom */}
             <div
               className={`flex-1 overflow-hidden p-4 flex items-center justify-center bg-zinc-900/5 select-none relative ${
                 isDragging ? "cursor-grabbing" : "cursor-grab"
@@ -2720,7 +2704,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 }
 
 /* =========================================================================
-   12. HALAMAN PENGKAJIAN QA RESMI (PENGKAJIAN GLOBAL & RUANGAN)
+   12. HALAMAN PENGKAJIAN QA RESMI (DROPDOWN FASILITAS & CAKUPAN RAPI)
    ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
@@ -2904,7 +2888,6 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
   return (
     <div className="space-y-6">
-      {/* Toast Alert */}
       {toast && (
         <div className="fixed top-20 right-6 z-50 flex items-center gap-2.5 bg-zinc-900/95 text-white border border-emerald-500/60 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md animate-fade-in text-xs font-semibold">
           <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
@@ -2927,7 +2910,6 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </button>
       </div>
 
-      {/* HEADER KOP PENGKAJIAN QA */}
       <div className="overflow-hidden rounded-3xl border border-slate-200/80 print-card shadow-sm">
         <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-5">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-rose-600/20 blur-3xl" />
@@ -2960,42 +2942,42 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
       </div>
 
-      {/* FILTER FASILITAS & CAKUPAN */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-bold text-slate-700 mr-1.5">Fasilitas:</span>
-          {FACILITIES.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => {
-                setFacilityKey(f.key);
+      {/* FILTER FASILITAS & CAKUPAN DALAM BENTUK SELECT DROPDOWN SEJAJAR RAPI */}
+      <div className="no-print flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-bold text-slate-700">Fasilitas:</label>
+            <select
+              value={facilityKey}
+              onChange={(e) => {
+                setFacilityKey(e.target.value);
                 setSelectedRoomName("");
               }}
-              className={`text-xs rounded-full px-3 py-1 font-semibold transition ${
-                facilityKey === f.key
-                  ? "bg-rose-900 text-white shadow-xs"
-                  : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-              }`}
+              className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none bg-slate-50 focus:border-rose-700"
             >
-              {f.label}
-            </button>
-          ))}
-        </div>
+              {FACILITIES.map((f) => (
+                <option key={f.key} value={f.key}>
+                  {f.label} ({f.department})
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-bold text-slate-700">Cakupan:</label>
-          <select
-            value={selectedRoomName}
-            onChange={(e) => setSelectedRoomName(e.target.value)}
-            className="border rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none bg-slate-50"
-          >
-            <option value="">Semua Ruangan (Global)</option>
-            {(rooms || []).map((r) => (
-              <option key={r.code + r.name} value={r.name}>
-                {r.code} — {r.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-bold text-slate-700">Cakupan:</label>
+            <select
+              value={selectedRoomName}
+              onChange={(e) => setSelectedRoomName(e.target.value)}
+              className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 outline-none bg-slate-50 focus:border-rose-700"
+            >
+              <option value="">Semua Ruangan (Global Fasilitas)</option>
+              {(rooms || []).map((r) => (
+                <option key={r.code + r.name} value={r.name}>
+                  {r.code} — {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -3280,7 +3262,6 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           </p>
         </div>
 
-        {/* Tanda Tangan */}
         <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
           <div className="border rounded-2xl p-5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[150px]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -3881,7 +3862,7 @@ function VerifyPage() {
 }
 
 /* =========================================================================
-   16. APP CONTENT CONTROLLER
+   16. APP CONTENT CONTROLLER (DENGAN EVALUASI WAKTU NOTIFIKASI QA AWAL BULAN)
    ========================================================================= */
 function AppContent() {
   const { session, checking, login, logout } = useAuth();
@@ -3908,7 +3889,7 @@ function AppContent() {
     };
   }, [month]);
 
-  // Evaluator Notifikasi Real-time Berbasis Role (QA vs Area SPV/Manager)
+  // Evaluator Notifikasi Real-time Berbasis Role & Logika Awal Bulan
   useEffect(() => {
     if (!session) {
       setNotifications([]);
@@ -3920,7 +3901,11 @@ function AppContent() {
       try {
         const notifList = [];
         const tglHariIni = todayStr();
+        const activeCurrentMonth = currentMonth();
         const isQA = session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator";
+
+        // Bulan yang dipilih sudah selesai jika nilainya sebelum bulan sistem saat ini
+        const isMonthCompleted = month < activeCurrentMonth;
 
         const relevantFacilities = FACILITIES.filter((f) => {
           if (isQA) return true;
@@ -3933,7 +3918,7 @@ function AppContent() {
               const [entriesRes, masterRes, reportRes] = await Promise.all([
                 fetchEntries(fac.key, month).catch(() => []),
                 fetchMaster(fac.key).catch(() => []),
-                isQA ? fetchReport(fac.key, month, session?.token, "").catch(() => null) : null,
+                isQA && isMonthCompleted ? fetchReport(fac.key, month, session?.token, "").catch(() => null) : null,
               ]);
 
               const entryList = Array.isArray(entriesRes) ? entriesRes : entriesRes?.entries || [];
@@ -3958,9 +3943,8 @@ function AppContent() {
                 });
               });
 
-              // 2. Alert Pengkajian Global Bulanan (HANYA untuk akun QA)
-              // Hanya muncul jika fasilitas tersebut ada data pengukuran di bulan ini dan Pengkajian Globalnya belum dibuat
-              if (isQA && entryList.length > 0) {
+              // 2. Alert Pengkajian Global Bulanan (HANYA muncul saat bulan tersebut sudah lewat/selesai)
+              if (isQA && isMonthCompleted && entryList.length > 0) {
                 const hasGlobalNarrative = reportRes?.narrative?.pendahuluan || reportRes?.narrative?.kesimpulanUmum;
                 if (!hasGlobalNarrative) {
                   notifList.push({
@@ -3968,14 +3952,14 @@ function AppContent() {
                     facilityKey: fac.key,
                     facilityLabel: fac.label,
                     title: "Pengkajian QA Global Belum Dibuat",
-                    desc: `Terdapat ${entryList.length} data pemantauan pada bulan ${monthLabelID(month)}. Pengkajian tren global diperlukan.`,
+                    desc: `Terdapat ${entryList.length} data pemantauan pada periode ${monthLabelID(month)}. Pengkajian tren global diperlukan.`,
                     tag: "Pengkajian Global",
                     time: "Awal Bulan",
                   });
                 }
               }
 
-              // 3. Alert Pending SPV Approval (HANYA untuk akun SPV/Manager Area Terkait, TIDAK masuk ke QA)
+              // 3. Alert Pending SPV Approval (HANYA untuk akun SPV/Manager Area Terkait)
               if (!isQA) {
                 const pendingRooms = roomList.filter((r) => {
                   const rEntries = todayEntries.filter((e) => e?.roomName === r?.name);
