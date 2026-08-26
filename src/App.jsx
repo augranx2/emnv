@@ -1220,17 +1220,16 @@ function LoginModal({ onClose, onLogin }) {
 }
 
 /* =========================================================================
-   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + ZOOM/DRAG DENAH)
+   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + ZOOM 500% DENAH)
    ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
   const canInput = hasFacilityAccess(session, "Staff", cfg);
   const canApproveSPV = hasFacilityAccess(session, "Supervisor", cfg);
-  const isOperator =
-    session?.role === "Staff" ||
-    session?.role === "Operator" ||
-    session?.role === "Admin" ||
-    session?.role === "Administrator";
+  
+  // SPV, Asst Manager, Manager yang memiliki hak input/SPV otomatis dapat melakukan approve OPR
+  const canApproveOPR = canInput || canApproveSPV;
+  
   const canDraftQA = hasAccess(session, "Supervisor", "QA");
   const canFinalQA = hasAccess(session, "Manager", "QA");
 
@@ -1253,7 +1252,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const [perParameter, setPerParameter] = useState({ suhu: "", rh: "", dpg: "" });
   const [generating, setGenerating] = useState(false);
 
-  /* Modal Denah State with Zoom & Pan */
+  /* Modal Denah State with Zoom up to 500% & Pan */
   const [showDenahModal, setShowDenahModal] = useState(false);
   const [denahScale, setDenahScale] = useState(1);
   const [denahPosition, setDenahPosition] = useState({ x: 0, y: 0 });
@@ -1266,7 +1265,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setDenahPosition({ x: 0, y: 0 });
   };
 
-  const handleZoomIn = () => setDenahScale((prev) => Math.min(prev + 0.3, 4));
+  const handleZoomIn = () => setDenahScale((prev) => Math.min(prev + 0.3, 5));
   const handleZoomOut = () => setDenahScale((prev) => Math.max(prev - 0.3, 0.6));
 
   const handleMouseDown = (e) => {
@@ -1284,7 +1283,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const handleWheel = (e) => {
     e.preventDefault();
     if (e.deltaY < 0) {
-      setDenahScale((prev) => Math.min(prev + 0.2, 4));
+      setDenahScale((prev) => Math.min(prev + 0.2, 5));
     } else {
       setDenahScale((prev) => Math.max(prev - 0.2, 0.6));
     }
@@ -1490,6 +1489,16 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       const otherRows = (monthEntries || []).filter((e) => e?.tanggal !== selectedDate);
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session?.token);
+
+      const uniqueRooms = Array.from(new Set(todayRows.map((r) => r.roomName)));
+      // Jika OPR masih kosong, lengkapi otomatis agar data valid
+      for (const rName of uniqueRooms) {
+        const rows = todayRows.filter((r) => r.roomName === rName);
+        const oprEmpty = rows.some((r) => !r.opr);
+        if (oprEmpty) {
+          await apiApproveOpr(facilityKey, selectedDate, rName, session?.token).catch(() => {});
+        }
+      }
 
       await apiApproveDay(facilityKey, selectedDate, session?.token);
       await loadData();
@@ -1849,7 +1858,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                 >
                   {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Simpan Draf
                 </button>
-                {isOperator && (
+                {canApproveOPR && (
                   <button
                     onClick={handleApproveOprBatch}
                     disabled={saving || activeRoomNames.length === 0}
@@ -1904,7 +1913,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   const labelSuffix =
                     st === "spv" ? "✓ Disetujui SPV" : st === "opr" ? "• Diapprove OPR" : st === "filled" ? "• Terisi" : "";
 
-                  const hasOprApproved = SESI.every((jam) => !!gridValues[rName]?.[jam]?.opr);
                   const isLocked = st === "spv";
 
                   return SESI.map((jam, jamIdx) => {
@@ -1998,7 +2006,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                                 signerName={v.opr}
                               />
                             </div>
-                          ) : isOperator && !isLocked ? (
+                          ) : canApproveOPR && !isLocked ? (
                             <button
                               onClick={() => handleApproveOprSingle(rName)}
                               disabled={busyRow === rName + "|opr"}
@@ -2031,7 +2039,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                                 signerName={v.spv}
                               />
                             </div>
-                          ) : canApproveSPV && !isLocked && hasOprApproved ? (
+                          ) : canApproveSPV && !isLocked ? (
                             <button
                               onClick={() => handleApproveSpvSingle(rName)}
                               disabled={busyRow === rName + "|spv"}
@@ -2355,7 +2363,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* MODAL PREVIEW DENAH RUANGAN INTERAKTIF */}
+      {/* MODAL PREVIEW DENAH RUANGAN INTERAKTIF DENGAN ZOOM 500% & DRAG */}
       {showDenahModal && denahSrc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-fade-in no-print">
           <div className="relative max-w-6xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-200 flex flex-col h-[90vh]">
@@ -2366,7 +2374,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">Denah Tata Letak Ruangan — {cfg?.label}</h3>
-                  <p className="text-[11px] text-slate-500">Gunakan scroll/drag untuk zoom dan menggeser denah</p>
+                  <p className="text-[11px] text-slate-500">Gunakan scroll/drag untuk zoom hingga 500% dan menggeser denah</p>
                 </div>
               </div>
 
