@@ -764,7 +764,158 @@ function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onC
 }
 
 /* =========================================================================
-   HEADER BAR DENGAN PUSAT NOTIFIKASI REAL-TIME
+   7. DASHBOARD OVERVIEW COMPONENT (DENGAN ANIMASI INTERAKTIF HOVER / SCALE)
+   ========================================================================= */
+function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }) {
+  const perluCount = FACILITIES.filter((f) => (status?.[f.key]?.level || 0) === 3).length;
+  const tmsCount = FACILITIES.filter((f) => (status?.[f.key]?.level || 0) >= 4).length;
+  const terkendaliCount = FACILITIES.filter((f) => status?.[f.key]?.hasData && (status?.[f.key]?.level || 0) < 3).length;
+  const belumAdaCount = FACILITIES.filter((f) => !status?.[f.key]?.hasData).length;
+
+  function handleOpenFacility(facKey) {
+    if (!session) {
+      onNeedLogin();
+      return;
+    }
+    setView({ page: "facility", facility: facKey });
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Banner Utama */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-black via-zinc-950 to-rose-950 p-6 sm:p-8 text-white shadow-xl transition-all duration-300 hover:shadow-2xl">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-rose-600/20 blur-3xl animate-pulse" />
+        <div className="relative space-y-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/20 border border-rose-500/30 px-3 py-0.5 text-[11px] font-semibold text-rose-200">
+            <ShieldCheck size={13} /> Sistem Pemantauan CPOB Non Viable
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Status Fasilitas EM Non Viable</h1>
+          <p className="text-xs sm:text-sm text-rose-100/80 max-w-2xl leading-relaxed">
+            Pemantauan berkala parameter Suhu, Kelembaban Relatif (RH), dan Perbedaan Tekanan Ruang (DPG) seluruh gedung
+            produksi periode <b>{monthLabelID(month)}</b>.
+          </p>
+        </div>
+      </div>
+
+      {/* Kartu Statistik dengan Animasi Menggembung/Hover Efek EM Viable */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:border-slate-300 cursor-default select-none">
+          <p className="text-xs font-semibold text-slate-400">Total Fasilitas</p>
+          <p className="text-2xl font-bold text-slate-800 mt-1">{FACILITIES.length}</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:shadow-emerald-500/10 hover:border-emerald-300 cursor-default select-none">
+          <p className="text-xs font-semibold text-emerald-700">Terkendali</p>
+          <p className="text-2xl font-bold text-emerald-800 mt-1">{terkendaliCount}</p>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:shadow-amber-500/10 hover:border-amber-300 cursor-default select-none">
+          <p className="text-xs font-semibold text-amber-700">Perlu Perhatian</p>
+          <p className="text-2xl font-bold text-amber-800 mt-1">{perluCount}</p>
+        </div>
+        <div className="rounded-2xl border border-red-200 bg-red-50/50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:shadow-red-500/10 hover:border-red-300 cursor-default select-none">
+          <p className="text-xs font-semibold text-red-700">Melebihi Syarat</p>
+          <p className="text-2xl font-bold text-red-800 mt-1">{tmsCount}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1.5 hover:scale-105 hover:shadow-lg hover:border-slate-300 cursor-default select-none">
+          <p className="text-xs font-semibold text-slate-400">Belum Ada Data</p>
+          <p className="text-2xl font-bold text-slate-700 mt-1">{belumAdaCount}</p>
+        </div>
+      </div>
+
+      {/* Matriks Fasilitas & Sub-Area dengan Animasi */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Matriks 17 Fasilitas — {monthLabelID(month)}
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {GROUPS.map((g) => {
+            if (g.singleKey) {
+              const fac = FACILITIES.find((f) => f.key === g.singleKey);
+              const st = status?.[g.singleKey];
+              const lvl = levelStyle(st?.hasData ? st.level : null);
+              const SingleIcon = g.icon || Building2;
+
+              return (
+                <div
+                  key={g.key}
+                  onClick={() => handleOpenFacility(g.singleKey)}
+                  className="cursor-pointer rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.02] hover:border-rose-400 hover:shadow-xl hover:shadow-rose-950/5 group"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-rose-50 group-hover:text-rose-900 shadow-2xs">
+                        <SingleIcon size={20} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-800 transition-colors group-hover:text-rose-900">{fac?.label || g.title}</h3>
+                        <p className="text-xs text-slate-400">Departemen {fac?.department}</p>
+                      </div>
+                    </div>
+                    <span
+                      className="text-xs px-2.5 py-1 rounded-full font-semibold shrink-0 transition-transform duration-300 group-hover:scale-105"
+                      style={{ background: lvl.bg, color: lvl.color }}
+                    >
+                      {st?.hasData ? lvl.label : "Belum Ada Data"}
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+
+            const GroupIcon = g.key === "gbb" ? Boxes : Building2;
+
+            return (
+              <div key={g.key} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all duration-300 hover:shadow-md hover:border-slate-300 space-y-3">
+                <div className="flex items-center justify-between border-b pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <GroupIcon size={16} className="text-rose-800" />
+                    <h3 className="text-sm font-bold text-slate-800">{g.title}</h3>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-medium">{g.items.length} Sub-Area</span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  {g.items.map((facKey) => {
+                    const fac = FACILITIES.find((f) => f.key === facKey);
+                    const st = status?.[facKey];
+                    const lvl = levelStyle(st?.hasData ? st.level : null);
+
+                    return (
+                      <button
+                        key={facKey}
+                        onClick={() => handleOpenFacility(facKey)}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl border border-slate-100 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:scale-[1.015] hover:border-rose-300 hover:bg-rose-50/50 hover:shadow-sm text-left group/btn"
+                      >
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 transition-colors group-hover/btn:text-rose-900">{fac?.label}</p>
+                          <p className="text-[10px] text-slate-400">Dept: {fac?.department}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-[11px] px-2 py-0.5 rounded-full font-medium transition-transform duration-200 group-hover/btn:scale-105"
+                            style={{ background: lvl.bg, color: lvl.color }}
+                          >
+                            {st?.hasData ? lvl.label : "Belum Ada Data"}
+                          </span>
+                          <ChevronRight size={14} className="text-slate-300 transition-transform duration-200 group-hover/btn:translate-x-1 group-hover/btn:text-rose-800" />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   8. HEADER BAR DENGAN PUSAT NOTIFIKASI REAL-TIME
    ========================================================================= */
 function HeaderBar({
   session,
@@ -781,7 +932,6 @@ function HeaderBar({
   const avatarLetter = (session?.nama || session?.username || "U").charAt(0).toUpperCase();
 
   const criticalCount = notifications.filter((n) => n.type === "critical").length;
-  const pendingCount = notifications.filter((n) => n.type === "pending_spv").length;
 
   return (
     <header className="no-print sticky top-0 z-30 h-16 border-b border-slate-200 bg-white/90 backdrop-blur-md px-4 lg:px-8">
@@ -942,7 +1092,7 @@ function HeaderBar({
 }
 
 /* =========================================================================
-   8. MODAL PROFIL & GANTI PASSWORD
+   9. MODAL PROFIL & GANTI PASSWORD & LOGIN
    ========================================================================= */
 function ProfileModal({ session, onClose, onChangePasswordClick }) {
   if (!session) return null;
@@ -1189,7 +1339,7 @@ function LoginModal({ onClose, onLogin }) {
 }
 
 /* =========================================================================
-   9. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + ZOOM 500% DENAH)
+   10. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + ZOOM 500% DENAH)
    ========================================================================= */
 function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -1286,6 +1436,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       setRooms(roomList);
       setMonthEntries(entryList);
 
+      // Ambil data laporan fasilitas harian dari backend dengan kunci unik selectedDate
       let reportRes = await fetchReport(facilityKey, selectedDate, session?.token, "").catch(() => null);
       if (!reportRes?.narrative?.pendahuluan && !reportRes?.narrative?.kesimpulanUmum) {
         reportRes = await fetchReport(facilityKey, month, session?.token, selectedDate).catch(() => null);
@@ -1359,6 +1510,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   function handleAddRoom(roomName) {
     if (!roomName || activeRoomNames.includes(roomName)) return;
+    // Tambahkan ruangan baru di urutan paling atas
     setActiveRoomNames((prev) => [roomName, ...prev]);
   }
 
@@ -1460,6 +1612,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       await apiSaveEntries(facilityKey, month, otherRows.concat(todayRows), session?.token);
 
       const uniqueRooms = Array.from(new Set(todayRows.map((r) => r.roomName)));
+      // Jika OPR masih kosong, lengkapi otomatis agar data valid
       for (const rName of uniqueRooms) {
         const rows = todayRows.filter((r) => r.roomName === rName);
         const oprEmpty = rows.some((r) => !r.opr);
@@ -1523,6 +1676,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         [currentMemKey]: payload,
       }));
 
+      // Simpan menggunakan kunci tanggal terpilih (selectedDate)
       await apiSaveReport(
         facilityKey,
         selectedDate,
@@ -2431,7 +2585,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 }
 
 /* =========================================================================
-   10. HALAMAN PENGKAJIAN QA RESMI (PENGKAJIAN GLOBAL & RUANGAN)
+   11. HALAMAN PENGKAJIAN QA RESMI (PENGKAJIAN GLOBAL & RUANGAN)
    ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
@@ -3073,7 +3227,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 }
 
 /* =========================================================================
-   11. FORMULIR BULANAN CETAK (FM.QA.024/R11)
+   12. FORMULIR BULANAN CETAK (FM.QA.024/R11)
    ========================================================================= */
 function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
@@ -3333,7 +3487,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
 }
 
 /* =========================================================================
-   12. RIWAYAT AKTIVITAS & AUDIT TRAIL + DOWNLOAD CSV
+   13. RIWAYAT AKTIVITAS & AUDIT TRAIL + DOWNLOAD CSV
    ========================================================================= */
 function ActivityPage({ session, month, setView }) {
   const [logs, setLogs] = useState([]);
@@ -3499,7 +3653,7 @@ function ActivityPage({ session, month, setView }) {
 }
 
 /* =========================================================================
-   13. HALAMAN VERIFIKASI QR DOKUMEN PUBLIK (/verify)
+   14. HALAMAN VERIFIKASI QR DOKUMEN PUBLIK (/verify)
    ========================================================================= */
 function VerifyPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -3592,7 +3746,7 @@ function VerifyPage() {
 }
 
 /* =========================================================================
-   14. APP CONTENT CONTROLLER (DENGAN REAL-TIME NOTIFICATION GENERATOR)
+   15. APP CONTENT CONTROLLER
    ========================================================================= */
 function AppContent() {
   const { session, checking, login, logout } = useAuth();
@@ -3619,7 +3773,7 @@ function AppContent() {
     };
   }, [month]);
 
-  // Evaluator Notifikasi Real-time: Mengecek Deviasi Limit (Action / TMS) & Pending SPV
+  // Evaluator Notifikasi Real-time
   useEffect(() => {
     if (!session) {
       setNotifications([]);
@@ -3632,7 +3786,6 @@ function AppContent() {
         const notifList = [];
         const tglHariIni = todayStr();
 
-        // Cek fasilitas yang memiliki status deviasi atau status data aktif
         const relevantFacilities = FACILITIES.filter((f) => {
           if (session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator") {
             return true;
@@ -3640,7 +3793,6 @@ function AppContent() {
           return hasFacilityAccess(session, "Staff", f);
         });
 
-        // Loop pemeriksaan paralel
         await Promise.all(
           relevantFacilities.slice(0, 8).map(async (fac) => {
             try {
@@ -3654,7 +3806,7 @@ function AppContent() {
 
               const todayEntries = entryList.filter((e) => e?.tanggal === tglHariIni);
 
-              // 1. Cek Deviasi Kritis (Action Limit = level 3 / TMS = level 4)
+              // Deviasi Kritis (Action Limit = level 3 / TMS = level 4)
               todayEntries.forEach((e) => {
                 PARAM_DEFS.forEach((p) => {
                   const lvl = e?.level?.[p.key];
@@ -3672,7 +3824,7 @@ function AppContent() {
                 });
               });
 
-              // 2. Cek Pending Approval SPV (OPR sudah isi & approve, tapi SPV belum)
+              // Pending Approval SPV
               const pendingRooms = roomList.filter((r) => {
                 const rEntries = todayEntries.filter((e) => e?.roomName === r?.name);
                 return rEntries.length > 0 && rEntries.some((e) => !!e.opr) && rEntries.some((e) => !e.spv);
@@ -3690,7 +3842,7 @@ function AppContent() {
                 });
               }
             } catch {
-              // ignore per-facility error
+              // ignore
             }
           })
         );
@@ -3704,7 +3856,7 @@ function AppContent() {
     };
 
     fetchNotifs();
-    const interval = setInterval(fetchNotifs, 45000); // Polling otomatis tiap 45 detik
+    const interval = setInterval(fetchNotifs, 45000);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -3848,7 +4000,7 @@ function AppContent() {
 }
 
 /* =========================================================================
-   15. ROOT EXPORT
+   16. ROOT EXPORT
    ========================================================================= */
 export default function App() {
   if (typeof window !== "undefined" && window.location.pathname === "/verify") {
