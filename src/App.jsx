@@ -1319,8 +1319,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       setRooms(roomList);
       setMonthEntries(entryList);
 
-      // Ambil data laporan fasilitas harian dari backend
-      let reportRes = await fetchReport(facilityKey, month, session?.token, "").catch(() => null);
+      // Ambil data laporan fasilitas harian dari backend dengan kunci unik selectedDate
+      let reportRes = await fetchReport(facilityKey, selectedDate, session?.token, "").catch(() => null);
+      if (!reportRes?.narrative?.pendahuluan && !reportRes?.narrative?.kesimpulanUmum) {
+        reportRes = await fetchReport(facilityKey, month, session?.token, selectedDate).catch(() => null);
+      }
 
       if (reportRes?.narrative?.pendahuluan || reportRes?.narrative?.kesimpulanUmum) {
         setReport(reportRes);
@@ -1343,7 +1346,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     } finally {
       setLoading(false);
     }
-  }, [facilityKey, month, session?.token, currentMemKey, narrativeMemory]);
+  }, [facilityKey, month, selectedDate, session?.token, currentMemKey, narrativeMemory]);
 
   useEffect(() => {
     loadData();
@@ -1556,9 +1559,10 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         [currentMemKey]: payload,
       }));
 
+      // Simpan menggunakan kunci tanggal terpilih (selectedDate)
       await apiSaveReport(
         facilityKey,
-        month,
+        selectedDate,
         payload,
         session?.token,
         ""
@@ -1644,7 +1648,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   async function handleDikaji() {
     try {
-      await apiApproveDikaji(facilityKey, month, session?.token, "");
+      await apiApproveDikaji(facilityKey, selectedDate, session?.token, "");
       await loadData();
       showToast("Status 'Dikaji Oleh' berhasil disetujui!");
     } catch (err) {
@@ -1654,7 +1658,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   async function handleMengetahui() {
     try {
-      await apiApproveMengetahui(facilityKey, month, session?.token, "");
+      await apiApproveMengetahui(facilityKey, selectedDate, session?.token, "");
       await loadData();
       showToast("Status 'Mengetahui' Final berhasil disetujui!");
     } catch (err) {
@@ -2298,7 +2302,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   <VerifyQR
                     type="pengkajian"
                     facility={facilityKey}
-                    period={month}
+                    period={selectedDate}
                     roomName=""
                     signerRole="Dikaji Oleh"
                     signerName={report.signoff.dinilai.nama}
@@ -2333,7 +2337,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   <VerifyQR
                     type="pengkajian"
                     facility={facilityKey}
-                    period={month}
+                    period={selectedDate}
                     roomName=""
                     signerRole="Mengetahui"
                     signerName={report.signoff.diperiksa.nama}
