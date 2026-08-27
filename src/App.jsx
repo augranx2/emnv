@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, Component } from "react";
+import React, { useState, useEffect, useCallback, useMemo, Component, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ComposedChart,
@@ -222,7 +222,8 @@ function toNumberSafe(v) {
   if (v === null || v === undefined || v === "" || v === "-") return null;
   const clean = String(v).replace(/[≤≥]/g, "").replace(",", ".").trim();
   const n = Number(clean);
-  return Number.isNaN(n) ? null : n;
+  if (Number.isNaN(n) || n > 500 || n < -100) return null; // proteksi anomali
+  return n;
 }
 
 function inRange(v, lower, upper) {
@@ -292,6 +293,41 @@ function facilityOverallLevel(entries) {
     });
   });
   return max;
+}
+
+/* =========================================================================
+   AUTO-RESIZE TEXTAREA HELPER
+   ========================================================================= */
+function AutoResizeTextarea({ value, onChange, disabled, placeholder, minHeight = "55px" }) {
+  const textareaRef = useRef(null);
+
+  const adjustHeight = useCallback(() => {
+    const node = textareaRef.current;
+    if (node) {
+      node.style.height = "auto";
+      node.style.height = `${Math.max(node.scrollHeight, parseInt(minHeight, 10))}px`;
+    }
+  }, [minHeight]);
+
+  useEffect(() => {
+    adjustHeight();
+  }, [value, adjustHeight]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={(e) => {
+        onChange(e);
+        adjustHeight();
+      }}
+      disabled={disabled}
+      placeholder={placeholder}
+      rows={1}
+      style={{ minHeight, fieldSizing: "content" }}
+      className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none overflow-hidden"
+    />
+  );
 }
 
 /* =========================================================================
@@ -464,7 +500,7 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
       </div>
       <div className="p-2.5 chart-container-print">
         <ResponsiveContainer width="100%" height={165}>
-          <ComposedChart data={data} margin={{ top: 8, right: 15, left: 18, bottom: 20 }}>
+          <ComposedChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 25 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -475,8 +511,8 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
             {alertVal !== null && <ReferenceLine y={alertVal} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-            <XAxis dataKey="label" tick={{ fontSize: 8.5, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={30} />
-            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={36} />
+            <XAxis dataKey="label" tick={{ fontSize: 8.5, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={35} />
+            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9, fill: "#64748b" }} width={40} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -552,7 +588,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
       </div>
       <div className="p-2.5 chart-container-print">
         <ResponsiveContainer width="100%" height={155}>
-          <ComposedChart data={data} margin={{ top: 8, right: 15, left: 18, bottom: 20 }}>
+          <ComposedChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 25 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -563,8 +599,8 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
             {alertVal !== null && <ReferenceLine y={alertVal} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-            <XAxis dataKey="label" tick={{ fontSize: 8, fill: "#64748b" }} angle={-25} textAnchor="end" interval="preserveStartEnd" height={30} />
-            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={36} />
+            <XAxis dataKey="label" tick={{ fontSize: 8, fill: "#64748b" }} angle={-25} textAnchor="end" interval="preserveStartEnd" height={35} />
+            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9, fill: "#64748b" }} width={40} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -1554,12 +1590,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     setTimeout(() => setToast(""), 3500);
   };
 
-  const handleAutoResize = (e) => {
-    const target = e.target;
-    target.style.height = "auto";
-    target.style.height = `${target.scrollHeight}px`;
-  };
-
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -2479,17 +2509,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             </span>
           </div>
           <div className="p-2.5 bg-white">
-            <textarea
+            <AutoResizeTextarea
               value={pendahuluan}
-              onChange={(e) => {
-                setPendahuluan(e.target.value);
-                handleAutoResize(e);
-              }}
-              onFocus={handleAutoResize}
+              onChange={(e) => setPendahuluan(e.target.value)}
               disabled={!canDraftQA || isFinalApproved}
-              rows={2}
-              style={{ minHeight: "55px", overflow: "hidden" }}
-              className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+              minHeight="55px"
             />
             <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
           </div>
@@ -2506,18 +2530,12 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                 <span className="text-[9.5px] text-rose-200 font-mono">Hasil, Tren &amp; Kesimpulan</span>
               </div>
               <div className="p-2.5 bg-white">
-                <textarea
+                <AutoResizeTextarea
                   value={perParameter[p.key] || ""}
-                  onChange={(e) => {
-                    setPerParameter({ ...perParameter, [p.key]: e.target.value });
-                    handleAutoResize(e);
-                  }}
-                  onFocus={handleAutoResize}
+                  onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
                   disabled={!canDraftQA || isFinalApproved}
-                  rows={2}
-                  style={{ minHeight: "60px", overflow: "hidden" }}
                   placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
-                  className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+                  minHeight="60px"
                 />
                 <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
                   {perParameter[p.key] || "-"}
@@ -2534,17 +2552,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             </span>
           </div>
           <div className="p-2.5 bg-white">
-            <textarea
+            <AutoResizeTextarea
               value={kesimpulanUmum}
-              onChange={(e) => {
-                setKesimpulanUmum(e.target.value);
-                handleAutoResize(e);
-              }}
-              onFocus={handleAutoResize}
+              onChange={(e) => setKesimpulanUmum(e.target.value)}
               disabled={!canDraftQA || isFinalApproved}
-              rows={2}
-              style={{ minHeight: "55px", overflow: "hidden" }}
-              className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+              minHeight="55px"
             />
             <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
               {kesimpulanUmum || "-"}
@@ -2753,12 +2765,6 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
     setTimeout(() => setToast(""), 3500);
   };
 
-  const handleAutoResize = (e) => {
-    const target = e.target;
-    target.style.height = "auto";
-    target.style.height = `${target.scrollHeight}px`;
-  };
-
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -2932,7 +2938,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </button>
       </div>
 
-      {/* HEADER KOP UTAMA PENGKAJIAN QA */}
+      {/* HEADER KOP UTAMA PENGKAJIAN QA (LENGKUNG & PROPOSIONAL SEPERTI EM VIABLE) */}
       <div className="overflow-hidden rounded-3xl border border-slate-200/80 print-card shadow-sm">
         <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-4">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-rose-600/20 blur-3xl" />
@@ -3227,17 +3233,11 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             </span>
           </div>
           <div className="p-2.5 bg-white">
-            <textarea
+            <AutoResizeTextarea
               value={pendahuluan}
-              onChange={(e) => {
-                setPendahuluan(e.target.value);
-                handleAutoResize(e);
-              }}
-              onFocus={handleAutoResize}
+              onChange={(e) => setPendahuluan(e.target.value)}
               disabled={!canDraftQA || isFinal}
-              rows={2}
-              style={{ minHeight: "55px", overflow: "hidden" }}
-              className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+              minHeight="55px"
             />
             <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
           </div>
@@ -3255,18 +3255,12 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                 <span className="text-[9.5px] text-rose-200 font-mono">Hasil, Tren &amp; Kesimpulan</span>
               </div>
               <div className="p-2.5 bg-white">
-                <textarea
+                <AutoResizeTextarea
                   value={perParameter[p.key] || ""}
-                  onChange={(e) => {
-                    setPerParameter({ ...perParameter, [p.key]: e.target.value });
-                    handleAutoResize(e);
-                  }}
-                  onFocus={handleAutoResize}
+                  onChange={(e) => setPerParameter({ ...perParameter, [p.key]: e.target.value })}
                   disabled={!canDraftQA || isFinal}
-                  rows={2}
-                  style={{ minHeight: "60px", overflow: "hidden" }}
                   placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
-                  className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+                  minHeight="60px"
                 />
                 <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
                   {perParameter[p.key] || "-"}
@@ -3284,17 +3278,11 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             </span>
           </div>
           <div className="p-2.5 bg-white">
-            <textarea
+            <AutoResizeTextarea
               value={kesimpulanUmum}
-              onChange={(e) => {
-                setKesimpulanUmum(e.target.value);
-                handleAutoResize(e);
-              }}
-              onFocus={handleAutoResize}
+              onChange={(e) => setKesimpulanUmum(e.target.value)}
               disabled={!canDraftQA || isFinal}
-              rows={2}
-              style={{ minHeight: "55px", overflow: "hidden" }}
-              className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+              minHeight="55px"
             />
             <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
               {kesimpulanUmum || "-"}
@@ -3939,10 +3927,8 @@ function AppContent() {
     const fetchNotifs = async () => {
       try {
         const notifList = [];
-        const tglHariIni = todayStr();
-        const activeCurrentMonth = currentMonth();
         const isQA = session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator";
-        const isMonthCompleted = month < activeCurrentMonth;
+        const isMonthCompleted = month < currentMonth();
 
         const relevantFacilities = FACILITIES.filter((f) => {
           if (isQA) return true;
@@ -4068,7 +4054,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex font-sans">
-      {/* CSS CETAK PRINT TEROPTIMASI DENGAN SAFE-MARGIN */}
+      {/* CSS CETAK PRINT TEROPTIMASI & KOP EM VIABLE-LIKE */}
       <style>{`
         .only-print { display: none; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -4083,7 +4069,7 @@ function AppContent() {
             margin-bottom: 0.65rem !important; 
             padding: 0 !important;
             border-radius: 1.25rem !important;
-            overflow: visible !important;
+            overflow: hidden !important;
           }
           .avoid-break { 
             page-break-inside: avoid !important; 
@@ -4093,7 +4079,6 @@ function AppContent() {
           .chart-container-print {
             height: 155px !important;
             padding: 0.15rem !important;
-            overflow: visible !important;
           }
           table { width: 100% !important; max-width: 100% !important; table-layout: auto !important; }
           th, td { padding-top: 2.5px !important; padding-bottom: 2.5px !important; font-size: 9px !important; }
@@ -4102,7 +4087,7 @@ function AppContent() {
           textarea { border: none !important; resize: none !important; background: transparent !important; padding: 0 !important; height: auto !important; }
         }
         @page {
-          margin: 0.8cm 1.2cm 1cm 1.2cm;
+          margin: 0.6cm 0.6cm 0.8cm 0.6cm;
           size: portrait;
         }
       `}</style>
