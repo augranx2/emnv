@@ -580,7 +580,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
 }
 
 /* =========================================================================
-   6. SIDEBAR COMPONENT (DENGAN MENU NOTIFIKASI AKTIF)
+   6. SIDEBAR COMPONENT
    ========================================================================= */
 function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onClose, notifications = [] }) {
   const [expandedGroups, setExpandedGroups] = useState({ nbl: true, gbb: true });
@@ -1473,7 +1473,7 @@ function LoginModal({ onClose, onLogin }) {
 /* =========================================================================
    11. HALAMAN FASILITAS INTEGRATED (HARIAN + APPROVAL + GRAFIK + ZOOM 500% DENAH)
    ========================================================================= */
-function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView }) {
+function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView, initialDate }) {
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
   const canInput = hasFacilityAccess(session, "Staff", cfg);
   const canApproveSPV = hasFacilityAccess(session, "Supervisor", cfg);
@@ -1482,7 +1482,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const canDraftQA = hasAccess(session, "Supervisor", "QA");
   const canFinalQA = hasAccess(session, "Manager", "QA");
 
-  const [selectedDate, setSelectedDate] = useState(todayStr());
+  // Inisialisasi tanggal: pakai initialDate dari notifikasi jika ada, jika tidak default hari ini
+  const [selectedDate, setSelectedDate] = useState(initialDate || todayStr());
   const [rooms, setRooms] = useState([]);
   const [monthEntries, setMonthEntries] = useState([]);
   const [report, setReport] = useState(null);
@@ -1541,6 +1542,13 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   /* Dictionary memori cache lokal berbasis state */
   const [narrativeMemory, setNarrativeMemory] = useState({});
   const currentMemKey = `${facilityKey}_${selectedDate}`;
+
+  // Update selectedDate jika ada initialDate baru dari navigasi notifikasi
+  useEffect(() => {
+    if (initialDate) {
+      setSelectedDate(initialDate);
+    }
+  }, [initialDate]);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -2704,7 +2712,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 }
 
 /* =========================================================================
-   12. HALAMAN PENGKAJIAN QA RESMI (DROPDOWN FASILITAS & CAKUPAN RAPI)
+   12. HALAMAN PENGKAJIAN QA RESMI
    ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
@@ -2942,7 +2950,6 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
       </div>
 
-      {/* FILTER FASILITAS & CAKUPAN DALAM BENTUK SELECT DROPDOWN SEJAJAR RAPI */}
       <div className="no-print flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
@@ -3862,7 +3869,7 @@ function VerifyPage() {
 }
 
 /* =========================================================================
-   16. APP CONTENT CONTROLLER (DENGAN EVALUATOR NOTIFIKASI BULAN SELESAI)
+   16. APP CONTENT CONTROLLER
    ========================================================================= */
 function AppContent() {
   const { session, checking, login, logout } = useAuth();
@@ -3888,6 +3895,7 @@ function AppContent() {
     };
   }, [month]);
 
+  // Evaluator Notifikasi Real-time Berbasis Role
   useEffect(() => {
     if (!session) {
       setNotifications([]);
@@ -3898,6 +3906,7 @@ function AppContent() {
     const fetchNotifs = async () => {
       try {
         const notifList = [];
+        const tglHariIni = todayStr();
         const isQA = session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator";
         const isMonthCompleted = month < currentMonth();
 
@@ -3925,6 +3934,7 @@ function AppContent() {
                       type: "critical",
                       facilityKey: fac.key,
                       facilityLabel: fac.label,
+                      targetDate: e.tanggal,
                       title: `Peringatan ${lvl === 4 ? "TMS (Melebihi Syarat)" : "Action Limit"}`,
                       desc: `Ruangan ${e.roomName} parameter ${p.label}: ${e[p.key]} ${p.unit} (Tgl ${e.tanggal}, Jam ${e.jam}).`,
                       tag: lvl === 4 ? "TMS" : "Action Limit",
@@ -3950,7 +3960,7 @@ function AppContent() {
                 }
               }
 
-              // 3. Alert Pending SPV Approval (HANYA untuk SPV / Manager Area, seluruh antrean bulan berjalan)
+              // 3. Alert Pending SPV Approval (Seluruh antrean di bulan aktif)
               if (!isQA) {
                 const pendingEntries = entryList.filter((e) => !!e.opr && !e.spv);
                 if (pendingEntries.length > 0) {
@@ -3961,6 +3971,7 @@ function AppContent() {
                       type: "pending_spv",
                       facilityKey: fac.key,
                       facilityLabel: fac.label,
+                      targetDate: tgl,
                       title: "Menunggu Approval SPV",
                       desc: `Terdapat ${countOnDate} data ruangan pada tgl ${tgl} telah di-approve OPR dan siap ditinjau.`,
                       tag: "Pending SPV",
@@ -3991,11 +4002,12 @@ function AppContent() {
     };
   }, [session, month]);
 
+  // Navigasi langsung ke fasilitas dan TANGGAL spesifik sesuai notifikasi
   const handleSelectNotification = (notif) => {
     if (notif.type === "qa_global") {
       setView({ page: "pengkajian", facility: notif.facilityKey, room: "" });
     } else if (notif.facilityKey) {
-      setView({ page: "facility", facility: notif.facilityKey });
+      setView({ page: "facility", facility: notif.facilityKey, targetDate: notif.targetDate });
     }
   };
 
@@ -4092,6 +4104,7 @@ function AppContent() {
               month={month}
               setMonth={setMonth}
               setView={setView}
+              initialDate={view.targetDate}
             />
           )}
           {view.page === "pengkajian" && session && (
