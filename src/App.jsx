@@ -349,7 +349,7 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
 }
 
 /* =========================================================================
-   5. KOMPONEN GRAFIK RECHARTS
+   5. KOMPONEN GRAFIK RECHARTS (DENGAN SUMBU Y PROPOSIONAL & BERSIH)
    ========================================================================= */
 function ChartDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
@@ -440,10 +440,12 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
     .map((d) => d.value)
     .concat([alertVal, actionVal, syaratVal])
     .filter((v) => v !== null && !isNaN(v));
-  const minVal = Math.min(...allVals, 0);
-  const maxVal = Math.max(...allVals, 10);
-  const yMin = minVal - (maxVal - minVal) * 0.1;
-  const yMax = maxVal + (maxVal - minVal) * 0.1;
+
+  const rawMin = Math.min(...allVals, 0);
+  const rawMax = Math.max(...allVals, 10);
+  const span = rawMax - rawMin || 10;
+  const yMin = Math.max(0, Math.floor(rawMin - span * 0.15));
+  const yMax = Math.ceil(rawMax + span * 0.15);
   const gradId = `dayGrad-${paramKey}`;
 
   return (
@@ -462,9 +464,9 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
           {syaratVal !== null && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? "≥ " : ""}${syaratVal}`} />}
         </div>
       </div>
-      <div className="p-2.5 chart-container-print">
+      <div className="p-3 chart-container-print">
         <ResponsiveContainer width="100%" height={165}>
-          <ComposedChart data={data} margin={{ top: 8, right: 10, left: -15, bottom: 20 }}>
+          <ComposedChart data={data} margin={{ top: 10, right: 15, left: 12, bottom: 25 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -476,7 +478,12 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 8.5, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={30} />
-            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={28} />
+            <YAxis
+              domain={[yMin, yMax]}
+              tick={{ fontSize: 8.5, fill: "#64748b" }}
+              width={48}
+              tickFormatter={(v) => Number(v.toFixed(1)).toString()}
+            />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -526,10 +533,12 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
     .map((d) => d.value)
     .concat([alertVal, actionVal, syaratVal])
     .filter((v) => v !== null && !isNaN(v));
-  const minVal = Math.min(...allVals, 0);
-  const maxVal = Math.max(...allVals, 10);
-  const yMin = minVal - (maxVal - minVal) * 0.1;
-  const yMax = maxVal + (maxVal - minVal) * 0.1;
+
+  const rawMin = Math.min(...allVals, 0);
+  const rawMax = Math.max(...allVals, 10);
+  const span = rawMax - rawMin || 10;
+  const yMin = Math.max(0, Math.floor(rawMin - span * 0.15));
+  const yMax = Math.ceil(rawMax + span * 0.15);
   const gradId = `monthGrad-${paramKey}-${isGlobal ? "global" : "room"}`;
 
   return (
@@ -550,9 +559,9 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
           {syaratVal !== null && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? "≥ " : ""}${syaratVal}`} />}
         </div>
       </div>
-      <div className="p-2.5 chart-container-print">
+      <div className="p-3 chart-container-print">
         <ResponsiveContainer width="100%" height={155}>
-          <ComposedChart data={data} margin={{ top: 8, right: 10, left: -15, bottom: 20 }}>
+          <ComposedChart data={data} margin={{ top: 10, right: 15, left: 12, bottom: 25 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -564,7 +573,12 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 8, fill: "#64748b" }} angle={-25} textAnchor="end" interval="preserveStartEnd" height={30} />
-            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={28} />
+            <YAxis
+              domain={[yMin, yMax]}
+              tick={{ fontSize: 8.5, fill: "#64748b" }}
+              width={48}
+              tickFormatter={(v) => Number(v.toFixed(1)).toString()}
+            />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -984,6 +998,7 @@ function HeaderBar({
             />
           </label>
 
+          {/* Lonceng Notifikasi */}
           {session && (
             <div className="relative">
               <button
@@ -1004,6 +1019,7 @@ function HeaderBar({
                 )}
               </button>
 
+              {/* Popover Card Notifikasi */}
               {showNotifPopover && (
                 <>
                   <div
@@ -2016,7 +2032,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* KOP HEADER FASILITAS HARIAN (LENGKUNG & CLEAN SEPERTI EM VIABLE) */}
       <div className="overflow-hidden rounded-3xl border border-slate-200/80 print-card shadow-sm">
         <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-4">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-rose-600/20 blur-3xl" />
@@ -3008,7 +3023,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
       {/* 1. TABEL REKAP NILAI DATA */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-2.5 print-card avoid-break">
-        <div className="flex justify-between items-center border-b pb-2">
+        <div className="flex justify-between items-center border-b pb-2 pt-1 print:pt-3">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
             {selectedRoomName
               ? `Rekap Data Pengukuran Bulanan — ${selectedRoomName}`
@@ -3101,9 +3116,11 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       {/* 2. CARD PERSYARATAN & LIMIT */}
       {Object.keys(distinctReportLimits).length > 0 && (
         <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-2.5 print-card avoid-break">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-            Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)
-          </h3>
+          <div className="border-b pb-1.5 pt-1 print:pt-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)
+            </h3>
+          </div>
           <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-xs text-left">
               <thead>
@@ -3170,7 +3187,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
       {/* 3. GRAFIK TREN BULANAN (MENGALIR SECARA FLEKSIBEL MENGISI HALAMAN KOSONG) */}
       <div className="space-y-2.5">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 print:pt-2">
           Grafik Tren Pengukuran Periode {monthLabelID(month)}
         </h2>
         <div className="space-y-2.5">
@@ -3193,7 +3210,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
       {/* 4. FORM NARASI PENGKAJIAN DENGAN KOP THEMATIC ELEGAN */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-3.5 print-card avoid-break">
-        <div className="flex items-center justify-between border-b pb-2.5">
+        <div className="flex items-center justify-between border-b pb-2.5 pt-1">
           <h2 className="text-sm font-bold text-slate-800">
             {selectedRoomName
               ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}`
@@ -3940,8 +3957,9 @@ function AppContent() {
       try {
         const notifList = [];
         const tglHariIni = todayStr();
+        const activeCurrentMonth = currentMonth();
         const isQA = session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator";
-        const isMonthCompleted = month < currentMonth();
+        const isMonthCompleted = month < activeCurrentMonth;
 
         const relevantFacilities = FACILITIES.filter((f) => {
           if (isQA) return true;
@@ -4067,7 +4085,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex font-sans">
-      {/* CSS CETAK PRINT TEROPTIMASI & KOP EM VIABLE-LIKE */}
+      {/* CSS CETAK PRINT ANTI-CLIPPING & KOP EM VIABLE-LIKE */}
       <style>{`
         .only-print { display: none; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -4076,31 +4094,45 @@ function AppContent() {
           .only-print { display: block !important; }
           .print-card { 
             box-shadow: none !important; 
-            page-break-inside: avoid !important; 
-            break-inside: avoid !important; 
+            page-break-inside: auto !important; 
+            break-inside: auto !important; 
             border: 1px solid #e2e8f0 !important; 
-            margin-bottom: 0.65rem !important; 
-            padding: 0 !important;
+            margin-bottom: 0.85rem !important; 
+            padding: 0.5rem !important;
             border-radius: 1.25rem !important;
-            overflow: hidden !important;
+            overflow: visible !important;
           }
           .avoid-break { 
             page-break-inside: avoid !important; 
             break-inside: avoid !important; 
-            margin-bottom: 0.55rem !important;
+            margin-bottom: 0.65rem !important;
           }
           .chart-container-print {
-            height: 155px !important;
-            padding: 0.15rem !important;
+            height: 165px !important;
+            padding: 0.2rem !important;
+            overflow: visible !important;
           }
-          table { width: 100% !important; max-width: 100% !important; table-layout: auto !important; }
-          th, td { padding-top: 2.5px !important; padding-bottom: 2.5px !important; font-size: 9px !important; }
+          table { 
+            width: 100% !important; 
+            max-width: 100% !important; 
+            table-layout: auto !important; 
+            page-break-inside: auto !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          th, td { 
+            padding-top: 3px !important; 
+            padding-bottom: 3px !important; 
+            font-size: 9.5px !important; 
+          }
           body, html, #root { background: white !important; height: auto !important; }
           main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
           textarea { border: none !important; resize: none !important; background: transparent !important; padding: 0 !important; height: auto !important; }
         }
         @page {
-          margin: 0.6cm 0.6cm 0.8cm 0.6cm;
+          margin: 0.7cm 0.7cm 0.9cm 0.7cm;
           size: portrait;
         }
       `}</style>
