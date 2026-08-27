@@ -354,7 +354,7 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
 function ChartDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
   const style = levelStyle(payload?.level);
-  return <circle cx={cx} cy={cy} r={4} fill={style.color} stroke="#fff" strokeWidth={1.5} />;
+  return <circle cx={cx} cy={cy} r={3.5} fill={style.color} stroke="#fff" strokeWidth={1.5} />;
 }
 
 function ChartTooltip({ active, payload, unit }) {
@@ -362,7 +362,7 @@ function ChartTooltip({ active, payload, unit }) {
   const p = payload[0].payload;
   const style = levelStyle(p?.level);
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/95 backdrop-blur-md px-3.5 py-2 text-xs shadow-xl space-y-0.5">
+    <div className="rounded-xl border border-slate-200 bg-white/95 backdrop-blur-md px-3 py-1.5 text-xs shadow-xl space-y-0.5">
       <p className="font-semibold text-slate-800">{p.label}</p>
       <p className="text-sm font-extrabold" style={{ color: style.color }}>
         {p.value} {unit}
@@ -376,8 +376,8 @@ function ChartTooltip({ active, payload, unit }) {
 
 function LegendChip({ color, label }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-0.5 text-[10.5px] font-medium text-slate-600 border border-slate-200">
-      <span className="h-2 w-2 rounded-full" style={{ background: color }} />
+    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[9.5px] font-medium text-slate-600 border border-slate-200">
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
       {label}
     </span>
   );
@@ -440,21 +440,20 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
     .map((d) => d.value)
     .concat([alertVal, actionVal, syaratVal])
     .filter((v) => v !== null && !isNaN(v));
-
   const minVal = Math.floor(Math.min(...allVals, 0));
   const maxVal = Math.ceil(Math.max(...allVals, 10));
   const gradId = `dayGrad-${paramKey}`;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs print-card avoid-break w-full">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 bg-slate-50/60">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 px-3.5 py-2.5 bg-white">
         <div>
-          <p className="text-sm font-bold text-slate-800">{paramLabel}</p>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs font-bold text-slate-800">{paramLabel}</p>
+          <p className="text-[9.5px] text-slate-500 mt-0.5">
             Nilai Tertinggi: <span className="font-semibold text-slate-800">{peak.value} {unit}</span> ({peak.roomName})
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1">
           <LegendChip color="#15803d" label="Terkendali" />
           {alertVal !== null && <LegendChip color="#b45309" label={`Alert ${isDpg ? "≥ " : ""}${alertVal}`} />}
           {actionVal !== null && <LegendChip color="#c2410c" label={`Action ${isDpg ? "≥ " : ""}${actionVal}`} />}
@@ -462,8 +461,8 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
         </div>
       </div>
       <div className="p-3 chart-container-print">
-        <ResponsiveContainer width="100%" height={215}>
-          <ComposedChart data={data} margin={{ top: 15, right: 20, left: 15, bottom: 40 }}>
+        <ResponsiveContainer width="100%" height={195}>
+          <ComposedChart data={data} margin={{ top: 12, right: 18, left: 10, bottom: 25 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -474,13 +473,8 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
             {alertVal !== null && <ReferenceLine y={alertVal} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-            <XAxis dataKey="label" tick={{ fontSize: 9.5, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={40} />
-            <YAxis
-              domain={[minVal, maxVal]}
-              tick={{ fontSize: 10, fill: "#64748b" }}
-              width={42}
-              tickFormatter={(v) => Math.round(v)}
-            />
+            <XAxis dataKey="label" tick={{ fontSize: 8.5, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={30} />
+            <YAxis domain={[minVal, maxVal]} tick={{ fontSize: 9, fill: "#64748b" }} width={38} tickFormatter={(v) => Math.round(v)} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -489,7 +483,7 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
               stroke="#16a34a"
               strokeWidth={2}
               dot={<ChartDot />}
-              activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2 }}
+              activeDot={{ r: 4.5, stroke: "#fff", strokeWidth: 2 }}
               isAnimationActive={false}
             />
           </ComposedChart>
@@ -530,23 +524,22 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
     .map((d) => d.value)
     .concat([alertVal, actionVal, syaratVal])
     .filter((v) => v !== null && !isNaN(v));
-
   const minVal = Math.floor(Math.min(...allVals, 0));
   const maxVal = Math.ceil(Math.max(...allVals, 10));
   const gradId = `monthGrad-${paramKey}-${isGlobal ? "global" : "room"}`;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 bg-slate-50/60">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 px-3.5 py-2.5 bg-white">
         <div>
-          <p className="text-sm font-bold text-slate-800">
+          <p className="text-xs font-bold text-slate-800">
             {paramLabel} — {isGlobal ? "Tren Global Fasilitas" : "Tren 1 Bulan"}
           </p>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-[9.5px] text-slate-500 mt-0.5">
             Nilai Tertinggi: <span className="font-semibold text-slate-800">{peak.value} {unit}</span> ({peak.roomName})
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1">
           <LegendChip color="#15803d" label="Terkendali" />
           {alertVal !== null && <LegendChip color="#b45309" label={`Alert ${isDpg ? "≥ " : ""}${alertVal}`} />}
           {actionVal !== null && <LegendChip color="#c2410c" label={`Action ${isDpg ? "≥ " : ""}${actionVal}`} />}
@@ -554,8 +547,8 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
         </div>
       </div>
       <div className="p-3 chart-container-print">
-        <ResponsiveContainer width="100%" height={215}>
-          <ComposedChart data={data} margin={{ top: 15, right: 20, left: 15, bottom: 40 }}>
+        <ResponsiveContainer width="100%" height={195}>
+          <ComposedChart data={data} margin={{ top: 12, right: 18, left: 10, bottom: 25 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -566,13 +559,8 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
             {alertVal !== null && <ReferenceLine y={alertVal} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-            <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#64748b" }} angle={-30} textAnchor="end" interval="preserveStartEnd" height={40} />
-            <YAxis
-              domain={[minVal, maxVal]}
-              tick={{ fontSize: 10, fill: "#64748b" }}
-              width={42}
-              tickFormatter={(v) => Math.round(v)}
-            />
+            <XAxis dataKey="label" tick={{ fontSize: 8, fill: "#64748b" }} angle={-25} textAnchor="end" interval="preserveStartEnd" height={30} />
+            <YAxis domain={[minVal, maxVal]} tick={{ fontSize: 9, fill: "#64748b" }} width={38} tickFormatter={(v) => Math.round(v)} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -581,7 +569,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
               stroke="#16a34a"
               strokeWidth={2}
               dot={<ChartDot />}
-              activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2 }}
+              activeDot={{ r: 4.5, stroke: "#fff", strokeWidth: 2 }}
               isAnimationActive={false}
             />
           </ComposedChart>
@@ -2026,18 +2014,18 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* KOP HEADER FASILITAS HARIAN (LENGKUNG & PROPOSIONAL SEPERTI EM VIABLE) */}
-      <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white print-card shadow-sm mb-4">
-        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-5 rounded-t-3xl">
+      {/* KOP HEADER FASILITAS HARIAN (LENGKUNG & FULL-BLEED SEPERTI EM VIABLE) */}
+      <div className="overflow-hidden rounded-3xl border border-slate-200/80 print-card shadow-sm mb-4">
+        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-4">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-rose-600/20 blur-3xl" />
           <div className="relative flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <img src="/logo-rama.png" alt="Logo" className="h-12 w-12 object-contain brightness-0 invert" />
+              <img src="/logo-rama.png" alt="Logo" className="h-11 w-11 object-contain brightness-0 invert" />
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-300">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-300">
                   PT. Rama Emerald Multi Sukses — QA
                 </p>
-                <h1 className="text-xl font-bold text-white tracking-tight">
+                <h1 className="text-lg font-bold text-white tracking-tight">
                   Data Pemantauan &amp; Evaluasi Harian EM Non Viable
                 </h1>
                 <p className="text-xs text-rose-100/90 mt-0.5">
@@ -2049,13 +2037,13 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             <p className="text-right text-[11px] text-rose-200 font-mono">FM.QA.024/R11</p>
           </div>
         </div>
-        <div className="flex items-center justify-between bg-white px-6 py-3 border-t border-slate-100 text-xs rounded-b-3xl">
-          <span className="text-slate-500 font-medium">Status Fasilitas:</span>
+        <div className="flex items-center justify-between bg-white px-6 py-2 border-t border-slate-100 text-xs">
+          <span className="text-slate-400">Status Fasilitas:</span>
           <span
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-bold shadow-2xs"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 font-bold"
             style={{ background: levelStyle(currentLevel).bg, color: levelStyle(currentLevel).color }}
           >
-            <span className="w-2 h-2 rounded-full" style={{ background: levelStyle(currentLevel).dot }} />
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: levelStyle(currentLevel).dot }} />
             {levelStyle(currentLevel).label}
           </span>
         </div>
@@ -2345,13 +2333,13 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       {/* SECTION 2: CARD PERSYARATAN & LIMIT */}
       {Object.keys(activeDistinctLimits).length > 0 && (
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3.5 print-card avoid-break">
-          <div className="border-b pb-3 pt-1">
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3 print-card avoid-break">
+          <div className="border-b pb-2.5 pt-1 px-1">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 whitespace-normal leading-relaxed">
               Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)
             </h3>
           </div>
-          <div className="overflow-x-auto print:overflow-visible">
+          <div className="overflow-x-auto print:overflow-visible px-1">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 border-b">
@@ -2398,7 +2386,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               </tbody>
             </table>
           </div>
-          <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-500">
+          <div className="flex flex-wrap items-center gap-3 pt-1 px-1 text-[11px] text-slate-500">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Terkendali
             </span>
@@ -2417,7 +2405,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       {/* SECTION 3: GRAFIK CROSS-SECTIONAL */}
       <div className="space-y-4">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 px-1">
           Grafik Perbandingan Ruangan Terisi ({selectedDate})
         </h2>
         <div className="space-y-4">
@@ -2568,7 +2556,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
 
         <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
-          <div className="border rounded-2xl p-5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[150px]">
+          <div className="border border-dashed border-slate-300 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[145px]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               Dikaji Oleh (Supervisor QA)
             </p>
@@ -2582,7 +2570,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                     roomName=""
                     signerRole="Dikaji Oleh"
                     signerName={report.signoff.dinilai.nama}
-                    size={54}
+                    size={50}
                   />
                 </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
@@ -2603,7 +2591,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             )}
           </div>
 
-          <div className="border rounded-2xl p-5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[150px]">
+          <div className="border border-dashed border-slate-300 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[145px]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               Mengetahui (Manager QA)
             </p>
@@ -2617,7 +2605,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                     roomName=""
                     signerRole="Mengetahui"
                     signerName={report.signoff.diperiksa.nama}
-                    size={54}
+                    size={50}
                   />
                 </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
@@ -2947,18 +2935,18 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </button>
       </div>
 
-      {/* HEADER KOP UTAMA PENGKAJIAN QA (LENGKUNG & PROPOSIONAL SEPERTI EM VIABLE) */}
+      {/* HEADER KOP UTAMA PENGKAJIAN QA (LENGKUNG & FULL-BLEED SEPERTI EM VIABLE) */}
       <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white print-card shadow-sm mb-4">
-        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-5 rounded-t-3xl">
+        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-4">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-rose-600/20 blur-3xl" />
           <div className="relative flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <img src="/logo-rama.png" alt="Logo" className="h-12 w-12 object-contain brightness-0 invert" />
+              <img src="/logo-rama.png" alt="Logo" className="h-11 w-11 object-contain brightness-0 invert" />
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-rose-300">
                   PT. Rama Emerald Multi Sukses — QA
                 </p>
-                <h1 className="text-xl font-bold text-white tracking-tight">
+                <h1 className="text-lg font-bold text-white tracking-tight">
                   {selectedRoomName
                     ? `Pengkajian Tren Ruangan — ${selectedRoomName}`
                     : `Pengkajian Trend Data EM Non Viable (Global)`}
@@ -2977,16 +2965,6 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             </div>
             <p className="text-right text-xs text-rose-200 font-mono">POS.QA.025</p>
           </div>
-        </div>
-        <div className="flex items-center justify-between bg-white px-6 py-3 border-t border-slate-100 text-xs rounded-b-3xl">
-          <span className="text-slate-500 font-medium">Status Keseluruhan Periode Ini:</span>
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-bold shadow-2xs"
-            style={{ background: levelStyle(facilityOverallLevel(monthEntries)).bg, color: levelStyle(facilityOverallLevel(monthEntries)).color }}
-          >
-            <span className="w-2 h-2 rounded-full" style={{ background: levelStyle(facilityOverallLevel(monthEntries)).dot }} />
-            {levelStyle(facilityOverallLevel(monthEntries)).label}
-          </span>
         </div>
       </div>
 
@@ -3033,7 +3011,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
       {/* 1. TABEL REKAP NILAI DATA */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3.5 print-card avoid-break">
-        <div className="flex flex-wrap justify-between items-center border-b pb-3 pt-1 gap-2">
+        <div className="flex flex-wrap justify-between items-center border-b pb-3 pt-2.5 px-2 gap-2">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 whitespace-normal leading-relaxed">
             {selectedRoomName
               ? `Rekap Data Pengukuran Bulanan — ${selectedRoomName}`
@@ -3043,23 +3021,23 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
 
         {(monthEntries || []).length === 0 ? (
-          <div className="p-8 text-center bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
+          <div className="p-6 text-center bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
             Belum ada data pengukuran yang tercatat pada periode ini.
           </div>
         ) : (
-          <div className="max-h-72 overflow-y-auto rounded-2xl border border-slate-100 print:max-h-none print:overflow-visible">
+          <div className="max-h-72 overflow-y-auto rounded-2xl border border-slate-100 print:max-h-none print:overflow-visible px-2">
             <table className="w-full text-xs text-left">
               <thead className="sticky top-0 bg-slate-50 text-slate-600 border-b print:static">
                 <tr>
-                  <th className="px-3 py-2.5">TANGGAL</th>
-                  <th className="px-2 py-2.5 text-center">JAM</th>
-                  <th className="px-3 py-2.5">RUANGAN</th>
-                  <th className="px-2 py-2.5 text-center">PERSYARATAN</th>
-                  <th className="px-2 py-2.5 text-center">SUHU (°C)</th>
-                  <th className="px-2 py-2.5 text-center">RH (%)</th>
-                  <th className="px-2 py-2.5 text-center">DPG (Pa)</th>
-                  <th className="px-2 py-2.5 text-center">OPR</th>
-                  <th className="px-2 py-2.5 text-center">SPV</th>
+                  <th className="px-3 py-2">TANGGAL</th>
+                  <th className="px-2 py-2 text-center">JAM</th>
+                  <th className="px-3 py-2">RUANGAN</th>
+                  <th className="px-2 py-2 text-center">PERSYARATAN</th>
+                  <th className="px-2 py-2 text-center">SUHU (°C)</th>
+                  <th className="px-2 py-2 text-center">RH (%)</th>
+                  <th className="px-2 py-2 text-center">DPG (Pa)</th>
+                  <th className="px-2 py-2 text-center">OPR</th>
+                  <th className="px-2 py-2 text-center">SPV</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -3108,10 +3086,10 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                           {e.dpg ?? "-"}
                         </span>
                       </td>
-                      <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[11px]">
+                      <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[10.5px]">
                         {e.opr || "—"}
                       </td>
-                      <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[11px]">
+                      <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[10.5px]">
                         {e.spv || "—"}
                       </td>
                     </tr>
@@ -3126,12 +3104,12 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       {/* 2. CARD PERSYARATAN & LIMIT */}
       {Object.keys(distinctReportLimits).length > 0 && (
         <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3.5 print-card avoid-break">
-          <div className="border-b pb-3 pt-1">
+          <div className="border-b pb-3 pt-2.5 px-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 whitespace-normal leading-relaxed">
               Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)
             </h3>
           </div>
-          <div className="overflow-x-auto print:overflow-visible">
+          <div className="overflow-x-auto print:overflow-visible px-2">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 border-b">
@@ -3178,7 +3156,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               </tbody>
             </table>
           </div>
-          <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-500">
+          <div className="flex flex-wrap items-center gap-3 pt-1 px-2 text-[11px] text-slate-500">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Terkendali
             </span>
@@ -3196,11 +3174,11 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       )}
 
       {/* 3. GRAFIK TREN BULANAN */}
-      <div className="space-y-4">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+      <div className="space-y-3.5">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 px-2">
           Grafik Tren Pengukuran Periode {monthLabelID(month)}
         </h2>
-        <div className="space-y-4">
+        <div className="space-y-3.5">
           {PARAM_DEFS.map((p) => {
             const rObj = selectedRoomName ? (rooms || []).find((r) => r?.name === selectedRoomName) : null;
             return (
@@ -3218,19 +3196,14 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </div>
       </div>
 
-      {/* 4. FORM NARASI & APPROVAL QA */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3.5 pt-1">
-          <div>
-            <h2 className="text-base font-bold text-slate-800 leading-relaxed">
-              {selectedRoomName
-                ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}`
-                : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Catatan pemantauan operasional mengacu pada Protap POS.QA.025
-            </p>
-          </div>
+      {/* 4. FORM NARASI PENGKAJIAN DENGAN KOP THEMATIC ELEGAN */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-4 print-card avoid-break">
+        <div className="flex items-center justify-between border-b pb-3 pt-2.5 px-2">
+          <h2 className="text-sm font-bold text-slate-800 leading-relaxed">
+            {selectedRoomName
+              ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}`
+              : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
+          </h2>
           {canDraftQA && !isFinal && (
             <div className="flex items-center gap-2 no-print">
               <button
@@ -3271,7 +3244,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               style={{ minHeight: "65px", overflow: "hidden" }}
               className="no-print w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
             />
-            <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
+            <p className="only-print text-[11.5px] leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
           </div>
         </div>
 
@@ -3300,7 +3273,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                   placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
                   className="no-print w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
                 />
-                <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
+                <p className="only-print text-[11.5px] leading-relaxed text-slate-800 whitespace-pre-wrap">
                   {perParameter[p.key] || "-"}
                 </p>
               </div>
@@ -3328,19 +3301,20 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               style={{ minHeight: "65px", overflow: "hidden" }}
               className="no-print w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
             />
-            <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
+            <p className="only-print text-[11.5px] leading-relaxed text-slate-800 whitespace-pre-wrap">
               {kesimpulanUmum || "-"}
             </p>
           </div>
         </div>
 
+        {/* Tanda Tangan */}
         <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
-          <div className="border rounded-2xl p-5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[150px]">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <div className="border border-dashed border-slate-300 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[145px]">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
               Dikaji Oleh (Supervisor QA)
             </p>
             {report?.signoff?.dinilai?.nama ? (
-              <div className="space-y-1.5 my-auto">
+              <div className="space-y-1 my-auto">
                 <div className="flex justify-center">
                   <VerifyQR
                     type="pengkajian"
@@ -3349,7 +3323,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                     roomName={selectedRoomName}
                     signerRole="Dikaji Oleh"
                     signerName={report.signoff.dinilai.nama}
-                    size={54}
+                    size={48}
                   />
                 </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
@@ -3370,12 +3344,12 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             )}
           </div>
 
-          <div className="border rounded-2xl p-5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[150px]">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <div className="border border-dashed border-slate-300 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[145px]">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
               Mengetahui (Manager QA)
             </p>
             {report?.signoff?.diperiksa?.nama ? (
-              <div className="space-y-1.5 my-auto">
+              <div className="space-y-1 my-auto">
                 <div className="flex justify-center">
                   <VerifyQR
                     type="pengkajian"
@@ -3384,7 +3358,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                     roomName={selectedRoomName}
                     signerRole="Mengetahui"
                     signerName={report.signoff.diperiksa.nama}
-                    size={54}
+                    size={48}
                   />
                 </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
@@ -3496,10 +3470,10 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
         </div>
       </div>
 
-      <div className="print-card avoid-break rounded-3xl border-2 border-slate-800 bg-white p-6 text-xs shadow-sm">
-        <div className="mb-4 flex items-start justify-between gap-4 border-b-2 border-slate-800 pb-3.5">
+      <div className="print-card avoid-break rounded-3xl border-2 border-slate-800 bg-white p-5 text-xs shadow-sm">
+        <div className="mb-3 flex items-start justify-between gap-4 border-b-2 border-slate-800 pb-2.5">
           <div className="flex items-center gap-3">
-            <img src="/logo-rama.png" alt="Logo" className="h-12 w-12 object-contain" />
+            <img src="/logo-rama.png" alt="Logo" className="h-11 w-11 object-contain" />
             <div>
               <p className="text-[11px] font-bold text-slate-700">PT. Rama Emerald</p>
               <p className="text-[11px] font-bold text-slate-700">Multi Sukses</p>
@@ -3517,8 +3491,8 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
           </div>
         </div>
 
-        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <div className="space-y-1">
+        <div className="mb-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2 text-xs">
+          <div className="space-y-0.5">
             <p>
               <span className="font-semibold text-slate-600">Bulan - Tahun</span> : {monthLabelID(bulan)}
             </p>
@@ -3533,7 +3507,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
         </div>
 
         <div className="overflow-x-auto print:overflow-visible">
-          <table className="w-full border-collapse text-[10px]">
+          <table className="w-full border-collapse text-[9.5px]">
             <thead>
               <tr>
                 <th rowSpan={2} className="border border-slate-400 bg-slate-100 px-1 py-1">
@@ -3559,7 +3533,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
                   "OPR",
                   "SPV",
                 ].map((h, i) => (
-                  <th key={i} className="border border-slate-400 bg-slate-50 px-1 py-1 font-normal">
+                  <th key={i} className="border border-slate-400 bg-slate-50 px-1 py-0.5 font-normal">
                     {h}
                   </th>
                 ))}
@@ -3597,9 +3571,9 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
           </table>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 text-center avoid-break">
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 text-center avoid-break">
           <div>
-            <p className="mb-2 text-[11px] text-slate-500">(Kepala Bagian)</p>
+            <p className="mb-1 text-[10px] text-slate-500">(Kepala Bagian)</p>
             {formulir?.kepalaBagian?.nama ? (
               <>
                 <div className="mb-1 flex justify-center">
@@ -3610,11 +3584,11 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
                     roomName={selectedRoom}
                     signerRole="Kepala Bagian"
                     signerName={formulir.kepalaBagian.nama}
-                    size={50}
+                    size={46}
                   />
                 </div>
                 <p className="text-xs font-semibold text-slate-800">{formulir.kepalaBagian.nama}</p>
-                <p className="text-[10px] text-slate-400">{formulir.kepalaBagian.tanggal}</p>
+                <p className="text-[9px] text-slate-400">{formulir.kepalaBagian.tanggal}</p>
               </>
             ) : canKepalaBagian ? (
               <button
@@ -3634,7 +3608,7 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
             )}
           </div>
           <div>
-            <p className="mb-2 text-[11px] text-slate-500">(Manager QA)</p>
+            <p className="mb-1 text-[10px] text-slate-500">(Manager QA)</p>
             {formulir?.managerQA?.nama ? (
               <>
                 <div className="mb-1 flex justify-center">
@@ -3645,11 +3619,11 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
                     roomName={selectedRoom}
                     signerRole="Manager QA"
                     signerName={formulir.managerQA.nama}
-                    size={50}
+                    size={46}
                   />
                 </div>
                 <p className="text-xs font-semibold text-slate-800">{formulir.managerQA.nama}</p>
-                <p className="text-[10px] text-slate-400">{formulir.managerQA.tanggal}</p>
+                <p className="text-[9px] text-slate-400">{formulir.managerQA.tanggal}</p>
               </>
             ) : canManagerQA ? (
               <button
@@ -4099,7 +4073,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex font-sans">
-      {/* CSS CETAK PRINT EM VIABLE-LIKE & PROPORSIONAL KERTAS A4 */}
+      {/* CSS CETAK PRINT TEROPTIMASI & KOP EM VIABLE-LIKE */}
       <style>{`
         .only-print { display: none; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -4110,8 +4084,8 @@ function AppContent() {
             box-shadow: none !important; 
             page-break-inside: auto !important; 
             break-inside: auto !important; 
-            border: 1px solid #cbd5e1 !important; 
-            margin-bottom: 1.25rem !important; 
+            border: 1px solid #e2e8f0 !important; 
+            margin-bottom: 0.85rem !important; 
             padding: 0 !important;
             border-radius: 1.25rem !important;
             overflow: visible !important;
@@ -4119,10 +4093,10 @@ function AppContent() {
           .avoid-break { 
             page-break-inside: avoid !important; 
             break-inside: avoid !important; 
-            margin-bottom: 1rem !important;
+            margin-bottom: 0.75rem !important;
           }
           .chart-container-print {
-            height: 215px !important;
+            height: 195px !important;
             padding: 0.25rem !important;
             overflow: visible !important;
           }
@@ -4137,16 +4111,16 @@ function AppContent() {
             break-inside: avoid !important;
           }
           th, td { 
-            padding-top: 5px !important; 
-            padding-bottom: 5px !important; 
-            font-size: 11px !important; 
+            padding-top: 3.5px !important; 
+            padding-bottom: 3.5px !important; 
+            font-size: 10px !important; 
           }
-          body, html, #root { background: white !important; height: auto !important; font-size: 12px !important; }
+          body, html, #root { background: white !important; height: auto !important; }
           main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
-          textarea { border: none !important; resize: none !important; background: transparent !important; padding: 0 !important; height: auto !important; font-size: 12px !important; }
+          textarea { border: none !important; resize: none !important; background: transparent !important; padding: 0 !important; height: auto !important; }
         }
         @page {
-          margin: 0.8cm 0.8cm 1cm 0.8cm;
+          margin: 0.7cm 0.7cm 0.9cm 0.7cm;
           size: portrait;
         }
       `}</style>
