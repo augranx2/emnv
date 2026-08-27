@@ -349,7 +349,7 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
 }
 
 /* =========================================================================
-   5. KOMPONEN GRAFIK RECHARTS (PROPORSIONAL, SIMETRIS & BERSIH)
+   5. KOMPONEN GRAFIK RECHARTS
    ========================================================================= */
 function ChartDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
@@ -440,13 +440,15 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
     .map((d) => d.value)
     .concat([alertVal, actionVal, syaratVal])
     .filter((v) => v !== null && !isNaN(v));
-  const minVal = Math.floor(Math.min(...allVals, 0));
-  const maxVal = Math.ceil(Math.max(...allVals, 10));
+  const minVal = Math.min(...allVals, 0);
+  const maxVal = Math.max(...allVals, 10);
+  const yMin = minVal - (maxVal - minVal) * 0.1;
+  const yMax = maxVal + (maxVal - minVal) * 0.1;
   const gradId = `dayGrad-${paramKey}`;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
-      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 px-3.5 py-2.5 bg-white">
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs print-card avoid-break w-full">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 px-3.5 py-2 bg-slate-50/60">
         <div>
           <p className="text-xs font-bold text-slate-800">{paramLabel}</p>
           <p className="text-[9.5px] text-slate-500 mt-0.5">
@@ -460,9 +462,9 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
           {syaratVal !== null && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? "≥ " : ""}${syaratVal}`} />}
         </div>
       </div>
-      <div className="p-3 chart-container-print">
-        <ResponsiveContainer width="100%" height={195}>
-          <ComposedChart data={data} margin={{ top: 12, right: 18, left: 10, bottom: 25 }}>
+      <div className="p-2.5 chart-container-print">
+        <ResponsiveContainer width="100%" height={165}>
+          <ComposedChart data={data} margin={{ top: 8, right: 10, left: -15, bottom: 20 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -474,7 +476,7 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 8.5, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={30} />
-            <YAxis domain={[minVal, maxVal]} tick={{ fontSize: 9, fill: "#64748b" }} width={38} tickFormatter={(v) => Math.round(v)} />
+            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={28} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -524,13 +526,15 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
     .map((d) => d.value)
     .concat([alertVal, actionVal, syaratVal])
     .filter((v) => v !== null && !isNaN(v));
-  const minVal = Math.floor(Math.min(...allVals, 0));
-  const maxVal = Math.ceil(Math.max(...allVals, 10));
+  const minVal = Math.min(...allVals, 0);
+  const maxVal = Math.max(...allVals, 10);
+  const yMin = minVal - (maxVal - minVal) * 0.1;
+  const yMax = maxVal + (maxVal - minVal) * 0.1;
   const gradId = `monthGrad-${paramKey}-${isGlobal ? "global" : "room"}`;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
-      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 px-3.5 py-2.5 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 px-3.5 py-2 bg-slate-50/60">
         <div>
           <p className="text-xs font-bold text-slate-800">
             {paramLabel} — {isGlobal ? "Tren Global Fasilitas" : "Tren 1 Bulan"}
@@ -546,9 +550,9 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
           {syaratVal !== null && <LegendChip color="#b91c1c" label={`Syarat ${isDpg ? "≥ " : ""}${syaratVal}`} />}
         </div>
       </div>
-      <div className="p-3 chart-container-print">
-        <ResponsiveContainer width="100%" height={195}>
-          <ComposedChart data={data} margin={{ top: 12, right: 18, left: 10, bottom: 25 }}>
+      <div className="p-2.5 chart-container-print">
+        <ResponsiveContainer width="100%" height={155}>
+          <ComposedChart data={data} margin={{ top: 8, right: 10, left: -15, bottom: 20 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -560,7 +564,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 8, fill: "#64748b" }} angle={-25} textAnchor="end" interval="preserveStartEnd" height={30} />
-            <YAxis domain={[minVal, maxVal]} tick={{ fontSize: 9, fill: "#64748b" }} width={38} tickFormatter={(v) => Math.round(v)} />
+            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={28} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -980,7 +984,6 @@ function HeaderBar({
             />
           </label>
 
-          {/* Lonceng Notifikasi */}
           {session && (
             <div className="relative">
               <button
@@ -1001,7 +1004,6 @@ function HeaderBar({
                 )}
               </button>
 
-              {/* Popover Card Notifikasi */}
               {showNotifPopover && (
                 <>
                   <div
@@ -2014,8 +2016,8 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* KOP HEADER FASILITAS HARIAN (LENGKUNG & FULL-BLEED SEPERTI EM VIABLE) */}
-      <div className="overflow-hidden rounded-3xl border border-slate-200/80 print-card shadow-sm mb-4">
+      {/* KOP HEADER FASILITAS HARIAN */}
+      <div className="overflow-hidden rounded-3xl border border-slate-200/80 print-card shadow-sm">
         <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-4">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-rose-600/20 blur-3xl" />
           <div className="relative flex items-start justify-between">
@@ -2333,21 +2335,19 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
       {/* SECTION 2: CARD PERSYARATAN & LIMIT */}
       {Object.keys(activeDistinctLimits).length > 0 && (
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3 print-card avoid-break">
-          <div className="border-b pb-2.5 pt-1 px-1">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 whitespace-normal leading-relaxed">
-              Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)
-            </h3>
-          </div>
-          <div className="overflow-x-auto print:overflow-visible px-1">
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-2.5 print-card avoid-break">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+            Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)
+          </h3>
+          <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 border-b">
-                  <th className="px-3.5 py-2">KODE / PERSYARATAN</th>
-                  <th className="px-3.5 py-2">PARAMETER</th>
-                  <th className="px-3.5 py-2">SYARAT</th>
-                  <th className="px-3.5 py-2">ALERT LIMIT</th>
-                  <th className="px-3.5 py-2.5">ACTION LIMIT</th>
+                  <th className="px-3 py-1">KODE / PERSYARATAN</th>
+                  <th className="px-3 py-1">PARAMETER</th>
+                  <th className="px-3 py-1">SYARAT</th>
+                  <th className="px-3 py-1">ALERT LIMIT</th>
+                  <th className="px-3 py-1">ACTION LIMIT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -2368,15 +2368,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
                     return (
                       <tr key={pKey + p.key}>
-                        <td className="px-3.5 py-2 font-bold text-slate-800">{pKey}</td>
-                        <td className="px-3.5 py-2 font-semibold text-slate-700">{p.label}</td>
-                        <td className="px-3.5 py-2 text-slate-800">
+                        <td className="px-3 py-1 font-bold text-slate-800">{pKey}</td>
+                        <td className="px-3 py-1 font-semibold text-slate-700">{p.label}</td>
+                        <td className="px-3 py-1 text-slate-800">
                           {formatRange(lim.syaratL, lim.syaratU, p.unit, isDpg)}
                         </td>
-                        <td className="px-3.5 py-2 text-amber-700">
+                        <td className="px-3 py-1 text-amber-700">
                           {formatRange(lim.alertL, lim.alertU, p.unit, isDpg)}
                         </td>
-                        <td className="px-3.5 py-2 text-orange-700">
+                        <td className="px-3 py-1 text-orange-700">
                           {formatRange(lim.actionL, lim.actionU, p.unit, isDpg)}
                         </td>
                       </tr>
@@ -2386,29 +2386,29 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               </tbody>
             </table>
           </div>
-          <div className="flex flex-wrap items-center gap-3 pt-1 px-1 text-[11px] text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Terkendali
+          <div className="flex flex-wrap items-center gap-3 pt-0.5 text-[10px] text-slate-500">
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" /> Terkendali
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Alert
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500" /> Alert
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-orange-500" /> Action
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-orange-500" /> Action
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Melebihi Syarat
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-red-500" /> Melebihi Syarat
             </span>
           </div>
         </div>
       )}
 
       {/* SECTION 3: GRAFIK CROSS-SECTIONAL */}
-      <div className="space-y-4">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 px-1">
+      <div className="space-y-2.5">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
           Grafik Perbandingan Ruangan Terisi ({selectedDate})
         </h2>
-        <div className="space-y-4">
+        <div className="space-y-2.5">
           <DayParamChart
             activeRoomNames={activeRoomNames}
             rooms={rooms}
@@ -2437,20 +2437,20 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       </div>
 
       {/* SECTION 4: PEMBAHASAN & NARASI */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5 print-card avoid-break">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3.5 pt-1">
+      <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-3.5 print-card avoid-break">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-2.5">
           <div>
-            <h2 className="text-base font-bold text-slate-800 leading-relaxed">
+            <h2 className="text-sm font-bold text-slate-800">
               Pembahasan &amp; Narasi Evaluasi Harian ({selectedDate})
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-[10.5px] text-slate-400">
               Catatan pemantauan operasional tanggal {selectedDate} mengacu pada Protap POS.QA.025
             </p>
           </div>
           {canDraftQA && !isFinalApproved && (
-            <div className="flex flex-wrap items-center gap-2.5 no-print">
+            <div className="flex flex-wrap items-center gap-2 no-print">
               {lastSavedTime && (
-                <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200/60">
+                <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200/60">
                   ✓ Tersimpan {lastSavedTime}
                 </span>
               )}
@@ -2472,14 +2472,13 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           )}
         </div>
 
-        {/* Blok Pendahuluan Thematic KOP */}
         <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs avoid-break">
-          <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-4 py-2 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-3.5 py-1.5 flex items-center justify-between">
             <span className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
-              <FileSpreadsheet size={14} className="text-rose-400" /> Pendahuluan
+              <FileSpreadsheet size={13} className="text-rose-400" /> Pendahuluan
             </span>
           </div>
-          <div className="p-3 bg-white">
+          <div className="p-2.5 bg-white">
             <textarea
               value={pendahuluan}
               onChange={(e) => {
@@ -2488,26 +2487,25 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               }}
               onFocus={handleAutoResize}
               disabled={!canDraftQA || isFinalApproved}
-              rows={3}
-              style={{ minHeight: "65px", overflow: "hidden" }}
-              className="no-print w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+              rows={2}
+              style={{ minHeight: "55px", overflow: "hidden" }}
+              className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
             />
             <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
           </div>
         </div>
 
-        {/* Blok Tiap Parameter Thematic KOP */}
         {PARAM_DEFS.map((p) => {
           const PIcon = p.icon || Sparkles;
           return (
             <div key={p.key} className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs avoid-break">
-              <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-4 py-2 flex items-center justify-between">
+              <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-3.5 py-1.5 flex items-center justify-between">
                 <span className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
-                  <PIcon size={14} className="text-rose-400" /> {p.label} ({p.unit})
+                  <PIcon size={13} className="text-rose-400" /> {p.label} ({p.unit})
                 </span>
-                <span className="text-[10px] text-rose-200 font-mono">Hasil, Tren &amp; Kesimpulan</span>
+                <span className="text-[9.5px] text-rose-200 font-mono">Hasil, Tren &amp; Kesimpulan</span>
               </div>
-              <div className="p-3 bg-white">
+              <div className="p-2.5 bg-white">
                 <textarea
                   value={perParameter[p.key] || ""}
                   onChange={(e) => {
@@ -2516,10 +2514,10 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   }}
                   onFocus={handleAutoResize}
                   disabled={!canDraftQA || isFinalApproved}
-                  rows={3}
-                  style={{ minHeight: "75px", overflow: "hidden" }}
+                  rows={2}
+                  style={{ minHeight: "60px", overflow: "hidden" }}
                   placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
-                  className="no-print w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+                  className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
                 />
                 <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
                   {perParameter[p.key] || "-"}
@@ -2529,14 +2527,13 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           );
         })}
 
-        {/* Blok Kesimpulan Umum Thematic KOP */}
         <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs avoid-break">
-          <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-4 py-2 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-3.5 py-1.5 flex items-center justify-between">
             <span className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
-              <CheckCircle2 size={14} className="text-rose-400" /> Kesimpulan Umum
+              <CheckCircle2 size={13} className="text-rose-400" /> Kesimpulan Umum
             </span>
           </div>
-          <div className="p-3 bg-white">
+          <div className="p-2.5 bg-white">
             <textarea
               value={kesimpulanUmum}
               onChange={(e) => {
@@ -2545,9 +2542,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               }}
               onFocus={handleAutoResize}
               disabled={!canDraftQA || isFinalApproved}
-              rows={3}
-              style={{ minHeight: "65px", overflow: "hidden" }}
-              className="no-print w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+              rows={2}
+              style={{ minHeight: "55px", overflow: "hidden" }}
+              className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
             />
             <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
               {kesimpulanUmum || "-"}
@@ -2555,13 +2552,13 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
         </div>
 
-        <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
-          <div className="border border-dashed border-slate-300 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[145px]">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        <div className="pt-2.5 border-t grid grid-cols-1 sm:grid-cols-2 gap-3 avoid-break">
+          <div className="border rounded-2xl p-3.5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[125px]">
+            <p className="text-[9.5px] font-semibold uppercase tracking-wider text-slate-400">
               Dikaji Oleh (Supervisor QA)
             </p>
             {report?.signoff?.dinilai?.nama ? (
-              <div className="space-y-1.5 my-auto">
+              <div className="space-y-0.5 my-auto">
                 <div className="flex justify-center">
                   <VerifyQR
                     type="pengkajian"
@@ -2570,11 +2567,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                     roomName=""
                     signerRole="Dikaji Oleh"
                     signerName={report.signoff.dinilai.nama}
-                    size={50}
+                    size={42}
                   />
                 </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
-                <p className="text-[10px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
+                <p className="text-[9px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
               </div>
             ) : (
               <div className="my-auto space-y-2">
@@ -2591,12 +2588,12 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             )}
           </div>
 
-          <div className="border border-dashed border-slate-300 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[145px]">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <div className="border rounded-2xl p-3.5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[125px]">
+            <p className="text-[9.5px] font-semibold uppercase tracking-wider text-slate-400">
               Mengetahui (Manager QA)
             </p>
             {report?.signoff?.diperiksa?.nama ? (
-              <div className="space-y-1.5 my-auto">
+              <div className="space-y-0.5 my-auto">
                 <div className="flex justify-center">
                   <VerifyQR
                     type="pengkajian"
@@ -2605,11 +2602,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                     roomName=""
                     signerRole="Mengetahui"
                     signerName={report.signoff.diperiksa.nama}
-                    size={50}
+                    size={42}
                   />
                 </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
-                <p className="text-[10px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
+                <p className="text-[9px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
               </div>
             ) : (
               <div className="my-auto space-y-2">
@@ -2935,8 +2932,8 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         </button>
       </div>
 
-      {/* HEADER KOP UTAMA PENGKAJIAN QA (LENGKUNG & FULL-BLEED SEPERTI EM VIABLE) */}
-      <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white print-card shadow-sm mb-4">
+      {/* HEADER KOP UTAMA PENGKAJIAN QA */}
+      <div className="overflow-hidden rounded-3xl border border-slate-200/80 print-card shadow-sm">
         <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-4">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-rose-600/20 blur-3xl" />
           <div className="relative flex items-start justify-between">
@@ -3010,14 +3007,14 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       {error && <p className="p-3.5 bg-red-50 text-red-600 text-xs rounded-2xl border border-red-200">{error}</p>}
 
       {/* 1. TABEL REKAP NILAI DATA */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3.5 print-card avoid-break">
-        <div className="flex flex-wrap justify-between items-center border-b pb-3 pt-2.5 px-2 gap-2">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 whitespace-normal leading-relaxed">
+      <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-2.5 print-card avoid-break">
+        <div className="flex justify-between items-center border-b pb-2">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
             {selectedRoomName
               ? `Rekap Data Pengukuran Bulanan — ${selectedRoomName}`
               : `Rekap Data Pengukuran Seluruh Ruangan — Fasilitas ${cfg?.label}`}
           </h2>
-          <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">{(monthEntries || []).length} Baris Data</span>
+          <span className="text-[11px] text-slate-400 font-medium">{(monthEntries || []).length} Baris Data</span>
         </div>
 
         {(monthEntries || []).length === 0 ? (
@@ -3025,19 +3022,19 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             Belum ada data pengukuran yang tercatat pada periode ini.
           </div>
         ) : (
-          <div className="max-h-72 overflow-y-auto rounded-2xl border border-slate-100 print:max-h-none print:overflow-visible px-2">
+          <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-100 print:max-h-none print:overflow-visible">
             <table className="w-full text-xs text-left">
               <thead className="sticky top-0 bg-slate-50 text-slate-600 border-b print:static">
                 <tr>
-                  <th className="px-3 py-2">TANGGAL</th>
-                  <th className="px-2 py-2 text-center">JAM</th>
-                  <th className="px-3 py-2">RUANGAN</th>
-                  <th className="px-2 py-2 text-center">PERSYARATAN</th>
-                  <th className="px-2 py-2 text-center">SUHU (°C)</th>
-                  <th className="px-2 py-2 text-center">RH (%)</th>
-                  <th className="px-2 py-2 text-center">DPG (Pa)</th>
-                  <th className="px-2 py-2 text-center">OPR</th>
-                  <th className="px-2 py-2 text-center">SPV</th>
+                  <th className="px-3 py-1">TANGGAL</th>
+                  <th className="px-2 py-1 text-center">JAM</th>
+                  <th className="px-3 py-1">RUANGAN</th>
+                  <th className="px-2 py-1 text-center">PERSYARATAN</th>
+                  <th className="px-2 py-1 text-center">SUHU (°C)</th>
+                  <th className="px-2 py-1 text-center">RH (%)</th>
+                  <th className="px-2 py-1 text-center">DPG (Pa)</th>
+                  <th className="px-2 py-1 text-center">OPR</th>
+                  <th className="px-2 py-1 text-center">SPV</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -3045,15 +3042,15 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                   const reqKey = roomsMap[e.roomName] || e.persyaratanKey || "—";
                   return (
                     <tr key={e.id} className="hover:bg-slate-50/50">
-                      <td className="px-3 py-1.5 font-medium text-slate-700">{e.tanggal}</td>
-                      <td className="px-2 py-1.5 text-center text-slate-500">{e.jam}</td>
-                      <td className="px-3 py-1.5 text-slate-700 font-medium">{e.roomName}</td>
-                      <td className="px-2 py-1.5 text-center">
+                      <td className="px-3 py-1 font-medium text-slate-700">{e.tanggal}</td>
+                      <td className="px-2 py-1 text-center text-slate-500">{e.jam}</td>
+                      <td className="px-3 py-1 text-slate-700 font-medium">{e.roomName}</td>
+                      <td className="px-2 py-1 text-center">
                         <span className="inline-block bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-lg text-[10px] border border-slate-200">
                           {reqKey}
                         </span>
                       </td>
-                      <td className="px-2 py-1.5 text-center">
+                      <td className="px-2 py-1 text-center">
                         <span
                           className="px-2 py-0.5 rounded-full font-semibold"
                           style={{
@@ -3064,7 +3061,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                           {e.suhu ?? "-"}
                         </span>
                       </td>
-                      <td className="px-2 py-1.5 text-center">
+                      <td className="px-2 py-1 text-center">
                         <span
                           className="px-2 py-0.5 rounded-full font-semibold"
                           style={{
@@ -3075,7 +3072,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                           {e.rh ?? "-"}
                         </span>
                       </td>
-                      <td className="px-2 py-1.5 text-center">
+                      <td className="px-2 py-1 text-center">
                         <span
                           className="px-2 py-0.5 rounded-full font-semibold"
                           style={{
@@ -3086,10 +3083,10 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                           {e.dpg ?? "-"}
                         </span>
                       </td>
-                      <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[10.5px]">
+                      <td className="px-2 py-1 text-center text-slate-500 font-medium text-[10px]">
                         {e.opr || "—"}
                       </td>
-                      <td className="px-2 py-1.5 text-center text-slate-500 font-medium text-[10.5px]">
+                      <td className="px-2 py-1 text-center text-slate-500 font-medium text-[10px]">
                         {e.spv || "—"}
                       </td>
                     </tr>
@@ -3103,21 +3100,19 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
       {/* 2. CARD PERSYARATAN & LIMIT */}
       {Object.keys(distinctReportLimits).length > 0 && (
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-3.5 print-card avoid-break">
-          <div className="border-b pb-3 pt-2.5 px-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 whitespace-normal leading-relaxed">
-              Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)
-            </h3>
-          </div>
-          <div className="overflow-x-auto print:overflow-visible px-2">
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-2.5 print-card avoid-break">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+            Persyaratan &amp; Batas Limit (Jenis Limit Terpakai)
+          </h3>
+          <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 border-b">
-                  <th className="px-3.5 py-2">KODE / PERSYARATAN</th>
-                  <th className="px-3.5 py-2">PARAMETER</th>
-                  <th className="px-3.5 py-2">SYARAT</th>
-                  <th className="px-3.5 py-2">ALERT LIMIT</th>
-                  <th className="px-3.5 py-2.5">ACTION LIMIT</th>
+                  <th className="px-3 py-1">KODE / PERSYARATAN</th>
+                  <th className="px-3 py-1">PARAMETER</th>
+                  <th className="px-3 py-1">SYARAT</th>
+                  <th className="px-3 py-1">ALERT LIMIT</th>
+                  <th className="px-3 py-1">ACTION LIMIT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -3138,15 +3133,15 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
                     return (
                       <tr key={pKey + p.key}>
-                        <td className="px-3.5 py-2 font-bold text-slate-800">{pKey}</td>
-                        <td className="px-3.5 py-2 font-semibold text-slate-700">{p.label}</td>
-                        <td className="px-3.5 py-2 text-slate-800">
+                        <td className="px-3 py-1 font-bold text-slate-800">{pKey}</td>
+                        <td className="px-3 py-1 font-semibold text-slate-700">{p.label}</td>
+                        <td className="px-3 py-1 text-slate-800">
                           {formatRange(lim.syaratL, lim.syaratU, p.unit, isDpg)}
                         </td>
-                        <td className="px-3.5 py-2 text-amber-700">
+                        <td className="px-3 py-1 text-amber-700">
                           {formatRange(lim.alertL, lim.alertU, p.unit, isDpg)}
                         </td>
-                        <td className="px-3.5 py-2 text-orange-700">
+                        <td className="px-3 py-1 text-orange-700">
                           {formatRange(lim.actionL, lim.actionU, p.unit, isDpg)}
                         </td>
                       </tr>
@@ -3156,29 +3151,29 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               </tbody>
             </table>
           </div>
-          <div className="flex flex-wrap items-center gap-3 pt-1 px-2 text-[11px] text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Terkendali
+          <div className="flex flex-wrap items-center gap-3 pt-0.5 text-[10px] text-slate-500">
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" /> Terkendali
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Alert
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500" /> Alert
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-orange-500" /> Action
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-orange-500" /> Action
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Melebihi Syarat
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-red-500" /> Melebihi Syarat
             </span>
           </div>
         </div>
       )}
 
       {/* 3. GRAFIK TREN BULANAN */}
-      <div className="space-y-3.5">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 px-2">
+      <div className="space-y-2.5">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
           Grafik Tren Pengukuran Periode {monthLabelID(month)}
         </h2>
-        <div className="space-y-3.5">
+        <div className="space-y-2.5">
           {PARAM_DEFS.map((p) => {
             const rObj = selectedRoomName ? (rooms || []).find((r) => r?.name === selectedRoomName) : null;
             return (
@@ -3197,9 +3192,9 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       </div>
 
       {/* 4. FORM NARASI PENGKAJIAN DENGAN KOP THEMATIC ELEGAN */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-4 print-card avoid-break">
-        <div className="flex items-center justify-between border-b pb-3 pt-2.5 px-2">
-          <h2 className="text-sm font-bold text-slate-800 leading-relaxed">
+      <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-3.5 print-card avoid-break">
+        <div className="flex items-center justify-between border-b pb-2.5">
+          <h2 className="text-sm font-bold text-slate-800">
             {selectedRoomName
               ? `Pembahasan & Narasi Pengkajian — ${selectedRoomName}`
               : `Pembahasan & Narasi Pengkajian Fasilitas ${cfg?.label} (Global)`}
@@ -3226,12 +3221,12 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
         {/* Blok Pendahuluan Thematic KOP */}
         <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs avoid-break">
-          <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-4 py-2 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-3.5 py-1.5 flex items-center justify-between">
             <span className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
-              <FileSpreadsheet size={14} className="text-rose-400" /> Pendahuluan
+              <FileSpreadsheet size={13} className="text-rose-400" /> Pendahuluan
             </span>
           </div>
-          <div className="p-3 bg-white">
+          <div className="p-2.5 bg-white">
             <textarea
               value={pendahuluan}
               onChange={(e) => {
@@ -3240,11 +3235,11 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               }}
               onFocus={handleAutoResize}
               disabled={!canDraftQA || isFinal}
-              rows={3}
-              style={{ minHeight: "65px", overflow: "hidden" }}
-              className="no-print w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+              rows={2}
+              style={{ minHeight: "55px", overflow: "hidden" }}
+              className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
             />
-            <p className="only-print text-[11.5px] leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
+            <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">{pendahuluan || "-"}</p>
           </div>
         </div>
 
@@ -3253,13 +3248,13 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
           const PIcon = p.icon || Sparkles;
           return (
             <div key={p.key} className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs avoid-break">
-              <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-4 py-2 flex items-center justify-between">
+              <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-3.5 py-1.5 flex items-center justify-between">
                 <span className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
-                  <PIcon size={14} className="text-rose-400" /> {p.label} ({p.unit})
+                  <PIcon size={13} className="text-rose-400" /> {p.label} ({p.unit})
                 </span>
-                <span className="text-[10px] text-rose-200 font-mono">Hasil, Tren &amp; Kesimpulan</span>
+                <span className="text-[9.5px] text-rose-200 font-mono">Hasil, Tren &amp; Kesimpulan</span>
               </div>
-              <div className="p-3 bg-white">
+              <div className="p-2.5 bg-white">
                 <textarea
                   value={perParameter[p.key] || ""}
                   onChange={(e) => {
@@ -3268,12 +3263,12 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                   }}
                   onFocus={handleAutoResize}
                   disabled={!canDraftQA || isFinal}
-                  rows={3}
-                  style={{ minHeight: "75px", overflow: "hidden" }}
+                  rows={2}
+                  style={{ minHeight: "60px", overflow: "hidden" }}
                   placeholder={`Tulis ulasan hasil, tren, dan kesimpulan untuk parameter ${p.label}...`}
-                  className="no-print w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+                  className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
                 />
-                <p className="only-print text-[11.5px] leading-relaxed text-slate-800 whitespace-pre-wrap">
+                <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
                   {perParameter[p.key] || "-"}
                 </p>
               </div>
@@ -3283,12 +3278,12 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
 
         {/* Blok Kesimpulan Umum Thematic KOP */}
         <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs avoid-break">
-          <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-4 py-2 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-3.5 py-1.5 flex items-center justify-between">
             <span className="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
-              <CheckCircle2 size={14} className="text-rose-400" /> Kesimpulan Umum
+              <CheckCircle2 size={13} className="text-rose-400" /> Kesimpulan Umum
             </span>
           </div>
-          <div className="p-3 bg-white">
+          <div className="p-2.5 bg-white">
             <textarea
               value={kesimpulanUmum}
               onChange={(e) => {
@@ -3297,24 +3292,24 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
               }}
               onFocus={handleAutoResize}
               disabled={!canDraftQA || isFinal}
-              rows={3}
-              style={{ minHeight: "65px", overflow: "hidden" }}
-              className="no-print w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
+              rows={2}
+              style={{ minHeight: "55px", overflow: "hidden" }}
+              className="no-print w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 outline-none focus:border-rose-700 disabled:bg-slate-50 leading-relaxed resize-none"
             />
-            <p className="only-print text-[11.5px] leading-relaxed text-slate-800 whitespace-pre-wrap">
+            <p className="only-print text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
               {kesimpulanUmum || "-"}
             </p>
           </div>
         </div>
 
         {/* Tanda Tangan */}
-        <div className="pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4 avoid-break">
-          <div className="border border-dashed border-slate-300 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[145px]">
-            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+        <div className="pt-2.5 border-t grid grid-cols-1 sm:grid-cols-2 gap-3 avoid-break">
+          <div className="border rounded-2xl p-3.5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[125px]">
+            <p className="text-[9.5px] font-semibold uppercase tracking-wider text-slate-400">
               Dikaji Oleh (Supervisor QA)
             </p>
             {report?.signoff?.dinilai?.nama ? (
-              <div className="space-y-1 my-auto">
+              <div className="space-y-0.5 my-auto">
                 <div className="flex justify-center">
                   <VerifyQR
                     type="pengkajian"
@@ -3323,11 +3318,11 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                     roomName={selectedRoomName}
                     signerRole="Dikaji Oleh"
                     signerName={report.signoff.dinilai.nama}
-                    size={48}
+                    size={42}
                   />
                 </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.dinilai.nama}</p>
-                <p className="text-[10px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
+                <p className="text-[9px] text-slate-400">{report.signoff.dinilai.tanggal}</p>
               </div>
             ) : (
               <div className="my-auto space-y-2">
@@ -3344,12 +3339,12 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             )}
           </div>
 
-          <div className="border border-dashed border-slate-300 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[145px]">
-            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+          <div className="border rounded-2xl p-3.5 bg-slate-50/50 text-center flex flex-col justify-between min-h-[125px]">
+            <p className="text-[9.5px] font-semibold uppercase tracking-wider text-slate-400">
               Mengetahui (Manager QA)
             </p>
             {report?.signoff?.diperiksa?.nama ? (
-              <div className="space-y-1 my-auto">
+              <div className="space-y-0.5 my-auto">
                 <div className="flex justify-center">
                   <VerifyQR
                     type="pengkajian"
@@ -3358,11 +3353,11 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                     roomName={selectedRoomName}
                     signerRole="Mengetahui"
                     signerName={report.signoff.diperiksa.nama}
-                    size={48}
+                    size={42}
                   />
                 </div>
                 <p className="text-xs font-bold text-slate-800">{report.signoff.diperiksa.nama}</p>
-                <p className="text-[10px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
+                <p className="text-[9px] text-slate-400">{report.signoff.diperiksa.tanggal}</p>
               </div>
             ) : (
               <div className="my-auto space-y-2">
@@ -3944,10 +3939,8 @@ function AppContent() {
     const fetchNotifs = async () => {
       try {
         const notifList = [];
-        const tglHariIni = todayStr();
-        const activeCurrentMonth = currentMonth();
         const isQA = session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator";
-        const isMonthCompleted = month < activeCurrentMonth;
+        const isMonthCompleted = month < currentMonth();
 
         const relevantFacilities = FACILITIES.filter((f) => {
           if (isQA) return true;
@@ -4073,7 +4066,6 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex font-sans">
-      {/* CSS CETAK PRINT TEROPTIMASI & KOP EM VIABLE-LIKE */}
       <style>{`
         .only-print { display: none; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -4082,45 +4074,31 @@ function AppContent() {
           .only-print { display: block !important; }
           .print-card { 
             box-shadow: none !important; 
-            page-break-inside: auto !important; 
-            break-inside: auto !important; 
+            page-break-inside: avoid !important; 
+            break-inside: avoid !important; 
             border: 1px solid #e2e8f0 !important; 
-            margin-bottom: 0.85rem !important; 
+            margin-bottom: 0.65rem !important; 
             padding: 0 !important;
             border-radius: 1.25rem !important;
-            overflow: visible !important;
+            overflow: hidden !important;
           }
           .avoid-break { 
             page-break-inside: avoid !important; 
             break-inside: avoid !important; 
-            margin-bottom: 0.75rem !important;
+            margin-bottom: 0.55rem !important;
           }
           .chart-container-print {
-            height: 195px !important;
-            padding: 0.25rem !important;
-            overflow: visible !important;
+            height: 155px !important;
+            padding: 0.15rem !important;
           }
-          table { 
-            width: 100% !important; 
-            max-width: 100% !important; 
-            table-layout: auto !important; 
-            page-break-inside: auto !important;
-          }
-          tr {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-          th, td { 
-            padding-top: 3.5px !important; 
-            padding-bottom: 3.5px !important; 
-            font-size: 10px !important; 
-          }
+          table { width: 100% !important; max-width: 100% !important; table-layout: auto !important; }
+          th, td { padding-top: 2.5px !important; padding-bottom: 2.5px !important; font-size: 9px !important; }
           body, html, #root { background: white !important; height: auto !important; }
           main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
           textarea { border: none !important; resize: none !important; background: transparent !important; padding: 0 !important; height: auto !important; }
         }
         @page {
-          margin: 0.7cm 0.7cm 0.9cm 0.7cm;
+          margin: 0.6cm 0.6cm 0.8cm 0.6cm;
           size: portrait;
         }
       `}</style>
@@ -4219,7 +4197,7 @@ function AppContent() {
 }
 
 /* =========================================================================
-   17. ROOT EXPORT
+   18. ROOT EXPORT
    ========================================================================= */
 export default function App() {
   if (typeof window !== "undefined" && window.location.pathname === "/verify") {
