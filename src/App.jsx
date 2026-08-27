@@ -464,7 +464,7 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
       </div>
       <div className="p-2.5 chart-container-print">
         <ResponsiveContainer width="100%" height={165}>
-          <ComposedChart data={data} margin={{ top: 8, right: 10, left: -15, bottom: 20 }}>
+          <ComposedChart data={data} margin={{ top: 8, right: 15, left: 18, bottom: 20 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -476,7 +476,7 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 8.5, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={30} />
-            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={28} />
+            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={36} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -552,7 +552,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
       </div>
       <div className="p-2.5 chart-container-print">
         <ResponsiveContainer width="100%" height={155}>
-          <ComposedChart data={data} margin={{ top: 8, right: 10, left: -15, bottom: 20 }}>
+          <ComposedChart data={data} margin={{ top: 8, right: 15, left: 18, bottom: 20 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -564,7 +564,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 8, fill: "#64748b" }} angle={-25} textAnchor="end" interval="preserveStartEnd" height={30} />
-            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={28} />
+            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={36} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -3939,8 +3939,10 @@ function AppContent() {
     const fetchNotifs = async () => {
       try {
         const notifList = [];
+        const tglHariIni = todayStr();
+        const activeCurrentMonth = currentMonth();
         const isQA = session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator";
-        const isMonthCompleted = month < currentMonth();
+        const isMonthCompleted = month < activeCurrentMonth;
 
         const relevantFacilities = FACILITIES.filter((f) => {
           if (isQA) return true;
@@ -4066,6 +4068,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex font-sans">
+      {/* CSS CETAK PRINT TEROPTIMASI DENGAN SAFE-MARGIN */}
       <style>{`
         .only-print { display: none; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -4080,7 +4083,7 @@ function AppContent() {
             margin-bottom: 0.65rem !important; 
             padding: 0 !important;
             border-radius: 1.25rem !important;
-            overflow: hidden !important;
+            overflow: visible !important;
           }
           .avoid-break { 
             page-break-inside: avoid !important; 
@@ -4090,6 +4093,7 @@ function AppContent() {
           .chart-container-print {
             height: 155px !important;
             padding: 0.15rem !important;
+            overflow: visible !important;
           }
           table { width: 100% !important; max-width: 100% !important; table-layout: auto !important; }
           th, td { padding-top: 2.5px !important; padding-bottom: 2.5px !important; font-size: 9px !important; }
@@ -4098,7 +4102,7 @@ function AppContent() {
           textarea { border: none !important; resize: none !important; background: transparent !important; padding: 0 !important; height: auto !important; }
         }
         @page {
-          margin: 0.6cm 0.6cm 0.8cm 0.6cm;
+          margin: 0.8cm 1.2cm 1cm 1.2cm;
           size: portrait;
         }
       `}</style>
