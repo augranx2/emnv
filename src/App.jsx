@@ -349,12 +349,12 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
 }
 
 /* =========================================================================
-   5. KOMPONEN GRAFIK RECHARTS (SUMBU Y PROPORSIONAL & LEBAR PAS)
+   5. KOMPONEN GRAFIK RECHARTS (DENGAN SUMBU Y PROPOSIONAL & BERSIH)
    ========================================================================= */
 function ChartDot({ cx, cy, payload }) {
   if (cx == null || cy == null) return null;
   const style = levelStyle(payload?.level);
-  return <circle cx={cx} cy={cy} r={4} fill={style.color} stroke="#fff" strokeWidth={1.5} />;
+  return <circle cx={cx} cy={cy} r={3.5} fill={style.color} stroke="#fff" strokeWidth={1.5} />;
 }
 
 function ChartTooltip({ active, payload, unit }) {
@@ -362,7 +362,7 @@ function ChartTooltip({ active, payload, unit }) {
   const p = payload[0].payload;
   const style = levelStyle(p?.level);
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/95 backdrop-blur-md px-3.5 py-2 text-xs shadow-xl space-y-0.5">
+    <div className="rounded-xl border border-slate-200 bg-white/95 backdrop-blur-md px-3 py-1.5 text-xs shadow-xl space-y-0.5">
       <p className="font-semibold text-slate-800">{p.label}</p>
       <p className="text-sm font-extrabold" style={{ color: style.color }}>
         {p.value} {unit}
@@ -376,8 +376,8 @@ function ChartTooltip({ active, payload, unit }) {
 
 function LegendChip({ color, label }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-200">
-      <span className="h-2 w-2 rounded-full" style={{ background: color }} />
+    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[9.5px] font-medium text-slate-600 border border-slate-200">
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
       {label}
     </span>
   );
@@ -450,7 +450,7 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs print-card avoid-break w-full">
-      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 px-4 py-2.5 bg-slate-50/60">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 px-4 py-2 bg-slate-50/60">
         <div>
           <p className="text-xs font-bold text-slate-800">{paramLabel}</p>
           <p className="text-[10px] text-slate-500 mt-0.5">
@@ -465,8 +465,8 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
         </div>
       </div>
       <div className="p-3 chart-container-print">
-        <ResponsiveContainer width="100%" height={185}>
-          <ComposedChart data={data} margin={{ top: 10, right: 15, left: 15, bottom: 25 }}>
+        <ResponsiveContainer width="100%" height={180}>
+          <ComposedChart data={data} margin={{ top: 10, right: 15, left: 18, bottom: 25 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -477,11 +477,11 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
             {alertVal !== null && <ReferenceLine y={alertVal} stroke="#f59e0b" strokeWidth={1.2} strokeDasharray="4 3" />}
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
-            <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={35} />
+            <XAxis dataKey="label" tick={{ fontSize: 8.5, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={30} />
             <YAxis
               domain={[yMin, yMax]}
               tick={{ fontSize: 9, fill: "#64748b" }}
-              width={40}
+              width={42}
               tickFormatter={(v) => Math.round(v)}
             />
             <Tooltip content={<ChartTooltip unit={unit} />} />
@@ -492,7 +492,7 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
               stroke="#16a34a"
               strokeWidth={2}
               dot={<ChartDot />}
-              activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2 }}
+              activeDot={{ r: 4.5, stroke: "#fff", strokeWidth: 2 }}
               isAnimationActive={false}
             />
           </ComposedChart>
@@ -543,7 +543,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs print-card avoid-break w-full">
-      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 px-4 py-2.5 bg-slate-50/60">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 px-4 py-2 bg-slate-50/60">
         <div>
           <p className="text-xs font-bold text-slate-800">
             {paramLabel} — {isGlobal ? "Tren Global Fasilitas" : "Tren 1 Bulan"}
@@ -560,8 +560,8 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
         </div>
       </div>
       <div className="p-3 chart-container-print">
-        <ResponsiveContainer width="100%" height={175}>
-          <ComposedChart data={data} margin={{ top: 10, right: 15, left: 15, bottom: 25 }}>
+        <ResponsiveContainer width="100%" height={180}>
+          <ComposedChart data={data} margin={{ top: 10, right: 15, left: 18, bottom: 25 }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#16a34a" stopOpacity={0.25} />
@@ -576,7 +576,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
             <YAxis
               domain={[yMin, yMax]}
               tick={{ fontSize: 9, fill: "#64748b" }}
-              width={40}
+              width={42}
               tickFormatter={(v) => Math.round(v)}
             />
             <Tooltip content={<ChartTooltip unit={unit} />} />
@@ -587,7 +587,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
               stroke="#16a34a"
               strokeWidth={2}
               dot={<ChartDot />}
-              activeDot={{ r: 5, stroke: "#fff", strokeWidth: 2 }}
+              activeDot={{ r: 4.5, stroke: "#fff", strokeWidth: 2 }}
               isAnimationActive={false}
             />
           </ComposedChart>
@@ -998,6 +998,7 @@ function HeaderBar({
             />
           </label>
 
+          {/* Lonceng Notifikasi */}
           {session && (
             <div className="relative">
               <button
@@ -1018,6 +1019,7 @@ function HeaderBar({
                 )}
               </button>
 
+              {/* Popover Card Notifikasi */}
               {showNotifPopover && (
                 <>
                   <div
@@ -2030,18 +2032,18 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         </div>
       </div>
 
-      {/* KOP HEADER FASILITAS HARIAN (LENGKUNG & CLEAN SEPERTI EM VIABLE) */}
-      <div className="overflow-hidden rounded-3xl border border-slate-200/80 print-card shadow-sm">
-        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-5">
+      {/* KOP HEADER FASILITAS HARIAN (LENGKUNG & PROPOSIONAL SEPERTI EM VIABLE) */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white print-card shadow-sm mb-4">
+        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-4 rounded-t-2xl">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-rose-600/20 blur-3xl" />
           <div className="relative flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <img src="/logo-rama.png" alt="Logo" className="h-12 w-12 object-contain brightness-0 invert" />
+              <img src="/logo-rama.png" alt="Logo" className="h-11 w-11 object-contain brightness-0 invert" />
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-300">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-300">
                   PT. Rama Emerald Multi Sukses — QA
                 </p>
-                <h1 className="text-xl font-bold text-white tracking-tight">
+                <h1 className="text-base font-bold text-white tracking-tight">
                   Data Pemantauan &amp; Evaluasi Harian EM Non Viable
                 </h1>
                 <p className="text-xs text-rose-100/90 mt-0.5">
@@ -2053,7 +2055,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             <p className="text-right text-[11px] text-rose-200 font-mono">FM.QA.024/R11</p>
           </div>
         </div>
-        <div className="flex items-center justify-between bg-white px-6 py-3 border-t border-slate-100 text-xs">
+        <div className="flex items-center justify-between bg-white px-6 py-2 border-t border-slate-100 text-xs rounded-b-2xl">
           <span className="text-slate-400">Status Fasilitas:</span>
           <span
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 font-bold"
@@ -2361,7 +2363,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   <th className="px-3.5 py-2">PARAMETER</th>
                   <th className="px-3.5 py-2">SYARAT</th>
                   <th className="px-3.5 py-2">ALERT LIMIT</th>
-                  <th className="px-3.5 py-2">ACTION LIMIT</th>
+                  <th className="px-3.5 py-2.5">ACTION LIMIT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -2726,7 +2728,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 }
 
 /* =========================================================================
-   12. HALAMAN PENGKAJIAN QA RESMI
+   12. HALAMAN PENGKAJIAN QA RESMI (PENGKAJIAN GLOBAL & RUANGAN)
    ========================================================================= */
 function PengkajianPage({ session, month, setView, initialFacility, initialRoom }) {
   const [facilityKey, setFacilityKey] = useState(initialFacility || FACILITIES[0].key);
@@ -2933,17 +2935,17 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       </div>
 
       {/* HEADER KOP UTAMA PENGKAJIAN QA (LENGKUNG & PROPOSIONAL SEPERTI EM VIABLE) */}
-      <div className="overflow-hidden rounded-3xl border border-slate-200/80 print-card shadow-sm">
-        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-5">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white print-card shadow-sm mb-4">
+        <div className="relative overflow-hidden bg-gradient-to-r from-black via-zinc-950 to-rose-950 px-6 py-4 rounded-t-2xl">
           <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-rose-600/20 blur-3xl" />
           <div className="relative flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <img src="/logo-rama.png" alt="Logo" className="h-12 w-12 object-contain brightness-0 invert" />
+              <img src="/logo-rama.png" alt="Logo" className="h-11 w-11 object-contain brightness-0 invert" />
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-rose-300">
                   PT. Rama Emerald Multi Sukses — QA
                 </p>
-                <h1 className="text-xl font-bold text-white tracking-tight">
+                <h1 className="text-base font-bold text-white tracking-tight">
                   {selectedRoomName
                     ? `Pengkajian Tren Ruangan — ${selectedRoomName}`
                     : `Pengkajian Trend Data EM Non Viable (Global)`}
@@ -4050,7 +4052,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex font-sans">
-      {/* CSS CETAK PRINT TERSTANDARISASI & PROPORSIONAL (A4 READY) */}
+      {/* CSS CETAK PRINT EM VIABLE-LIKE & PROPORSIONAL KERTAS A4 */}
       <style>{`
         .only-print { display: none; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -4061,19 +4063,19 @@ function AppContent() {
             box-shadow: none !important; 
             page-break-inside: auto !important; 
             break-inside: auto !important; 
-            border: 1px solid #e2e8f0 !important; 
-            margin-bottom: 1.25rem !important; 
-            padding: 0 !important;
+            border: 1px solid #cbd5e1 !important; 
+            margin-bottom: 1rem !important; 
+            padding: 0.85rem !important;
             border-radius: 1.25rem !important;
             overflow: visible !important;
           }
           .avoid-break { 
             page-break-inside: avoid !important; 
             break-inside: avoid !important; 
-            margin-bottom: 1rem !important;
+            margin-bottom: 0.85rem !important;
           }
           .chart-container-print {
-            height: 185px !important;
+            height: 180px !important;
             padding: 0.25rem !important;
             overflow: visible !important;
           }
@@ -4088,8 +4090,8 @@ function AppContent() {
             break-inside: avoid !important;
           }
           th, td { 
-            padding-top: 4.5px !important; 
-            padding-bottom: 4.5px !important; 
+            padding-top: 4px !important; 
+            padding-bottom: 4px !important; 
             font-size: 11px !important; 
           }
           body, html, #root { background: white !important; height: auto !important; font-size: 12px !important; }
@@ -4196,7 +4198,7 @@ function AppContent() {
 }
 
 /* =========================================================================
-   18. ROOT EXPORT
+   17. ROOT EXPORT
    ========================================================================= */
 export default function App() {
   if (typeof window !== "undefined" && window.location.pathname === "/verify") {
