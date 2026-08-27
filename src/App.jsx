@@ -580,7 +580,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
 }
 
 /* =========================================================================
-   6. SIDEBAR COMPONENT
+   6. SIDEBAR COMPONENT (DENGAN MENU NOTIFIKASI AKTIF)
    ========================================================================= */
 function Sidebar({ session, view, setView, status = {}, onNeedLogin, isOpen, onClose, notifications = [] }) {
   const [expandedGroups, setExpandedGroups] = useState({ nbl: true, gbb: true });
@@ -3862,7 +3862,7 @@ function VerifyPage() {
 }
 
 /* =========================================================================
-   16. APP CONTENT CONTROLLER (DENGAN EVALUASI WAKTU NOTIFIKASI QA AWAL BULAN)
+   16. APP CONTENT CONTROLLER (DENGAN EVALUATOR NOTIFIKASI BULAN SELESAI)
    ========================================================================= */
 function AppContent() {
   const { session, checking, login, logout } = useAuth();
@@ -3874,7 +3874,6 @@ function AppContent() {
   const [showProfile, setShowProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
 
-  // Data Notifikasi Real-time
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
@@ -3889,7 +3888,6 @@ function AppContent() {
     };
   }, [month]);
 
-  // Evaluator Notifikasi Real-time Berbasis Role & Logika Awal Bulan
   useEffect(() => {
     if (!session) {
       setNotifications([]);
@@ -3900,12 +3898,8 @@ function AppContent() {
     const fetchNotifs = async () => {
       try {
         const notifList = [];
-        const tglHariIni = todayStr();
-        const activeCurrentMonth = currentMonth();
         const isQA = session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator";
-
-        // Bulan yang dipilih sudah selesai jika nilainya sebelum bulan sistem saat ini
-        const isMonthCompleted = month < activeCurrentMonth;
+        const isMonthCompleted = month < currentMonth();
 
         const relevantFacilities = FACILITIES.filter((f) => {
           if (isQA) return true;
@@ -3915,18 +3909,15 @@ function AppContent() {
         await Promise.all(
           relevantFacilities.map(async (fac) => {
             try {
-              const [entriesRes, masterRes, reportRes] = await Promise.all([
+              const [entriesRes, reportRes] = await Promise.all([
                 fetchEntries(fac.key, month).catch(() => []),
-                fetchMaster(fac.key).catch(() => []),
                 isQA && isMonthCompleted ? fetchReport(fac.key, month, session?.token, "").catch(() => null) : null,
               ]);
 
               const entryList = Array.isArray(entriesRes) ? entriesRes : entriesRes?.entries || [];
-              const roomList = Array.isArray(masterRes) ? masterRes : masterRes?.rooms || [];
 
-              // 1. Alert Deviasi Kritis (Action Limit = 3 / TMS = 4) -> Diterima oleh QA & SPV Terkait
-              const todayEntries = entryList.filter((e) => e?.tanggal === tglHariIni);
-              todayEntries.forEach((e) => {
+              // 1. Alert Deviasi Kritis (Action Limit = 3 / TMS = 4)
+              entryList.forEach((e) => {
                 PARAM_DEFS.forEach((p) => {
                   const lvl = e?.level?.[p.key];
                   if (lvl >= 3) {
@@ -3935,15 +3926,15 @@ function AppContent() {
                       facilityKey: fac.key,
                       facilityLabel: fac.label,
                       title: `Peringatan ${lvl === 4 ? "TMS (Melebihi Syarat)" : "Action Limit"}`,
-                      desc: `Ruangan ${e.roomName} parameter ${p.label}: ${e[p.key]} ${p.unit} (Jam ${e.jam}).`,
+                      desc: `Ruangan ${e.roomName} parameter ${p.label}: ${e[p.key]} ${p.unit} (Tgl ${e.tanggal}, Jam ${e.jam}).`,
                       tag: lvl === 4 ? "TMS" : "Action Limit",
-                      time: e.jam,
+                      time: e.tanggal,
                     });
                   }
                 });
               });
 
-              // 2. Alert Pengkajian Global Bulanan (HANYA muncul saat bulan tersebut sudah lewat/selesai)
+              // 2. Alert Pengkajian Global Bulanan (HANYA untuk akun QA jika bulan telah berakhir)
               if (isQA && isMonthCompleted && entryList.length > 0) {
                 const hasGlobalNarrative = reportRes?.narrative?.pendahuluan || reportRes?.narrative?.kesimpulanUmum;
                 if (!hasGlobalNarrative) {
@@ -3959,22 +3950,22 @@ function AppContent() {
                 }
               }
 
-              // 3. Alert Pending SPV Approval (HANYA untuk akun SPV/Manager Area Terkait)
+              // 3. Alert Pending SPV Approval (HANYA untuk SPV / Manager Area, seluruh antrean bulan berjalan)
               if (!isQA) {
-                const pendingRooms = roomList.filter((r) => {
-                  const rEntries = todayEntries.filter((e) => e?.roomName === r?.name);
-                  return rEntries.length > 0 && rEntries.some((e) => !!e.opr) && rEntries.some((e) => !e.spv);
-                });
-
-                if (pendingRooms.length > 0) {
-                  notifList.push({
-                    type: "pending_spv",
-                    facilityKey: fac.key,
-                    facilityLabel: fac.label,
-                    title: "Menunggu Approval SPV",
-                    desc: `${pendingRooms.length} ruangan telah di-approve OPR dan siap ditinjau.`,
-                    tag: "Pending SPV",
-                    time: "Hari Ini",
+                const pendingEntries = entryList.filter((e) => !!e.opr && !e.spv);
+                if (pendingEntries.length > 0) {
+                  const uniqueDates = Array.from(new Set(pendingEntries.map((e) => e.tanggal)));
+                  uniqueDates.forEach((tgl) => {
+                    const countOnDate = pendingEntries.filter((e) => e.tanggal === tgl).length;
+                    notifList.push({
+                      type: "pending_spv",
+                      facilityKey: fac.key,
+                      facilityLabel: fac.label,
+                      title: "Menunggu Approval SPV",
+                      desc: `Terdapat ${countOnDate} data ruangan pada tgl ${tgl} telah di-approve OPR dan siap ditinjau.`,
+                      tag: "Pending SPV",
+                      time: tgl,
+                    });
                   });
                 }
               }
