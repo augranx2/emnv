@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, Component } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, Component } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ComposedChart,
@@ -442,8 +442,8 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
     .filter((v) => v !== null && !isNaN(v));
   const minVal = Math.min(...allVals, 0);
   const maxVal = Math.max(...allVals, 10);
-  const yMin = minVal < 0 ? minVal - (maxVal - minVal) * 0.1 : 0;
-  const yMax = maxVal + (maxVal - minVal) * 0.1;
+  const yMin = minVal < 0 ? Math.round((minVal - (maxVal - minVal) * 0.1) * 10) / 10 : 0;
+  const yMax = Math.round((maxVal + (maxVal - minVal) * 0.1) * 10) / 10;
   const gradId = `dayGrad-${paramKey}`;
 
   return (
@@ -476,7 +476,7 @@ function DayParamChart({ activeRoomNames = [], rooms = [], currentDayEntries = [
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 8.5, fill: "#64748b" }} angle={-25} textAnchor="end" interval={0} height={30} />
-            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={36} />
+            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={36} tickFormatter={(v) => { const n = Math.round(v * 10) / 10; return Number.isInteger(n) ? n : n.toFixed(1); }} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -528,8 +528,8 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
     .filter((v) => v !== null && !isNaN(v));
   const minVal = Math.min(...allVals, 0);
   const maxVal = Math.max(...allVals, 10);
-  const yMin = minVal < 0 ? minVal - (maxVal - minVal) * 0.1 : 0;
-  const yMax = maxVal + (maxVal - minVal) * 0.1;
+  const yMin = minVal < 0 ? Math.round((minVal - (maxVal - minVal) * 0.1) * 10) / 10 : 0;
+  const yMax = Math.round((maxVal + (maxVal - minVal) * 0.1) * 10) / 10;
   const gradId = `monthGrad-${paramKey}-${isGlobal ? "global" : "room"}`;
 
   return (
@@ -564,7 +564,7 @@ function RoomMonthlyTrendChart({ entriesData = [], paramKey, paramLabel, unit, l
             {actionVal !== null && <ReferenceLine y={actionVal} stroke="#ea580c" strokeWidth={1.2} strokeDasharray="4 3" />}
             {syaratVal !== null && <ReferenceLine y={syaratVal} stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
             <XAxis dataKey="label" tick={{ fontSize: 8, fill: "#64748b" }} angle={-25} textAnchor="end" interval="preserveStartEnd" height={30} />
-            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={36} />
+            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8.5, fill: "#64748b" }} width={36} tickFormatter={(v) => { const n = Math.round(v * 10) / 10; return Number.isInteger(n) ? n : n.toFixed(1); }} />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <Area type="monotone" dataKey="value" stroke="none" fill={`url(#${gradId})`} isAnimationActive={false} />
             <Line
@@ -1501,6 +1501,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   const [pendahuluan, setPendahuluan] = useState("");
   const [kesimpulanUmum, setKesimpulanUmum] = useState("");
   const [perParameter, setPerParameter] = useState({ suhu: "", rh: "", dpg: "" });
+  const narasiRef = useRef(null);
   const [generating, setGenerating] = useState(false);
 
   /* Modal Denah State */
@@ -1559,6 +1560,14 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     target.style.height = "auto";
     target.style.height = `${target.scrollHeight}px`;
   };
+
+  useEffect(() => {
+    const textareas = narasiRef.current ? narasiRef.current.querySelectorAll("textarea") : [];
+    textareas.forEach((el) => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    });
+  }, [pendahuluan, kesimpulanUmum, perParameter]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -2437,7 +2446,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       </div>
 
       {/* SECTION 4: PEMBAHASAN & NARASI */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-3.5 print-card avoid-break">
+      <div ref={narasiRef} className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-3.5 print-card avoid-break">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-2.5">
           <div>
             <h2 className="text-sm font-bold text-slate-800">
@@ -2747,6 +2756,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
   const cfg = FACILITIES.find((f) => f.key === facilityKey) || FACILITIES[0];
   const canDraftQA = hasAccess(session, "Supervisor", "QA");
   const canFinalQA = hasAccess(session, "Manager", "QA");
+  const narasiRef = useRef(null);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -2758,6 +2768,14 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
     target.style.height = "auto";
     target.style.height = `${target.scrollHeight}px`;
   };
+
+  useEffect(() => {
+    const textareas = narasiRef.current ? narasiRef.current.querySelectorAll("textarea") : [];
+    textareas.forEach((el) => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    });
+  }, [pendahuluan, kesimpulanUmum, perParameter]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -3192,7 +3210,7 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
       </div>
 
       {/* 4. FORM NARASI PENGKAJIAN DENGAN KOP THEMATIC ELEGAN */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-3.5 print-card avoid-break">
+      <div ref={narasiRef} className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-xs space-y-3.5 print-card avoid-break">
         <div className="flex items-center justify-between border-b pb-2.5">
           <h2 className="text-sm font-bold text-slate-800">
             {selectedRoomName
