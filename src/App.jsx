@@ -4108,6 +4108,12 @@ function AppContent() {
         @media print {
           .no-print, aside, header { display: none !important; }
           .only-print { display: block !important; }
+          .print-content-shell {
+            padding-left: 0 !important;
+            margin-left: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+          }
           .print-card { 
             box-shadow: none !important; 
             page-break-inside: avoid !important; 
@@ -4128,9 +4134,9 @@ function AppContent() {
             padding: 0.15rem !important;
           }
           table { width: 100% !important; max-width: 100% !important; table-layout: auto !important; }
-          th, td { padding-top: 2.5px !important; padding-bottom: 2.5px !important; font-size: 9px !important; }
-          body, html, #root { background: white !important; height: auto !important; }
-          main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+          th, td { padding-top: 2.5px !important; padding-bottom: 2.5px !important; font-size: 9px !important; word-break: break-word !important; overflow-wrap: break-word !important; }
+          body, html, #root { background: white !important; height: auto !important; overflow-x: hidden !important; width: 100% !important; max-width: 100% !important; }
+          main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; width: 100% !important; }
           textarea { border: none !important; resize: none !important; background: transparent !important; padding: 0 !important; height: auto !important; }
         }
         @page {
@@ -4150,7 +4156,7 @@ function AppContent() {
         notifications={notifications}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-72 print:pl-0">
+      <div className="flex-1 flex flex-col min-w-0 lg:pl-72 print-content-shell">
         <HeaderBar
           session={session}
           onLoginClick={() => setShowLogin(true)}
