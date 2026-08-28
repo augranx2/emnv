@@ -4133,8 +4133,10 @@ function AppContent() {
             height: 155px !important;
             padding: 0.15rem !important;
           }
-          table { width: 100% !important; max-width: 100% !important; table-layout: auto !important; }
-          th, td { padding-top: 2.5px !important; padding-bottom: 2.5px !important; font-size: 9px !important; word-break: break-word !important; overflow-wrap: break-word !important; }
+          table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
+          th, td { padding-top: 2.5px !important; padding-bottom: 2.5px !important; padding-left: 3px !important; padding-right: 3px !important; font-size: 8px !important; word-break: break-word !important; overflow-wrap: anywhere !important; white-space: normal !important; }
+          .overflow-x-auto { overflow: visible !important; max-width: 100% !important; }
+          .overflow-y-auto { overflow: visible !important; max-height: none !important; }
           body, html, #root { background: white !important; height: auto !important; overflow-x: hidden !important; width: 100% !important; max-width: 100% !important; }
           main { padding: 0 !important; margin: 0 !important; max-width: 100% !important; width: 100% !important; }
           textarea { border: none !important; resize: none !important; background: transparent !important; padding: 0 !important; height: auto !important; }
