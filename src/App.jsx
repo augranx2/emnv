@@ -2926,6 +2926,10 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
     return map;
   }, [rooms]);
 
+  const currentLevel = facilityOverallLevel(
+    selectedRoomName ? (monthEntries || []).filter((e) => e?.roomName === selectedRoomName) : monthEntries
+  );
+
   return (
     <div className="space-y-6">
       {toast && (
@@ -2980,6 +2984,18 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
             </div>
             <p className="text-right text-xs text-rose-200 font-mono">POS.QA.025</p>
           </div>
+        </div>
+        <div className="flex items-center justify-between bg-white px-6 py-2 border-t border-slate-100 text-xs">
+          <span className="text-slate-400">
+            {selectedRoomName ? "Status Ruangan:" : "Status Fasilitas:"}
+          </span>
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 font-bold"
+            style={{ background: levelStyle(currentLevel).bg, color: levelStyle(currentLevel).color }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: levelStyle(currentLevel).dot }} />
+            {levelStyle(currentLevel).label}
+          </span>
         </div>
       </div>
 
