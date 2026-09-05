@@ -4470,10 +4470,25 @@ function AppContent() {
           setStatus(statusMap);
         }
 
-        const periodeLabel = monthLabelID(month);
+        // Periode yang dievaluasi untuk kelengkapan data & penutupan formulir
+        // adalah periode yang SUDAH SELESAI. Kalau yang sedang dibuka bulan
+        // berjalan, evaluasinya diarahkan ke bulan sebelumnya — bulan berjalan
+        // masih dalam proses pengisian, jadi tidak wajar dilaporkan
+        // "belum ada data".
+        const evalMonth = month >= currentMonth() ? prevMonthStr(month) : month;
+        let evalStatusMap = statusMap;
+        if (evalMonth && evalMonth !== month) {
+          const evalRes = await fetchStatusIndex(evalMonth).catch(() => null);
+          evalStatusMap = evalRes?.status || evalRes || {};
+        }
+        if (!evalMonth || !evalStatusMap || Object.keys(evalStatusMap).length === 0) {
+          evalStatusMap = {};
+        }
+
+        const periodeLabel = monthLabelID(evalMonth);
 
         relevantFacilities.forEach((fac) => {
-          const st = statusMap[fac.key];
+          const st = evalStatusMap[fac.key];
           if (!st) return;
 
           const bolehACCFasilitas = hasFacilityAccess(session, "Supervisor", fac);
@@ -4488,6 +4503,7 @@ function AppContent() {
                 title: "Belum Ada Data Pemantauan",
                 desc: `Tidak ada satu pun hasil pemantauan Suhu/RH/DPG yang tercatat pada periode ${periodeLabel}.`,
                 tag: "Tanpa Data",
+                bulan: evalMonth,
                 time: periodeLabel,
               });
             }
@@ -4515,6 +4531,7 @@ function AppContent() {
                 title: "Formulir Bulanan Menunggu ACC Kepala Bagian",
                 desc: `${pendingKB.length} dari ${total} ruangan belum di-ACC (${contohRuangan}). Klik untuk membuka daftar lengkap dan ACC seluruh ruangan sekaligus.`,
                 tag: "ACC Kepala Bagian",
+                bulan: evalMonth,
                 time: periodeLabel,
               });
             }
@@ -4528,6 +4545,7 @@ function AppContent() {
                 title: "Formulir Belum Dapat Di-approve QA",
                 desc: `Menunggu ACC Kepala Bagian pada ${pendingKB.length} dari ${total} ruangan (${contohRuangan}). Klik untuk melihat daftar lengkap ruangannya.`,
                 tag: "Menunggu Kepala Bagian",
+                bulan: evalMonth,
                 time: periodeLabel,
               });
             }
@@ -4542,6 +4560,7 @@ function AppContent() {
                 title: "Formulir Bulanan Siap Di-approve Manager QA",
                 desc: `Seluruh ${total} ruangan sudah di-ACC Kepala Bagian dan menunggu tanda tangan Manager QA.`,
                 tag: "Siap ACC QA",
+                bulan: evalMonth,
                 time: periodeLabel,
               });
             }
@@ -4602,13 +4621,17 @@ function AppContent() {
       setView({ page: "pengkajian", facility: notif.facilityKey, room: "" });
     } else if (notif.type && notif.type.startsWith("formulir")) {
       // Langsung buka Formulir Bulanan, kalau bisa pada ruangan yang tertunda.
+      // Buka periode yang dievaluasi notifikasi tersebut (umumnya bulan lalu),
+      // bukan bulan yang sedang aktif di header.
+      if (notif.bulan && notif.bulan !== month) setMonth(notif.bulan);
       setView({
         page: "formulir",
         facility: notif.facilityKey,
         room: notif.targetRoom || "",
-        bulan: month,
+        bulan: notif.bulan || month,
       });
     } else if (notif.facilityKey) {
+      if (notif.bulan && notif.bulan !== month) setMonth(notif.bulan);
       setView({ page: "facility", facility: notif.facilityKey, targetDate: notif.targetDate });
     }
   };
