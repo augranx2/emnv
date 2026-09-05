@@ -70,6 +70,11 @@ export function approveKepalaBagian(facility, bulan, roomName, token) {
   return apiPost({ action: "approveKepalaBagian", facility, bulan, roomName, token });
 }
 
+// ACC massal seluruh ruangan yang belum disetujui Kepala Bagian.
+export function approveKepalaBagianAll(facility, bulan, token) {
+  return apiPost({ action: "approveKepalaBagianAll", facility, bulan, token });
+}
+
 export function unapproveKepalaBagian(facility, bulan, roomName, token) {
   return apiPost({ action: "unapproveKepalaBagian", facility, bulan, roomName, token });
 }
@@ -86,11 +91,20 @@ export function fetchStatusIndex(month) {
   return apiGet({ action: "statusIndex", month }).then((d) => d.status || {});
 }
 
-export function fetchActivityLog(token, { month, facility } = {}) {
+// Dipakai untuk tampilan layar — mengembalikan objek lengkap (logs, total,
+// truncated, canExport) supaya halaman tahu apakah datanya dipotong.
+export function fetchActivityLog(token, { month, facility, limit } = {}) {
   const params = { action: "activityLog", token };
   if (month) params.month = month;
   if (facility) params.facility = facility;
-  return apiGet(params).then((d) => d.logs || []);
+  if (limit) params.limit = limit;
+  return apiGet(params);
+}
+
+// Menarik SELURUH audit trail (sesuai filter) untuk diunduh. Hanya berhasil
+// bagi QA & Administrator; selain itu server tetap memotong di batas tampilan.
+export function exportActivityLog(token, { month, facility } = {}) {
+  return fetchActivityLog(token, { month, facility, limit: 20000 });
 }
 
 // --- APPROVAL HARIAN (per Fasilitas + Tanggal) ---

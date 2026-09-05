@@ -70,11 +70,13 @@ import {
   approveDikaji as apiApproveDikaji,
   approveMengetahui as apiApproveMengetahui,
   fetchActivityLog,
+  exportActivityLog,
   fetchVerify,
   generateNarrative,
   fetchFormulirBulanan,
   fetchFormulirStatus,
   approveKepalaBagian as apiApproveKepalaBagian,
+  approveKepalaBagianAll as apiApproveKepalaBagianAll,
   approveManagerQAFormulir as apiApproveManagerQAFormulir,
   approveOpr as apiApproveOpr,
   approveSpv as apiApproveSpv,
@@ -3516,6 +3518,43 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
   // menunggu ACC Kepala Bagian.
   const pendingKB = formulirStatus?.pendingKepalaBagian || [];
   const qaSiapApprove = formulirStatus ? !!formulirStatus.siapApprovalManagerQA : true;
+  const [showRoomStatus, setShowRoomStatus] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  // Kode ruangan dari master, untuk ditampilkan di daftar status.
+  const roomCodeByName = useMemo(() => {
+    const map = {};
+    (rooms || []).forEach((r) => {
+      if (r?.name) map[r.name] = r.code || "";
+    });
+    return map;
+  }, [rooms]);
+
+  async function handleApproveKBRoom(roomName) {
+    setBulkBusy(true);
+    setApproveError("");
+    try {
+      await apiApproveKepalaBagian(facilityKey, bulan, roomName, session?.token);
+      await load();
+    } catch (err) {
+      setApproveError(err.message || "Gagal approve ruangan tersebut.");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function handleApproveKBAll() {
+    setBulkBusy(true);
+    setApproveError("");
+    try {
+      await apiApproveKepalaBagianAll(facilityKey, bulan, session?.token);
+      await load();
+    } catch (err) {
+      setApproveError(err.message || "Gagal approve seluruh ruangan.");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -3550,21 +3589,20 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
             ))}
           </select>
           {formulirStatus && formulirStatus.totalRooms > 0 && (
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold ${
+            <button
+              type="button"
+              onClick={() => setShowRoomStatus(true)}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold transition hover:brightness-95 ${
                 qaSiapApprove
                   ? "bg-emerald-50 border-emerald-200 text-emerald-800"
                   : "bg-amber-50 border-amber-200 text-amber-800"
               }`}
-              title={
-                pendingKB.length > 0
-                  ? `Belum di-ACC: ${pendingKB.join(", ")}`
-                  : "Seluruh ruangan sudah di-ACC Kepala Bagian"
-              }
+              title="Lihat daftar status ACC seluruh ruangan"
             >
               <FileCheck2 size={13} />
               ACC Kepala Bagian {formulirStatus.kepalaBagianApproved}/{formulirStatus.totalRooms} ruangan
-            </span>
+              <ChevronRight size={12} />
+            </button>
           )}
           {hasAccess(session, "Supervisor", "QA") && (
             <button
@@ -3762,18 +3800,19 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
                   Approve (Manager QA)
                 </button>
                 {!qaSiapApprove && (
-                  <p className="no-print text-[10px] leading-snug text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
-                    Menunggu ACC Kepala Bagian: <b>{pendingKB.length}</b> dari{" "}
-                    <b>{formulirStatus?.totalRooms ?? 0}</b> ruangan belum disetujui
-                    {pendingKB.length > 0 && (
-                      <>
-                        {" "}
-                        ({pendingKB.slice(0, 3).join(", ")}
-                        {pendingKB.length > 3 ? `, +${pendingKB.length - 3} lainnya` : ""})
-                      </>
-                    )}
-                    .
-                  </p>
+                  <div className="no-print text-[10px] leading-snug text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 space-y-1">
+                    <p>
+                      Menunggu ACC Kepala Bagian: <b>{pendingKB.length}</b> dari{" "}
+                      <b>{formulirStatus?.totalRooms ?? 0}</b> ruangan belum disetujui.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowRoomStatus(true)}
+                      className="font-bold text-amber-900 underline underline-offset-2 hover:text-amber-950"
+                    >
+                      Lihat daftar ruangan yang belum di-ACC
+                    </button>
+                  </div>
                 )}
                 {approveError && (
                   <p className="no-print text-[10px] leading-snug text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1">
@@ -3787,6 +3826,126 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
           </div>
         </div>
       </div>
+
+      {/* Daftar status ACC SELURUH ruangan fasilitas ini — supaya Kepala
+          Bagian & QA tidak perlu membuka ruangan satu per satu. */}
+      {showRoomStatus && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100 bg-slate-50">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">
+                  Status ACC Formulir — {cfg?.label}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Periode {monthLabelID(bulan)} ·{" "}
+                  <b className="text-slate-700">
+                    {formulirStatus?.kepalaBagianApproved ?? 0}/{formulirStatus?.totalRooms ?? 0}
+                  </b>{" "}
+                  ruangan sudah di-ACC Kepala Bagian
+                </p>
+              </div>
+              <button
+                onClick={() => setShowRoomStatus(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-200/60 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+              {(formulirStatus?.detail || []).length === 0 ? (
+                <p className="p-8 text-center text-xs text-slate-400">
+                  Belum ada ruangan berdata pada periode ini.
+                </p>
+              ) : (
+                (formulirStatus?.detail || []).map((d) => {
+                  const sudahKB = !!d.kepalaBagian;
+                  const sudahQA = !!d.managerQA;
+                  return (
+                    <div
+                      key={d.roomName}
+                      className={`flex flex-wrap items-center justify-between gap-2 px-5 py-3 ${
+                        sudahKB ? "bg-white" : "bg-amber-50/40"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedRoom(d.roomName);
+                            setShowRoomStatus(false);
+                          }}
+                          className="text-xs font-bold text-slate-800 hover:text-rose-900 hover:underline text-left"
+                        >
+                          {roomCodeByName[d.roomName] ? `${roomCodeByName[d.roomName]} — ` : ""}
+                          {d.roomName}
+                        </button>
+                        <p className="text-[10px] text-slate-400">
+                          {d.jumlahBaris} baris data ·{" "}
+                          {sudahKB ? `ACC Kepala Bagian: ${d.kepalaBagian}` : "Belum di-ACC Kepala Bagian"}
+                          {sudahQA ? ` · ACC Manager QA: ${d.managerQA}` : ""}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            sudahKB
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              : "bg-amber-100 text-amber-800 border-amber-300"
+                          }`}
+                        >
+                          {sudahKB ? "Kepala Bagian ✓" : "Menunggu Kepala Bagian"}
+                        </span>
+                        {sudahQA && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-50 text-rose-800 border-rose-200">
+                            Manager QA ✓
+                          </span>
+                        )}
+                        {!sudahKB && canKepalaBagian && (
+                          <button
+                            onClick={() => handleApproveKBRoom(d.roomName)}
+                            disabled={bulkBusy}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-[10px] font-semibold disabled:opacity-50"
+                          >
+                            {bulkBusy ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
+                            ACC
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-t border-slate-100 bg-white">
+              <p className="text-[10px] text-slate-400">
+                Klik nama ruangan untuk membuka checklist-nya.
+              </p>
+              <div className="flex items-center gap-2">
+                {canKepalaBagian && pendingKB.length > 0 && (
+                  <button
+                    onClick={handleApproveKBAll}
+                    disabled={bulkBusy}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 text-xs font-semibold shadow-xs disabled:opacity-50"
+                  >
+                    {bulkBusy ? <Loader2 size={13} className="animate-spin" /> : <CheckCheck size={14} />}
+                    ACC Semua ({pendingKB.length} ruangan)
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowRoomStatus(false)}
+                  className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3801,7 +3960,16 @@ function ActivityPage({ session, month, setView }) {
   const [allMonths, setAllMonths] = useState(true);
   const [filterFacility, setFilterFacility] = useState("");
 
-  const canDownloadQA = session?.departemen?.toUpperCase().includes("QA") || session?.role === "Administrator";
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [truncated, setTruncated] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+
+  // QA (departemen mengandung "QA") dan Administrator boleh mengunduh
+  // seluruh audit trail; server memberlakukan aturan yang sama.
+  const canDownloadQA =
+    session?.role === "Administrator" ||
+    String(session?.departemen || "").toUpperCase().includes("QA");
 
   const loadLogs = useCallback(() => {
     setLoading(true);
@@ -3812,8 +3980,14 @@ function ActivityPage({ session, month, setView }) {
       .then((data) => {
         const logList = Array.isArray(data) ? data : data?.logs || [];
         setLogs(logList);
+        setTotalLogs(data?.total ?? logList.length);
+        setTruncated(!!data?.truncated);
       })
-      .catch(() => setLogs([]))
+      .catch(() => {
+        setLogs([]);
+        setTotalLogs(0);
+        setTruncated(false);
+      })
       .finally(() => setLoading(false));
   }, [session?.token, allMonths, selectedMonth, filterFacility]);
 
@@ -3821,33 +3995,61 @@ function ActivityPage({ session, month, setView }) {
     loadLogs();
   }, [loadLogs]);
 
-  const handleDownloadCSV = () => {
-    if (!logs || logs.length === 0) return;
-    const headers = ["Waktu", "Username", "Nama", "Role", "Departemen", "Aksi", "Fasilitas", "Bulan", "Detail"];
-    const rows = logs.map((l) => [
-      `"${new Date(l.waktu).toLocaleString("id-ID")}"`,
-      `"${l.username || ""}"`,
-      `"${l.nama || ""}"`,
-      `"${l.role || ""}"`,
-      `"${l.departemen || ""}"`,
-      `"${l.aksi || ""}"`,
-      `"${l.fasilitas || ""}"`,
-      `"${l.bulan || ""}"`,
-      `"${(l.detail || "").replace(/"/g, '""')}"`,
-    ]);
+  // Semua kolom dibungkus tanda kutip, dan kutip di dalam isi digandakan
+  // sesuai aturan CSV.
+  const csvCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
-    const csvContent =
-      "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `Audit_Log_EMNV_${allMonths ? "Semua_Periode" : selectedMonth}_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadCSV = async () => {
+    setDownloading(true);
+    setDownloadError("");
+    try {
+      // Ambil SELURUH baris sesuai filter (bukan hanya 300 yang tampil).
+      const data = await exportActivityLog(session?.token, {
+        month: allMonths ? undefined : selectedMonth,
+        facility: filterFacility || undefined,
+      });
+      const rowsData = Array.isArray(data) ? data : data?.logs || [];
+      if (rowsData.length === 0) {
+        setDownloadError("Tidak ada data audit trail untuk filter ini.");
+        return;
+      }
+
+      const headers = ["Waktu", "Username", "Nama", "Role", "Departemen", "Aksi", "Fasilitas", "Bulan", "Detail"];
+      const rows = rowsData.map((l) =>
+        [
+          new Date(l.waktu).toLocaleString("id-ID"),
+          l.username,
+          l.nama,
+          l.role,
+          l.departemen,
+          l.aksi,
+          l.fasilitas,
+          l.bulan,
+          l.detail,
+        ]
+          .map(csvCell)
+          .join(",")
+      );
+
+      // Memakai Blob, bukan data-URI: data-URI gagal kalau isinya panjang
+      // atau memuat karakter seperti "#" dan "%".
+      const csv = "\uFEFF" + [headers.join(","), ...rows].join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Audit_Trail_EMNV_${allMonths ? "Semua_Periode" : selectedMonth}${
+        filterFacility ? "_" + filterFacility.replace(/[^\w]+/g, "_") : ""
+      }_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      setDownloadError(err.message || "Gagal mengunduh audit trail.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -3906,15 +4108,34 @@ function ActivityPage({ session, month, setView }) {
           {canDownloadQA && (
             <button
               onClick={handleDownloadCSV}
-              disabled={logs.length === 0}
+              disabled={downloading || totalLogs === 0}
+              title="Mengunduh seluruh audit trail sesuai filter di atas"
               className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 text-xs font-semibold shadow-xs transition disabled:opacity-50"
             >
-              <Download size={13} />
-              <span>Download Log (CSV)</span>
+              {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              <span>{downloading ? "Menyiapkan..." : "Download Audit Trail (CSV)"}</span>
             </button>
           )}
         </div>
       </div>
+
+      {(truncated || downloadError) && (
+        <div className="space-y-2">
+          {truncated && (
+            <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+              Menampilkan <b>{logs.length}</b> aktivitas terbaru dari total <b>{totalLogs}</b> baris.
+              {canDownloadQA
+                ? " Gunakan tombol Download Audit Trail untuk mengambil seluruh riwayat."
+                : ""}
+            </p>
+          )}
+          {downloadError && (
+            <p className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+              {downloadError}
+            </p>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center p-12 text-slate-400">
@@ -4292,7 +4513,7 @@ function AppContent() {
                 facilityLabel: fac.label,
                 targetRoom: pendingKB[0],
                 title: "Formulir Bulanan Menunggu ACC Kepala Bagian",
-                desc: `${pendingKB.length} dari ${total} ruangan belum di-ACC (${contohRuangan}). Formulir QA tertahan sampai seluruh ruangan disetujui.`,
+                desc: `${pendingKB.length} dari ${total} ruangan belum di-ACC (${contohRuangan}). Klik untuk membuka daftar lengkap dan ACC seluruh ruangan sekaligus.`,
                 tag: "ACC Kepala Bagian",
                 time: periodeLabel,
               });
@@ -4305,7 +4526,7 @@ function AppContent() {
                 facilityLabel: fac.label,
                 targetRoom: pendingKB[0],
                 title: "Formulir Belum Dapat Di-approve QA",
-                desc: `Menunggu ACC Kepala Bagian pada ${pendingKB.length} dari ${total} ruangan (${contohRuangan}).`,
+                desc: `Menunggu ACC Kepala Bagian pada ${pendingKB.length} dari ${total} ruangan (${contohRuangan}). Klik untuk melihat daftar lengkap ruangannya.`,
                 tag: "Menunggu Kepala Bagian",
                 time: periodeLabel,
               });

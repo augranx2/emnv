@@ -61,7 +61,7 @@ function doGet(e) {
       case "report": result = getReportForViewer_(e.parameter.facility, e.parameter.month, e.parameter.token, e.parameter.roomName); break;
       case "statusIndex": result = getStatusIndex_(e.parameter.month); break;
       case "whoami": result = whoami_(e.parameter.token); break;
-      case "activityLog": result = getActivityLog_(e.parameter.token, e.parameter.month, e.parameter.facility); break;
+      case "activityLog": result = getActivityLog_(e.parameter.token, e.parameter.month, e.parameter.facility, e.parameter.limit); break;
       case "dayStatus": result = getDayStatusForViewer_(e.parameter.facility, e.parameter.tanggal, e.parameter.token); break;
       case "openInputDates": result = getOpenInputDates_(e.parameter.facility, e.parameter.token); break;
       case "formulirBulanan": result = getFormulirBulananForViewer_(e.parameter.facility, e.parameter.bulan, e.parameter.roomName, e.parameter.token); break;
@@ -114,6 +114,11 @@ function doPost(e) {
       case "approveKepalaBagian":
         result = withAuth_(body.token, function (session) {
           return approveKepalaBagianAuthed_(session, body.facility, body.bulan, body.roomName);
+        });
+        break;
+      case "approveKepalaBagianAll":
+        result = withAuth_(body.token, function (session) {
+          return approveKepalaBagianAllAuthed_(session, body.facility, body.bulan);
         });
         break;
       case "unapproveKepalaBagian":
@@ -350,10 +355,22 @@ function writeAuditLog_(entry) {
   sheet.appendRow([new Date(), entry.username || "", entry.nama || "", entry.role || "", entry.departemen || "", entry.aksi || "", entry.fasilitas || "", entry.bulan || "", entry.detail || ""]);
 }
 
-function getActivityLog_(token, month, facilityLabel) {
+// Batas baris yang dikembalikan. Tampilan layar cukup 300 baris terakhir,
+// tapi QA & Administrator boleh menarik seluruh audit trail untuk diunduh.
+const AUDIT_LOG_VIEW_LIMIT = 300;
+const AUDIT_LOG_EXPORT_LIMIT = 20000;
+
+function canExportAuditLog_(session) {
+  if (!session) return false;
+  if (session.role === "Administrator") return true;
+  return String(session.departemen || "").toUpperCase().indexOf("QA") !== -1;
+}
+
+function getActivityLog_(token, month, facilityLabel, limit) {
   const session = validateSession_(token);
   if (!session) return { error: "Sesi tidak valid atau sudah habis, silakan login ulang." };
   if (!requireRole_(session, "Supervisor")) return { error: "Hanya Supervisor/Manager yang boleh melihat Riwayat Aktivitas." };
+  const bolehEkspor = canExportAuditLog_(session);
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(AUDIT_LOG_SHEET);
   if (!sheet) return { logs: [] };
   const lastRow = sheet.getLastRow();
@@ -366,7 +383,28 @@ function getActivityLog_(token, month, facilityLabel) {
   if (month) logs = logs.filter(function (l) { return !l.bulan || l.bulan === month; });
   if (facilityLabel) logs = logs.filter(function (l) { return !l.fasilitas || l.fasilitas === facilityLabel; });
   logs.sort(function (a, b) { return new Date(b.waktu) - new Date(a.waktu); });
-  return { logs: logs.slice(0, 300) };
+
+  let max = Number(limit) || AUDIT_LOG_VIEW_LIMIT;
+  // Hanya QA & Administrator yang boleh menarik lebih dari batas tampilan.
+  if (max > AUDIT_LOG_VIEW_LIMIT && !bolehEkspor) max = AUDIT_LOG_VIEW_LIMIT;
+  if (max > AUDIT_LOG_EXPORT_LIMIT) max = AUDIT_LOG_EXPORT_LIMIT;
+
+  const dipotong = logs.length > max;
+  if (bolehEkspor && max > AUDIT_LOG_VIEW_LIMIT) {
+    // Unduhan audit trail ikut tercatat di audit trail.
+    writeAuditLog_({
+      username: session.username, nama: session.nama, role: session.role, departemen: session.departemen,
+      aksi: "Unduh Audit Trail", fasilitas: facilityLabel || "", bulan: month || "",
+      detail: Math.min(logs.length, max) + " baris",
+    });
+  }
+
+  return {
+    logs: logs.slice(0, max),
+    total: logs.length,
+    truncated: dipotong,
+    canExport: bolehEkspor,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1010,22 +1048,39 @@ function loadFormulirMap_() {
 // Ringkasan status approval Formulir Bulanan untuk SATU fasilitas.
 // Denominatornya adalah ruangan yang benar-benar punya data pada bulan itu
 // (sama seperti dasar yang dipakai approve Manager QA).
-function buildFormulirSummary_(cfg, bulan, entries, formulirMap) {
+function buildFormulirSummary_(cfg, bulan, entries, formulirMap, withDetail) {
   const rooms = [];
+  const jumlahBaris = {};
   (entries || []).forEach(function (e) {
     const r = String(e.roomName || "").trim();
-    if (r && rooms.indexOf(r) === -1) rooms.push(r);
+    if (!r) return;
+    if (rooms.indexOf(r) === -1) rooms.push(r);
+    jumlahBaris[r] = (jumlahBaris[r] || 0) + 1;
   });
 
   const pendingKepalaBagian = [];
   const pendingManagerQA = [];
+  const detail = [];
   rooms.forEach(function (r) {
     const row = formulirMap[cfg.label + "|" + bulan + "|" + r] || { kepalaBagian: "", managerQA: "" };
     if (!row.kepalaBagian) pendingKepalaBagian.push(r);
     if (!row.managerQA) pendingManagerQA.push(r);
+    // Detail per ruangan hanya disertakan bila diminta (getFormulirStatus_),
+    // supaya respons statusIndex untuk 17 fasilitas tetap ringan.
+    if (withDetail) {
+      detail.push({
+        roomName: r,
+        kepalaBagian: row.kepalaBagian || "",
+        managerQA: row.managerQA || "",
+        jumlahBaris: jumlahBaris[r] || 0,
+      });
+    }
   });
 
+  if (withDetail) detail.sort(function (a, b) { return a.roomName.localeCompare(b.roomName); });
+
   return {
+    detail: detail,
     totalRooms: rooms.length,
     kepalaBagianApproved: rooms.length - pendingKepalaBagian.length,
     managerQAApproved: rooms.length - pendingManagerQA.length,
@@ -1043,7 +1098,7 @@ function getFormulirStatus_(facilityKey, bulan, token) {
   const session = token ? validateSession_(token) : null;
   if (!session) return { error: "Sesi tidak valid atau sudah habis, silakan login ulang." };
   const entries = getEntries_(facilityKey, bulan).entries || [];
-  const summary = buildFormulirSummary_(cfg, bulan, entries, loadFormulirMap_());
+  const summary = buildFormulirSummary_(cfg, bulan, entries, loadFormulirMap_(), true);
   summary.facility = facilityKey;
   summary.bulan = bulan;
   summary.formNo = FORMULIR_NO;
@@ -1072,6 +1127,50 @@ function approveKepalaBagianAuthed_(session, facilityKey, bulan, roomName) {
   upsertFormulirBulananRow_(cfg, bulan, roomName, { kepalaBagianNama: session.nama, kepalaBagianUsername: session.username, kepalaBagianTanggal: formatDate_(new Date()) });
   writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve Formulir (Kepala Bagian)", fasilitas: cfg.label, bulan: bulan, detail: "Ruang: " + roomName });
   return getFormulirBulanan_(facilityKey, bulan, roomName);
+}
+
+// ACC massal: menandatangani SEMUA ruangan berdata yang belum di-ACC
+// Kepala Bagian dalam satu aksi, supaya tidak perlu membuka ruangan satu
+// per satu.
+function approveKepalaBagianAllAuthed_(session, facilityKey, bulan) {
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
+  if (!requireRoleForFacility_(session, "Supervisor", cfg)) {
+    return { error: "Hanya Supervisor/Manager departemen terkait yang boleh approve sebagai Kepala Bagian." };
+  }
+  const entries = getEntries_(facilityKey, bulan).entries || [];
+  const summary = buildFormulirSummary_(cfg, bulan, entries, loadFormulirMap_(), false);
+  if (summary.totalRooms === 0) {
+    return { error: "Belum ada data pemantauan pada periode ini." };
+  }
+  const pending = summary.pendingKepalaBagian;
+  if (pending.length === 0) {
+    return getFormulirStatusAfterChange_(facilityKey, bulan);
+  }
+  const nowStr = formatDate_(new Date());
+  pending.forEach(function (r) {
+    upsertFormulirBulananRow_(cfg, bulan, r, {
+      kepalaBagianNama: session.nama,
+      kepalaBagianUsername: session.username,
+      kepalaBagianTanggal: nowStr,
+    });
+  });
+  writeAuditLog_({
+    username: session.username, nama: session.nama, role: session.role, departemen: session.departemen,
+    aksi: "Approve Formulir (Kepala Bagian) - Semua Ruangan", fasilitas: cfg.label, bulan: bulan,
+    detail: pending.length + " ruangan: " + pending.join(", "),
+  });
+  return getFormulirStatusAfterChange_(facilityKey, bulan);
+}
+
+function getFormulirStatusAfterChange_(facilityKey, bulan) {
+  const cfg = FACILITIES[facilityKey];
+  const entries = getEntries_(facilityKey, bulan).entries || [];
+  const summary = buildFormulirSummary_(cfg, bulan, entries, loadFormulirMap_(), true);
+  summary.facility = facilityKey;
+  summary.bulan = bulan;
+  summary.formNo = FORMULIR_NO;
+  return summary;
 }
 
 function unapproveKepalaBagianAuthed_(session, facilityKey, bulan, roomName) {
