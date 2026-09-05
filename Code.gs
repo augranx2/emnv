@@ -9,28 +9,34 @@
 // ---------------------------------------------------------------------------
 // KONFIGURASI: 17 Fasilitas Baru
 // ---------------------------------------------------------------------------
+// Catatan:
+// - `group` HARUS sama persis dengan `group` di src/App.jsx (dipakai untuk
+//   pencocokan hak akses per-grup di hasFacilityAccess).
+// - `building` adalah gedung induk fasilitas tersebut. Dipisah dari `group`
+//   supaya gudang bahan baku (GBB) tetap bisa dikenali sebagai bagian dari
+//   gedung NBL/BL/Sefa, tanpa merusak pengelompokan sidebar.
 const FACILITIES = {
-  nblProduksi: { label: "NBL Produksi", masterSheet: "NBL Produksi", dataSheet: "NBL Produksi_Data", department: "Produksi", group: "nbl" },
-  nblKemasan: { label: "NBL Kemasan", masterSheet: "NBL Kemasan", dataSheet: "NBL Kemasan_Data", department: "Kemasan", altDepartment: "Produksi", group: "nbl" },
-  gbbNbl: { label: "GBB NBL", masterSheet: "GBB NBL", dataSheet: "GBB NBL_Data", department: "GBB", altDepartment: "PPIC", group: "nbl" },
+  nblProduksi: { label: "NBL Produksi", masterSheet: "NBL Produksi", dataSheet: "NBL Produksi_Data", department: "Produksi", group: "nbl", building: "nbl" },
+  nblKemasan: { label: "NBL Kemasan", masterSheet: "NBL Kemasan", dataSheet: "NBL Kemasan_Data", department: "Kemasan", altDepartment: "Produksi", group: "nbl", building: "nbl" },
+  gbbNbl: { label: "GBB NBL", masterSheet: "GBB NBL", dataSheet: "GBB NBL_Data", department: "GBB", altDepartment: "PPIC", group: "gbb", building: "nbl" },
 
-  blProduksi: { label: "BL Produksi", masterSheet: "BL Produksi", dataSheet: "BL Produksi_Data", department: "Produksi", group: "bl" },
-  blKemasan: { label: "BL Kemasan", masterSheet: "BL Kemasan", dataSheet: "BL Kemasan_Data", department: "Kemasan", altDepartment: "Produksi", group: "bl" },
-  gbbBl: { label: "GBB BL", masterSheet: "GBB BL", dataSheet: "GBB BL_Data", department: "GBB", altDepartment: "PPIC", group: "bl" },
+  blProduksi: { label: "BL Produksi", masterSheet: "BL Produksi", dataSheet: "BL Produksi_Data", department: "Produksi", group: "bl", building: "bl" },
+  blKemasan: { label: "BL Kemasan", masterSheet: "BL Kemasan", dataSheet: "BL Kemasan_Data", department: "Kemasan", altDepartment: "Produksi", group: "bl", building: "bl" },
+  gbbBl: { label: "GBB BL", masterSheet: "GBB BL", dataSheet: "GBB BL_Data", department: "GBB", altDepartment: "PPIC", group: "gbb", building: "bl" },
 
-  sefaNonSterilProduksi: { label: "Sefa Non Steril Produksi", masterSheet: "Sefa Non Steril Produksi", dataSheet: "Sefa Non Steril Produksi_Data", department: "Produksi", group: "sefaNonSteril" },
-  sefaNonSterilKemasan: { label: "Sefa Non Steril Kemasan", masterSheet: "Sefa Non Steril Kemasan", dataSheet: "Sefa Non Steril Kemasa_Data", department: "Kemasan", altDepartment: "Produksi", group: "sefaNonSteril" },
-  gbbSefa: { label: "GBB SEFA", masterSheet: "GBB SEFA", dataSheet: "GBB SEFA_Data", department: "GBB", altDepartment: "PPIC", group: "sefaNonSteril" },
+  sefaNonSterilProduksi: { label: "Sefa Non Steril Produksi", masterSheet: "Sefa Non Steril Produksi", dataSheet: "Sefa Non Steril Produksi_Data", department: "Produksi", group: "sefaNonSteril", building: "sefa" },
+  sefaNonSterilKemasan: { label: "Sefa Non Steril Kemasan", masterSheet: "Sefa Non Steril Kemasan", dataSheet: "Sefa Non Steril Kemasan_Data", department: "Kemasan", altDepartment: "Produksi", group: "sefaNonSteril", building: "sefa" },
+  gbbSefa: { label: "GBB SEFA", masterSheet: "GBB SEFA", dataSheet: "GBB SEFA_Data", department: "GBB", altDepartment: "PPIC", group: "gbb", building: "sefa" },
 
-  sefaSterilProduksi: { label: "Sefa Steril Produksi", masterSheet: "Sefa Steril Produksi", dataSheet: "Sefa Steril Produksi_Data", department: "Produksi", group: "sefaSteril" },
-  sefaSterilKemasan: { label: "Sefa Steril Kemasan", masterSheet: "Sefa Steril Kemasan", dataSheet: "Sefa Steril Kemasan_Data", department: "Kemasan", altDepartment: "Produksi", group: "sefaSteril" },
+  sefaSterilProduksi: { label: "Sefa Steril Produksi", masterSheet: "Sefa Steril Produksi", dataSheet: "Sefa Steril Produksi_Data", department: "Produksi", group: "sefaSteril", building: "sefa" },
+  sefaSterilKemasan: { label: "Sefa Steril Kemasan", masterSheet: "Sefa Steril Kemasan", dataSheet: "Sefa Steril Kemasan_Data", department: "Kemasan", altDepartment: "Produksi", group: "sefaSteril", building: "sefa" },
 
-  qc: { label: "QC", masterSheet: "QC", dataSheet: "QC_Data", department: "QC", group: "qc" },
-  rnd: { label: "RND", masterSheet: "RND", dataSheet: "RND_Data", department: "RND", group: "rnd" },
-  pkrt: { label: "PKRT", masterSheet: "PKRT", dataSheet: "PKRT_Data", department: "PKRT", altDepartment: "Produksi", group: "pkrt" },
-  alkes: { label: "Alkes", masterSheet: "Alkes", dataSheet: "Alkes_Data", department: "PKRT", altDepartment: "Produksi", group: "alkes" },
-  gbj: { label: "GBJ", masterSheet: "GBJ", dataSheet: "GBJ_Data", department: "GBJ", altDepartment: "PPIC", group: "gbj" },
-  gbk: { label: "GBK", masterSheet: "GBK", dataSheet: "GBK_Data", department: "GBK", altDepartment: "PPIC", group: "gbk" },
+  qc: { label: "QC", masterSheet: "QC", dataSheet: "QC_Data", department: "QC", group: "qc", building: "qc" },
+  rnd: { label: "RND", masterSheet: "RND", dataSheet: "RND_Data", department: "RND", group: "rnd", building: "rnd" },
+  pkrt: { label: "PKRT", masterSheet: "PKRT", dataSheet: "PKRT_Data", department: "PKRT", altDepartment: "Produksi", group: "pkrt", building: "pkrt" },
+  alkes: { label: "Alkes", masterSheet: "Alkes", dataSheet: "Alkes_Data", department: "PKRT", altDepartment: "Produksi", group: "alkes", building: "alkes" },
+  gbj: { label: "GBJ", masterSheet: "GBJ", dataSheet: "GBJ_Data", department: "GBJ", altDepartment: "PPIC", group: "gbj", building: "gbj" },
+  gbk: { label: "GBK", masterSheet: "GBK", dataSheet: "GBK_Data", department: "GBK", altDepartment: "PPIC", group: "gbk", building: "gbk" },
 };
 
 const NARRATIVE_SHEET = "Laporan_Narasi";
@@ -65,7 +71,7 @@ function doGet(e) {
         } else if (e.parameter.type === "formulir") {
           result = getVerifySignoffFormulir_(e.parameter.facility, e.parameter.bulan, e.parameter.roomName);
         } else {
-          result = getVerifySignoffHarian_(e.parameter.facility, e.parameter.tanggal);
+          result = getVerifySignoffHarian_(e.parameter.facility, e.parameter.tanggal, e.parameter.roomName, e.parameter.jam);
         }
         break;
       default:
@@ -536,7 +542,9 @@ function saveEntries_(facilityKey, month, entries) {
     ];
   });
   const finalRows = kept.concat(newRows);
-  sheet.getRange(2, 3, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat("@");
+  // Bulan (A), Tanggal (B), dan Jam (C) disimpan sebagai teks supaya tidak
+  // berubah tipe saat dibaca ulang.
+  sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 3).setNumberFormat("@");
   sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 10).clearContent();
   if (finalRows.length > 0) sheet.getRange(2, 1, finalRows.length, 10).setValues(finalRows);
   return { ok: true, saved: newRows.length };
@@ -656,8 +664,14 @@ function upsertApprovalHarianRow_(cfg, tanggal, patch) {
     "backfillAt" in patch ? patch.backfillAt : prev[9],
     new Date(),
   ];
-  if (found.rowIndex === -1) found.sheet.appendRow(rowValues);
-  else found.sheet.getRange(found.rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+  let rowIndex = found.rowIndex;
+  if (rowIndex === -1) {
+    found.sheet.appendRow(rowValues);
+    rowIndex = found.sheet.getLastRow();
+  }
+  // Kolom A (Bulan) & B (Tanggal) disimpan sebagai teks.
+  found.sheet.getRange(rowIndex, 1, 1, 2).setNumberFormat("@");
+  found.sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
 }
 
 function approveDayAuthed_(session, facilityKey, tanggal) {
@@ -690,6 +704,12 @@ function unapproveDayAuthed_(session, facilityKey, tanggal) {
 function approveOprAuthed_(session, facilityKey, tanggal, roomName) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
+  // Sebelumnya fungsi ini tidak memeriksa role sama sekali, sehingga siapa pun
+  // yang punya sesi valid bisa membubuhkan tanda tangan OPR di fasilitas mana
+  // pun. Sekarang disamakan dengan aturan pengisian data.
+  if (!requireRoleForFacility_(session, "Staff", cfg)) {
+    return { error: "Hanya Operator/Staff/SPV/Manager fasilitas ini yang boleh approve sebagai OPR." };
+  }
   const month = tanggal.slice(0, 7);
   const changed = stampFieldOnDataRows_(cfg, month, tanggal, roomName, 8, session.nama);
   writeAuditLog_({ username: session.username, nama: session.nama, role: session.role, departemen: session.departemen, aksi: "Approve OPR", fasilitas: cfg.label, bulan: month, detail: "Tanggal: " + tanggal + " — Ruang: " + roomName });
@@ -742,11 +762,55 @@ function getOpenInputDates_(facilityKey, token) {
   return { today: today, backfillDates: backfillDates };
 }
 
-function getVerifySignoffHarian_(facilityKey, tanggal) {
+// Verifikasi QR harian.
+// Nama penanda tangan HARUS diambil dari data di spreadsheet, bukan dari
+// parameter URL — kalau tidak, isi QR bisa dipalsukan cukup dengan mengedit
+// query string.
+function getVerifySignoffHarian_(facilityKey, tanggal, roomName, jam) {
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
   const status = getDayStatus_(facilityKey, tanggal);
   if (status.error) return status;
+
+  const room = String(roomName || "").trim();
+  let signers = null;
+  if (room) {
+    const month = tanggal.slice(0, 7);
+    const rows = (getEntries_(facilityKey, month).entries || []).filter(function (e) {
+      if (e.tanggal !== tanggal) return false;
+      if (String(e.roomName || "").trim() !== room) return false;
+      if (jam && String(e.jam || "").trim() !== String(jam).trim()) return false;
+      return true;
+    });
+    if (rows.length === 0) return { found: false };
+    const oprRow = rows.find(function (r) { return !!r.opr; });
+    const spvRow = rows.find(function (r) { return !!r.spv; });
+    if (!oprRow && !spvRow) return { found: false };
+    signers = {
+      opr: oprRow ? oprRow.opr : "",
+      spv: spvRow ? spvRow.spv : "",
+    };
+    return {
+      found: true,
+      facility: cfg.label,
+      roomName: room,
+      jam: jam || "",
+      tanggal: tanggal,
+      signers: signers,
+      approvedBy: status.approved ? status.approvedBy : null,
+      backfill: status.backfill || null,
+    };
+  }
+
   if (!status.approved) return { found: false };
-  return { found: true, approvedBy: status.approvedBy, backfill: status.backfill || null };
+  return {
+    found: true,
+    facility: cfg.label,
+    tanggal: tanggal,
+    signers: { opr: "", spv: (status.approvedBy && status.approvedBy.nama) || "" },
+    approvedBy: status.approvedBy,
+    backfill: status.backfill || null,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -757,11 +821,11 @@ function getReport_(facilityKey, month, roomName) {
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NARRATIVE_SHEET);
   if (!sheet) return { error: "Tab tidak ditemukan: " + NARRATIVE_SHEET };
-  const room = roomName || "";
+  const room = String(roomName || "").trim();
   const values = sheet.getDataRange().getValues();
   for (let i = 1; i < values.length; i++) {
     const row = values[i];
-    if (row[0] === cfg.label && formatMonth_(row[1]) === month && String(row[12] || "") === room) {
+    if (row[0] === cfg.label && formatMonth_(row[1]) === month && String(row[12] || "").trim() === room) {
       return {
         found: true,
         narrative: { pendahuluan: row[2], perParameter: safeParseJSON_(row[3]) || {}, kesimpulanUmum: row[4] },
@@ -796,11 +860,11 @@ function saveReport_(facilityKey, month, narrative, signoff, roomName) {
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NARRATIVE_SHEET);
   if (!sheet) return { error: "Tab tidak ditemukan: " + NARRATIVE_SHEET };
-  const room = roomName || "";
+  const room = String(roomName || "").trim();
   const values = sheet.getDataRange().getValues();
   let targetRow = -1;
   for (let i = 1; i < values.length; i++) {
-    if (values[i][0] === cfg.label && formatMonth_(values[i][1]) === month && String(values[i][12] || "") === room) { targetRow = i + 1; break; }
+    if (values[i][0] === cfg.label && formatMonth_(values[i][1]) === month && String(values[i][12] || "").trim() === room) { targetRow = i + 1; break; }
   }
   const dinilai = signoff.dinilai || {};
   const diperiksa = signoff.diperiksa || {};
@@ -809,8 +873,16 @@ function saveReport_(facilityKey, month, narrative, signoff, roomName) {
     dinilai.nama || "", dinilai.jabatan || "", dinilai.tanggal || "",
     diperiksa.nama || "", diperiksa.jabatan || "", diperiksa.tanggal || "", new Date(), room,
   ];
-  if (targetRow === -1) sheet.appendRow(rowValues);
-  else sheet.getRange(targetRow, 1, 1, rowValues.length).setValues([rowValues]);
+  // Kolom B (Bulan) dan kolom M (Ruangan) harus disimpan sebagai TEKS.
+  // Kalau dibiarkan, Google Sheets bisa memparsing "2026-09" menjadi tanggal,
+  // sehingga baris yang sama tidak pernah ketemu lagi saat dibaca.
+  if (targetRow === -1) {
+    sheet.appendRow(rowValues);
+    targetRow = sheet.getLastRow();
+  }
+  sheet.getRange(targetRow, 2).setNumberFormat("@");
+  sheet.getRange(targetRow, 13).setNumberFormat("@");
+  sheet.getRange(targetRow, 1, 1, rowValues.length).setValues([rowValues]);
   return { ok: true };
 }
 
@@ -818,7 +890,7 @@ function saveReportAuthed_(session, facilityKey, month, narrative, roomName) {
   if (!requireRole_(session, "Supervisor", "QA")) return { error: "Hanya Supervisor/Manager QA yang boleh menyusun Pengkajian EM Non Viable." };
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
-  const room = roomName || "";
+  const room = String(roomName || "").trim();
   const existing = getReport_(facilityKey, month, room);
   const signoff = (existing && existing.signoff) || { dinilai: { nama: "", jabatan: "", tanggal: "" }, diperiksa: { nama: "", jabatan: "", tanggal: "" } };
   const result = saveReport_(facilityKey, month, narrative, signoff, room);
@@ -830,7 +902,7 @@ function approveDikajiAuthed_(session, facilityKey, month, roomName) {
   if (!requireRole_(session, "Supervisor", "QA")) return { error: "Hanya Supervisor/Manager QA yang boleh menyetujui 'Dikaji Oleh'." };
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
-  const room = roomName || "";
+  const room = String(roomName || "").trim();
   const existing = getReport_(facilityKey, month, room);
   if (!existing.found) return { error: "Belum ada draf Pengkajian untuk fasilitas & bulan ini." };
   const signoff = existing.signoff || { dinilai: {}, diperiksa: {} };
@@ -844,7 +916,7 @@ function approveMengetahuiAuthed_(session, facilityKey, month, roomName) {
   if (!requireRole_(session, "Manager", "QA")) return { error: "Hanya Manager QA yang boleh menyetujui final 'Mengetahui'." };
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
-  const room = roomName || "";
+  const room = String(roomName || "").trim();
   const existing = getReport_(facilityKey, month, room);
   if (!existing.found) return { error: "Belum ada draf Pengkajian untuk fasilitas & bulan ini." };
   const signoff = existing.signoff;
@@ -906,8 +978,16 @@ function upsertFormulirBulananRow_(cfg, bulan, roomName, patch) {
     "managerQATanggal" in patch ? patch.managerQATanggal : prev[8],
     new Date(),
   ];
-  if (found.rowIndex === -1) found.sheet.appendRow(rowValues);
-  else found.sheet.getRange(found.rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+  let rowIndex = found.rowIndex;
+  if (rowIndex === -1) {
+    found.sheet.appendRow(rowValues);
+    rowIndex = found.sheet.getLastRow();
+  }
+  // Kolom A (Bulan) & C (Ruangan) disimpan sebagai teks agar tidak diparsing
+  // Google Sheets menjadi tanggal.
+  found.sheet.getRange(rowIndex, 1).setNumberFormat("@");
+  found.sheet.getRange(rowIndex, 3).setNumberFormat("@");
+  found.sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
 }
 
 function getFormulirBulananForViewer_(facilityKey, bulan, roomName, token) {

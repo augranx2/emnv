@@ -141,28 +141,32 @@ class ErrorBoundary extends Component {
 /* =========================================================================
    2. MASTER FASILITAS & GRUP
    ========================================================================= */
+// PENTING: nilai `group` di sini harus sama persis dengan `group` pada
+// FACILITIES di Code.gs. `building` = gedung induk, dipakai agar izin gedung
+// (mis. "nbl") juga membuka gudang bahan baku gedung tersebut yang grup
+// sidebar-nya "gbb".
 const FACILITIES = [
-  { key: "nblProduksi", label: "NBL Produksi", department: "Produksi", group: "nbl" },
-  { key: "nblKemasan", label: "NBL Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "nbl" },
-  { key: "gbbNbl", label: "GBB NBL", department: "GBB", altDepartment: "PPIC", group: "gbb" },
+  { key: "nblProduksi", label: "NBL Produksi", department: "Produksi", group: "nbl", building: "nbl" },
+  { key: "nblKemasan", label: "NBL Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "nbl", building: "nbl" },
+  { key: "gbbNbl", label: "GBB NBL", department: "GBB", altDepartment: "PPIC", group: "gbb", building: "nbl" },
 
-  { key: "blProduksi", label: "BL Produksi", department: "Produksi", group: "bl" },
-  { key: "blKemasan", label: "BL Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "bl" },
-  { key: "gbbBl", label: "GBB BL", department: "GBB", altDepartment: "PPIC", group: "gbb" },
+  { key: "blProduksi", label: "BL Produksi", department: "Produksi", group: "bl", building: "bl" },
+  { key: "blKemasan", label: "BL Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "bl", building: "bl" },
+  { key: "gbbBl", label: "GBB BL", department: "GBB", altDepartment: "PPIC", group: "gbb", building: "bl" },
 
-  { key: "sefaNonSterilProduksi", label: "Sefa Non Steril Produksi", department: "Produksi", group: "sefaNonSteril" },
-  { key: "sefaNonSterilKemasan", label: "Sefa Non Steril Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "sefaNonSteril" },
-  { key: "gbbSefa", label: "GBB SEFA", department: "GBB", altDepartment: "PPIC", group: "gbb" },
+  { key: "sefaNonSterilProduksi", label: "Sefa Non Steril Produksi", department: "Produksi", group: "sefaNonSteril", building: "sefa" },
+  { key: "sefaNonSterilKemasan", label: "Sefa Non Steril Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "sefaNonSteril", building: "sefa" },
+  { key: "gbbSefa", label: "GBB SEFA", department: "GBB", altDepartment: "PPIC", group: "gbb", building: "sefa" },
 
-  { key: "sefaSterilProduksi", label: "Sefa Steril Produksi", department: "Produksi", group: "sefaSteril" },
-  { key: "sefaSterilKemasan", label: "Sefa Steril Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "sefaSteril" },
+  { key: "sefaSterilProduksi", label: "Sefa Steril Produksi", department: "Produksi", group: "sefaSteril", building: "sefa" },
+  { key: "sefaSterilKemasan", label: "Sefa Steril Kemasan", department: "Kemasan", altDepartment: "Produksi", group: "sefaSteril", building: "sefa" },
 
-  { key: "qc", label: "Laboratorium QC", department: "QC", group: "qc" },
-  { key: "rnd", label: "Research and Development (RND)", department: "RND", group: "rnd" },
-  { key: "pkrt", label: "Perbekalan Kesehatan Rumah Tangga (PKRT)", department: "PKRT", altDepartment: "Produksi", group: "pkrt" },
-  { key: "alkes", label: "Alat Kesehatan (Alkes)", department: "PKRT", altDepartment: "Produksi", group: "alkes" },
-  { key: "gbj", label: "Gudang Barang Jadi (GBJ)", department: "GBJ", altDepartment: "PPIC", group: "gbj" },
-  { key: "gbk", label: "Gudang Bahan Kemas (GBK)", department: "GBK", altDepartment: "PPIC", group: "gbk" },
+  { key: "qc", label: "Laboratorium QC", department: "QC", group: "qc", building: "qc" },
+  { key: "rnd", label: "Research and Development (RND)", department: "RND", group: "rnd", building: "rnd" },
+  { key: "pkrt", label: "Perbekalan Kesehatan Rumah Tangga (PKRT)", department: "PKRT", altDepartment: "Produksi", group: "pkrt", building: "pkrt" },
+  { key: "alkes", label: "Alat Kesehatan (Alkes)", department: "PKRT", altDepartment: "Produksi", group: "alkes", building: "alkes" },
+  { key: "gbj", label: "Gudang Barang Jadi (GBJ)", department: "GBJ", altDepartment: "PPIC", group: "gbj", building: "gbj" },
+  { key: "gbk", label: "Gudang Bahan Kemas (GBK)", department: "GBK", altDepartment: "PPIC", group: "gbk", building: "gbk" },
 ];
 
 const GROUPS = [
@@ -216,6 +220,37 @@ function daysInMonth(monthStr) {
   if (!monthStr) return 31;
   const [y, m] = monthStr.split("-").map(Number);
   return new Date(y, m, 0).getDate();
+}
+
+// Narasi harian ikut disimpan di tab Laporan_Narasi. Kolom "Bulan" WAJIB
+// berisi bulan sebenarnya ("yyyy-MM") — sebelumnya diisi tanggal penuh,
+// yang rawan gagal dicocokkan kalau Google Sheets memparsingnya sebagai
+// tanggal. Pembeda antar narasi harian ditaruh di kolom "Ruangan" memakai
+// penanda khusus di bawah ini.
+const DAILY_NARRATIVE_PREFIX = "__HARIAN__";
+
+function dailyNarrativeKey(tanggal) {
+  return `${DAILY_NARRATIVE_PREFIX}${tanggal}`;
+}
+
+function monthOf(tanggal) {
+  return String(tanggal || "").slice(0, 7);
+}
+
+function prevDayStr(tanggal) {
+  if (!tanggal) return "";
+  const [y, m, d] = String(tanggal).split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const dt = new Date(y, m - 1, d - 1);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+function prevMonthStr(monthStr) {
+  if (!monthStr) return "";
+  const [y, m] = String(monthStr).split("-").map(Number);
+  if (!y || !m) return "";
+  const dt = new Date(y, m - 2, 1);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function toNumberSafe(v) {
@@ -306,7 +341,11 @@ function buildVerifyUrl(params) {
   return `${base}/verify?${qs}`;
 }
 
-function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerName, size = 36, hideLabel = true }) {
+// PENTING: URL QR hanya memuat PENUNJUK dokumen (jenis, fasilitas, periode,
+// ruangan, jam, peran) — TIDAK memuat nama penanda tangan. Nama diambil
+// halaman /verify langsung dari server, supaya isi verifikasi tidak bisa
+// dipalsukan hanya dengan mengedit query string.
+function VerifyQR({ type, facility, period, roomName, jam, signerRole, size = 36, hideLabel = true }) {
   const params = { type, facility };
   if (type === "pengkajian") {
     params.month = period;
@@ -323,7 +362,6 @@ function VerifyQR({ type, facility, period, roomName, jam, signerRole, signerNam
     if (jam) params.jam = jam;
     if (signerRole) params.role = signerRole;
   }
-  if (signerName) params.name = signerName;
 
   const url = buildVerifyUrl(params);
 
@@ -1541,8 +1579,22 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     }
   };
 
-  const [narrativeMemory, setNarrativeMemory] = useState({});
+  // Draf narasi yang belum sempat disimpan, ditahan di ref (bukan state) agar
+  // perubahannya tidak mengubah identitas loadData dan memicu reload berulang.
+  const narrativeMemoryRef = useRef({});
   const currentMemKey = `${facilityKey}_${selectedDate}`;
+
+  // Narasi harian disimpan pada bulan milik tanggal terpilih, dengan penanda
+  // ruangan khusus. Lihat catatan di dailyNarrativeKey().
+  const dailyMonth = monthOf(selectedDate);
+  const dailyKey = dailyNarrativeKey(selectedDate);
+
+  const rememberNarrative = useCallback(
+    (payload) => {
+      narrativeMemoryRef.current = { ...narrativeMemoryRef.current, [currentMemKey]: payload };
+    },
+    [currentMemKey]
+  );
 
   useEffect(() => {
     if (initialDate) {
@@ -1584,9 +1636,15 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
       setRooms(roomList);
       setMonthEntries(entryList);
 
-      let reportRes = await fetchReport(facilityKey, selectedDate, session?.token, "").catch(() => null);
+      // Format baru: bulan = "yyyy-MM", ruangan = penanda harian.
+      let reportRes = await fetchReport(facilityKey, dailyMonth, session?.token, dailyKey).catch(() => null);
+      // Fallback ke dua format lama supaya narasi yang sudah terlanjur
+      // tersimpan tetap terbaca.
       if (!reportRes?.narrative?.pendahuluan && !reportRes?.narrative?.kesimpulanUmum) {
-        reportRes = await fetchReport(facilityKey, month, session?.token, selectedDate).catch(() => null);
+        reportRes = await fetchReport(facilityKey, selectedDate, session?.token, "").catch(() => null);
+      }
+      if (!reportRes?.narrative?.pendahuluan && !reportRes?.narrative?.kesimpulanUmum) {
+        reportRes = await fetchReport(facilityKey, dailyMonth, session?.token, selectedDate).catch(() => null);
       }
 
       if (reportRes?.narrative?.pendahuluan || reportRes?.narrative?.kesimpulanUmum) {
@@ -1594,8 +1652,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         setPendahuluan(reportRes.narrative.pendahuluan || "");
         setKesimpulanUmum(reportRes.narrative.kesimpulanUmum || "");
         setPerParameter(reportRes.narrative.perParameter || { suhu: "", rh: "", dpg: "" });
-      } else if (narrativeMemory[currentMemKey]) {
-        const mem = narrativeMemory[currentMemKey];
+      } else if (narrativeMemoryRef.current[currentMemKey]) {
+        const mem = narrativeMemoryRef.current[currentMemKey];
+        setReport(null);
         setPendahuluan(mem.pendahuluan || "");
         setKesimpulanUmum(mem.kesimpulanUmum || "");
         setPerParameter(mem.perParameter || { suhu: "", rh: "", dpg: "" });
@@ -1610,7 +1669,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     } finally {
       setLoading(false);
     }
-  }, [facilityKey, month, selectedDate, session?.token, currentMemKey, narrativeMemory]);
+  }, [facilityKey, month, selectedDate, dailyMonth, dailyKey, session?.token, currentMemKey]);
 
   useEffect(() => {
     loadData();
@@ -1816,18 +1875,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     try {
       const payload = { pendahuluan, kesimpulanUmum, perParameter };
 
-      setNarrativeMemory((prev) => ({
-        ...prev,
-        [currentMemKey]: payload,
-      }));
+      rememberNarrative(payload);
 
-      await apiSaveReport(
-        facilityKey,
-        selectedDate,
-        payload,
-        session?.token,
-        ""
-      );
+      await apiSaveReport(facilityKey, dailyMonth, payload, session?.token, dailyKey);
 
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
@@ -1862,12 +1912,27 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         rooms: currentDayRooms.length > 0 ? currentDayRooms : rooms,
       });
 
+      // Ringkasan hari sebelumnya dikirim sebagai konteks ke AI (sebelumnya
+      // parameter prevSummary didukung backend tapi tidak pernah diisi).
+      const prevDate = prevDayStr(selectedDate);
+      let prevSummary = "";
+      if (prevDate) {
+        const prevRes = await fetchReport(
+          facilityKey,
+          monthOf(prevDate),
+          session?.token,
+          dailyNarrativeKey(prevDate)
+        ).catch(() => null);
+        prevSummary = prevRes?.narrative?.kesimpulanUmum || "";
+      }
+
       let narrative;
       try {
         narrative = await generateNarrative({
           facilityLabel: `${cfg.label} (Harian: ${selectedDate})`,
           monthLabel: fullDateID(selectedDate),
           stats: facilityStats?.stats || {},
+          prevSummary,
         });
       } catch (aiErr) {
         narrative = generateLocalNarrative({
@@ -1888,14 +1953,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
         setPerParameter(nextPerParam);
         setKesimpulanUmum(nextKesimpulan);
 
-        setNarrativeMemory((prev) => ({
-          ...prev,
-          [currentMemKey]: {
-            pendahuluan: nextPendahuluan,
-            perParameter: nextPerParam,
-            kesimpulanUmum: nextKesimpulan,
-          },
-        }));
+        rememberNarrative({
+          pendahuluan: nextPendahuluan,
+          perParameter: nextPerParam,
+          kesimpulanUmum: nextKesimpulan,
+        });
 
         showToast("Draf narasi harian berhasil dibuat!");
       }
@@ -1909,7 +1971,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   async function handleDikaji() {
     try {
-      await apiApproveDikaji(facilityKey, selectedDate, session?.token, "");
+      await apiApproveDikaji(facilityKey, dailyMonth, session?.token, dailyKey);
       await loadData();
       showToast("Status 'Dikaji Oleh' berhasil disetujui!");
     } catch (err) {
@@ -1919,7 +1981,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   async function handleMengetahui() {
     try {
-      await apiApproveMengetahui(facilityKey, selectedDate, session?.token, "");
+      await apiApproveMengetahui(facilityKey, dailyMonth, session?.token, dailyKey);
       await loadData();
       showToast("Status 'Mengetahui' Final berhasil disetujui!");
     } catch (err) {
@@ -2264,7 +2326,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                                 roomName={rName}
                                 jam={jam}
                                 signerRole="OPR"
-                                signerName={v.opr}
                                 size={30}
                               />
                             </div>
@@ -2297,7 +2358,6 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                                 roomName={rName}
                                 jam={jam}
                                 signerRole="SPV"
-                                signerName={v.spv}
                                 size={30}
                               />
                             </div>
@@ -2572,10 +2632,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   <VerifyQR
                     type="pengkajian"
                     facility={facilityKey}
-                    period={selectedDate}
-                    roomName=""
+                    period={dailyMonth}
+                    roomName={dailyKey}
                     signerRole="Dikaji Oleh"
-                    signerName={report.signoff.dinilai.nama}
                     size={42}
                   />
                 </div>
@@ -2607,10 +2666,9 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                   <VerifyQR
                     type="pengkajian"
                     facility={facilityKey}
-                    period={selectedDate}
-                    roomName=""
+                    period={dailyMonth}
+                    roomName={dailyKey}
                     signerRole="Mengetahui"
-                    signerName={report.signoff.diperiksa.nama}
                     size={42}
                   />
                 </div>
@@ -2878,12 +2936,27 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
         entries: monthEntries,
         rooms,
       });
+      // Kesimpulan periode sebelumnya dikirim sebagai konteks ke AI agar
+      // narasi bisa mengaitkan tren antar bulan.
+      const prevMonth = prevMonthStr(month);
+      let prevSummary = "";
+      if (prevMonth) {
+        const prevRes = await fetchReport(
+          facilityKey,
+          prevMonth,
+          session?.token,
+          selectedRoomName
+        ).catch(() => null);
+        prevSummary = prevRes?.narrative?.kesimpulanUmum || "";
+      }
+
       let narrative;
       try {
         narrative = await generateNarrative({
           facilityLabel: targetLabel,
           monthLabel: monthLabelID(month),
           stats: facilityStats.stats,
+          prevSummary,
         });
       } catch (aiErr) {
         narrative = generateLocalNarrative({
@@ -3351,7 +3424,6 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                     period={month}
                     roomName={selectedRoomName}
                     signerRole="Dikaji Oleh"
-                    signerName={report.signoff.dinilai.nama}
                     size={42}
                   />
                 </div>
@@ -3386,7 +3458,6 @@ function PengkajianPage({ session, month, setView, initialFacility, initialRoom 
                     period={month}
                     roomName={selectedRoomName}
                     signerRole="Mengetahui"
-                    signerName={report.signoff.diperiksa.nama}
                     size={42}
                   />
                 </div>
@@ -3612,7 +3683,6 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
                     period={bulan}
                     roomName={selectedRoom}
                     signerRole="Kepala Bagian"
-                    signerName={formulir.kepalaBagian.nama}
                     size={46}
                   />
                 </div>
@@ -3647,7 +3717,6 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
                     period={bulan}
                     roomName={selectedRoom}
                     signerRole="Manager QA"
-                    signerName={formulir.managerQA.nama}
                     size={46}
                   />
                 </div>
@@ -3850,10 +3919,9 @@ function VerifyPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const type = params.get("type");
   const facilityKey = params.get("facility");
-  const roomName = params.get("roomName") || "";
+  const rawRoomName = params.get("roomName") || "";
   const jam = params.get("jam") || "";
   const role = params.get("role") || "";
-  const nameOverride = params.get("name") || "";
   const period =
     type === "pengkajian"
       ? params.get("month")
@@ -3864,24 +3932,53 @@ function VerifyPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Narasi harian disimpan dengan penanda ruangan khusus; tampilkan sebagai
+  // tanggal, bukan sebagai nama ruangan.
+  const isDailyNarrative = rawRoomName.startsWith(DAILY_NARRATIVE_PREFIX);
+  const dailyDate = isDailyNarrative ? rawRoomName.slice(DAILY_NARRATIVE_PREFIX.length) : "";
+  const roomName = isDailyNarrative ? "" : rawRoomName;
+
   useEffect(() => {
-    fetchVerify(type, facilityKey, period, roomName).then(setData).finally(() => setLoading(false));
-  }, [type, facilityKey, period, roomName]);
+    fetchVerify(type, facilityKey, period, rawRoomName, jam)
+      .then(setData)
+      .catch(() => setData({ error: "Gagal menghubungi server verifikasi." }))
+      .finally(() => setLoading(false));
+  }, [type, facilityKey, period, rawRoomName, jam]);
 
   const docTitle =
     type === "pengkajian"
-      ? `Pengkajian Trend Data EM Non Viable (POS.QA.025)${roomName ? ` — Ruangan: ${roomName}` : " (Global)"}`
+      ? `Pengkajian Trend Data EM Non Viable (POS.QA.025)${
+          isDailyNarrative
+            ? ` — Evaluasi Harian ${fullDateID(dailyDate)}`
+            : roomName
+            ? ` — Ruangan: ${roomName}`
+            : " (Global)"
+        }`
       : type === "formulir"
       ? `Formulir Pemantauan Bulanan (FM.QA.024/R11)${roomName ? ` — ${roomName}` : ""}`
       : `Data Pemantauan Harian (FM.QA.024/R11)${roomName ? ` — ${roomName}` : ""}${jam ? ` (${jam})` : ""}`;
 
-  const signerDisplay =
-    nameOverride ||
-    (role === "OPR"
-      ? data?.approvedBy?.opr || "Operator Terdaftar"
-      : data?.approvedBy?.nama || data?.approvedBy?.spv || "Supervisor / Manager");
+  // Nama penanda tangan SELALU diambil dari respons server.
+  let signerDisplay = "";
+  if (type === "pengkajian") {
+    signerDisplay =
+      role === "Mengetahui"
+        ? data?.signoff?.diperiksa?.nama || ""
+        : data?.signoff?.dinilai?.nama || "";
+  } else if (type === "formulir") {
+    signerDisplay =
+      role === "Manager QA" ? data?.managerQA?.nama || "" : data?.kepalaBagian?.nama || "";
+  } else {
+    signerDisplay =
+      role === "OPR"
+        ? data?.signers?.opr || ""
+        : data?.signers?.spv || data?.approvedBy?.nama || "";
+  }
 
-  const roleLabel = role === "OPR" ? "Diinput & Disetujui Oleh (OPR)" : role || "Disetujui Oleh";
+  const roleLabel =
+    role === "OPR" ? "Diinput & Disetujui Oleh (OPR)" : role || "Disetujui Oleh";
+
+  const isValid = !loading && !data?.error && data?.found !== false && !!signerDisplay;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
@@ -3893,38 +3990,68 @@ function VerifyPage() {
         </div>
 
         <div className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-xl text-center space-y-4">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 mx-auto shadow-inner">
-            <CheckCircle2 size={32} />
-          </div>
-          <h2 className="text-sm font-bold text-emerald-800">Dokumen Sah &amp; Terverifikasi</h2>
-
           {loading ? (
-            <div className="flex justify-center p-4">
-              <Loader2 size={18} className="animate-spin text-slate-400" />
+            <div className="flex justify-center p-6">
+              <Loader2 size={20} className="animate-spin text-slate-400" />
             </div>
           ) : (
-            <div className="bg-slate-50 rounded-2xl p-4 text-left text-xs space-y-2 border border-slate-100">
-              <p>
-                <span className="text-slate-400">Dokumen:</span>{" "}
-                <span className="font-semibold text-slate-800">{docTitle}</span>
+            <>
+              <div
+                className={`inline-flex h-14 w-14 items-center justify-center rounded-2xl mx-auto shadow-inner ${
+                  isValid ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+                }`}
+              >
+                {isValid ? <CheckCircle2 size={32} /> : <AlertTriangle size={30} />}
+              </div>
+              <h2 className={`text-sm font-bold ${isValid ? "text-emerald-800" : "text-amber-800"}`}>
+                {isValid ? "Dokumen Sah & Terverifikasi" : "Tanda Tangan Tidak Ditemukan"}
+              </h2>
+
+              <div className="bg-slate-50 rounded-2xl p-4 text-left text-xs space-y-2 border border-slate-100">
+                <p>
+                  <span className="text-slate-400">Dokumen:</span>{" "}
+                  <span className="font-semibold text-slate-800">{docTitle}</span>
+                </p>
+                <p>
+                  <span className="text-slate-400">Fasilitas:</span>{" "}
+                  <span className="font-semibold text-slate-800">{facility?.label || facilityKey}</span>
+                </p>
+                <p>
+                  <span className="text-slate-400">Periode / Tanggal:</span>{" "}
+                  <span className="font-semibold text-slate-800">
+                    {isDailyNarrative ? fullDateID(dailyDate) : period}
+                  </span>
+                </p>
+                {roomName && (
+                  <p>
+                    <span className="text-slate-400">Ruangan:</span>{" "}
+                    <span className="font-semibold text-slate-800">
+                      {roomName}
+                      {jam ? ` — jam ${jam}` : ""}
+                    </span>
+                  </p>
+                )}
+                <p>
+                  <span className="text-slate-400">{roleLabel}:</span>{" "}
+                  <span className="font-bold text-slate-900">{signerDisplay || "—"}</span>
+                </p>
+                <p>
+                  <span className="text-slate-400">Status:</span>{" "}
+                  <span className={`font-semibold ${isValid ? "text-emerald-700" : "text-amber-700"}`}>
+                    {isValid
+                      ? "Terverifikasi Digital"
+                      : data?.error
+                      ? "Gagal memuat data dari server"
+                      : "Belum ada tanda tangan tercatat pada dokumen ini"}
+                  </span>
+                </p>
+              </div>
+
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                Nama penanda tangan di atas diambil langsung dari basis data QA, bukan dari
+                tautan QR, sehingga tidak dapat diubah dari luar sistem.
               </p>
-              <p>
-                <span className="text-slate-400">Fasilitas:</span>{" "}
-                <span className="font-semibold text-slate-800">{facility?.label || facilityKey}</span>
-              </p>
-              <p>
-                <span className="text-slate-400">Periode / Tanggal:</span>{" "}
-                <span className="font-semibold text-slate-800">{period}</span>
-              </p>
-              <p>
-                <span className="text-slate-400">{roleLabel}:</span>{" "}
-                <span className="font-bold text-slate-900">{signerDisplay}</span>
-              </p>
-              <p>
-                <span className="text-slate-400">Status:</span>{" "}
-                <span className="font-semibold text-emerald-700">Terverifikasi Digital</span>
-              </p>
-            </div>
+            </>
           )}
         </div>
 
@@ -3970,7 +4097,13 @@ function AppContent() {
     }
 
     let isMounted = true;
+    let running = false;
+
     const fetchNotifs = async () => {
+      // Satu putaran memanggil Apps Script sekali per fasilitas. Hindari
+      // putaran menumpuk kalau panggilan sebelumnya belum selesai.
+      if (running) return;
+      running = true;
       try {
         const notifList = [];
         const tglHariIni = todayStr();
@@ -3982,8 +4115,15 @@ function AppContent() {
           return hasFacilityAccess(session, "Staff", f);
         });
 
-        await Promise.all(
-          relevantFacilities.map(async (fac) => {
+        // Dijalankan bertahap (maksimal 4 fasilitas sekaligus) agar tidak
+        // menembak Apps Script belasan kali dalam satu detik.
+        const runInBatches = async (items, size, worker) => {
+          for (let i = 0; i < items.length; i += size) {
+            await Promise.all(items.slice(i, i + size).map(worker));
+          }
+        };
+
+        await runInBatches(relevantFacilities, 4, async (fac) => {
             try {
               const [entriesRes, reportRes] = await Promise.all([
                 fetchEntries(fac.key, month).catch(() => []),
@@ -4050,22 +4190,42 @@ function AppContent() {
             } catch {
               // ignore
             }
-          })
-        );
+        });
 
         if (isMounted) {
           setNotifications(notifList);
         }
       } catch {
         // ignore
+      } finally {
+        running = false;
       }
     };
 
-    fetchNotifs();
-    const interval = setInterval(fetchNotifs, 45000);
+    // Sebelumnya polling tiap 45 detik untuk 17 fasilitas — sangat boros
+    // kuota Apps Script. Sekarang 5 menit, dan dihentikan saat tab tidak
+    // aktif (langsung disegarkan begitu tab dibuka lagi).
+    const POLL_MS = 5 * 60 * 1000;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      fetchNotifs();
+    };
+
+    tick();
+    const interval = setInterval(tick, POLL_MS);
+    const onVisible = () => {
+      if (typeof document !== "undefined" && !document.hidden) fetchNotifs();
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisible);
+    }
+
     return () => {
       isMounted = false;
       clearInterval(interval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisible);
+      }
     };
   }, [session, month]);
 

@@ -135,11 +135,17 @@ export function changePassword(token, oldPassword, newPassword) {
 
 // Dipakai khusus halaman publik /verify (scan QR) — tetap bisa diakses tanpa
 // login, tapi cuma mengembalikan info tanda tangan.
-export function fetchVerify(type, facility, period, roomName) {
+export function fetchVerify(type, facility, period, roomName, jam) {
   let params;
   if (type === "pengkajian") params = { action: "verify", type, facility, month: period, roomName };
   else if (type === "formulir") params = { action: "verify", type, facility, bulan: period, roomName };
-  else params = { action: "verify", type: "harian", facility, tanggal: period };
+  else {
+    // Untuk harian, roomName & jam ikut dikirim supaya server bisa
+    // mengembalikan nama penanda tangan OPR/SPV yang sebenarnya.
+    params = { action: "verify", type: "harian", facility, tanggal: period };
+    if (roomName) params.roomName = roomName;
+    if (jam) params.jam = jam;
+  }
   return apiGet(params);
 }
 

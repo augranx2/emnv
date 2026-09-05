@@ -91,12 +91,15 @@ export function hasFacilityAccess(session, minRole, cfg) {
   const facDept = (cfg.department || "").toLowerCase();
   const facAltDept = (cfg.altDepartment || "").toLowerCase();
   const facGroup = (cfg.group || "").toLowerCase();
+  const facBuilding = (cfg.building || "").toLowerCase();
 
   return userPerms.some((perm) => {
     // 1. Cocok dengan nama spesifik fasilitas (misal: "nbl kemasan")
     if (perm === facLabel || perm === facKey) return true;
-    // 2. Cocok dengan grup (misal: "nbl", "sefa")
+    // 2. Cocok dengan grup sidebar (misal: "nbl", "gbb") ATAU gedung induknya
+    //    (supaya izin "nbl" juga membuka GBB NBL, yang grupnya "gbb").
     if (perm === facGroup) return true;
+    if (facBuilding && perm === facBuilding) return true;
     // 3. Cocok dengan departemen umum (misal: "produksi", "kemasan", "qc", "ppic")
     if (perm === facDept || (facAltDept && perm === facAltDept)) return true;
     return false;
