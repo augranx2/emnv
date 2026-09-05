@@ -65,6 +65,7 @@ function doGet(e) {
       case "dayStatus": result = getDayStatusForViewer_(e.parameter.facility, e.parameter.tanggal, e.parameter.token); break;
       case "openInputDates": result = getOpenInputDates_(e.parameter.facility, e.parameter.token); break;
       case "formulirBulanan": result = getFormulirBulananForViewer_(e.parameter.facility, e.parameter.bulan, e.parameter.roomName, e.parameter.token); break;
+      case "formulirStatus": result = getFormulirStatus_(e.parameter.facility, e.parameter.bulan, e.parameter.token); break;
       case "verify":
         if (e.parameter.type === "pengkajian") {
           result = getVerifySignoffPengkajian_(e.parameter.facility, e.parameter.month, e.parameter.roomName);
@@ -990,6 +991,65 @@ function upsertFormulirBulananRow_(cfg, bulan, roomName, patch) {
   found.sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
 }
 
+// Membaca SELURUH tab Formulir_Bulanan sekali jalan, dikelompokkan dengan
+// kunci "label|bulan|ruangan". Dipakai getStatusIndex_ supaya ringkasan
+// approval 17 fasilitas cukup 1x baca sheet, bukan 1x per ruangan.
+function loadFormulirMap_() {
+  const sheet = getFormulirBulananSheet_();
+  const lastRow = sheet.getLastRow();
+  const map = {};
+  if (lastRow < 2) return map;
+  const values = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+  values.forEach(function (row) {
+    const key = String(row[1] || "") + "|" + formatMonth_(row[0]) + "|" + String(row[2] || "").trim();
+    map[key] = { kepalaBagian: row[3] || "", managerQA: row[6] || "" };
+  });
+  return map;
+}
+
+// Ringkasan status approval Formulir Bulanan untuk SATU fasilitas.
+// Denominatornya adalah ruangan yang benar-benar punya data pada bulan itu
+// (sama seperti dasar yang dipakai approve Manager QA).
+function buildFormulirSummary_(cfg, bulan, entries, formulirMap) {
+  const rooms = [];
+  (entries || []).forEach(function (e) {
+    const r = String(e.roomName || "").trim();
+    if (r && rooms.indexOf(r) === -1) rooms.push(r);
+  });
+
+  const pendingKepalaBagian = [];
+  const pendingManagerQA = [];
+  rooms.forEach(function (r) {
+    const row = formulirMap[cfg.label + "|" + bulan + "|" + r] || { kepalaBagian: "", managerQA: "" };
+    if (!row.kepalaBagian) pendingKepalaBagian.push(r);
+    if (!row.managerQA) pendingManagerQA.push(r);
+  });
+
+  return {
+    totalRooms: rooms.length,
+    kepalaBagianApproved: rooms.length - pendingKepalaBagian.length,
+    managerQAApproved: rooms.length - pendingManagerQA.length,
+    pendingKepalaBagian: pendingKepalaBagian,
+    pendingManagerQA: pendingManagerQA,
+    // Manager QA baru boleh menandatangani kalau seluruh ruangan sudah
+    // di-ACC Kepala Bagian.
+    siapApprovalManagerQA: rooms.length > 0 && pendingKepalaBagian.length === 0,
+  };
+}
+
+function getFormulirStatus_(facilityKey, bulan, token) {
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
+  const session = token ? validateSession_(token) : null;
+  if (!session) return { error: "Sesi tidak valid atau sudah habis, silakan login ulang." };
+  const entries = getEntries_(facilityKey, bulan).entries || [];
+  const summary = buildFormulirSummary_(cfg, bulan, entries, loadFormulirMap_());
+  summary.facility = facilityKey;
+  summary.bulan = bulan;
+  summary.formNo = FORMULIR_NO;
+  return summary;
+}
+
 function getFormulirBulananForViewer_(facilityKey, bulan, roomName, token) {
   const session = token ? validateSession_(token) : null;
   if (!session) return { error: "Sesi tidak valid atau sudah habis, silakan login ulang." };
@@ -1031,6 +1091,23 @@ function approveManagerQAFormulirAuthed_(session, facilityKey, bulan) {
   if (!requireRole_(session, "Manager", "QA")) return { error: "Hanya Manager QA yang boleh approve Formulir tahap ini." };
   const entries = getEntries_(facilityKey, bulan).entries || [];
   const rooms = Array.from(new Set(entries.map(function (e) { return e.roomName; }).filter(Boolean)));
+  if (rooms.length === 0) {
+    return { error: "Belum ada data pemantauan pada periode ini, formulir belum dapat disetujui." };
+  }
+
+  // Manager QA hanya boleh menutup formulir setelah SELURUH ruangan berdata
+  // di-ACC Kepala Bagian/SPV fasilitas.
+  const summary = buildFormulirSummary_(cfg, bulan, entries, loadFormulirMap_());
+  if (summary.pendingKepalaBagian.length > 0) {
+    const contoh = summary.pendingKepalaBagian.slice(0, 5).join(", ");
+    return {
+      error:
+        "Belum dapat disetujui: " + summary.pendingKepalaBagian.length + " dari " + summary.totalRooms +
+        " ruangan belum di-ACC Kepala Bagian (" + contoh +
+        (summary.pendingKepalaBagian.length > 5 ? ", dst." : "") + ").",
+      pendingKepalaBagian: summary.pendingKepalaBagian,
+    };
+  }
   const nowStr = formatDate_(new Date());
   rooms.forEach(function (r) {
     upsertFormulirBulananRow_(cfg, bulan, r, { managerQANama: session.nama, managerQAUsername: session.username, managerQATanggal: nowStr });
@@ -1052,9 +1129,15 @@ function unapproveManagerQAFormulirAuthed_(session, facilityKey, bulan) {
   return { ok: true };
 }
 
+// Indeks status seluruh fasilitas untuk satu bulan. Selain level tertinggi,
+// sekarang ikut membawa ringkasan approval Formulir Bulanan dan penanda
+// fasilitas yang belum punya data sama sekali — dipakai Pusat Notifikasi
+// supaya cukup SATU panggilan untuk semua fasilitas (bukan per ruangan).
 function getStatusIndex_(month) {
   const out = {};
+  const formulirMap = loadFormulirMap_();
   Object.keys(FACILITIES).forEach(function (key) {
+    const cfg = FACILITIES[key];
     const res = getEntries_(key, month);
     const entries = res.entries || [];
     let maxLevel = 0;
@@ -1064,7 +1147,13 @@ function getStatusIndex_(month) {
         if (lvl !== null && lvl > maxLevel) maxLevel = lvl;
       });
     });
-    out[key] = { level: maxLevel, hasData: entries.length > 0 };
+    out[key] = {
+      level: maxLevel,
+      hasData: entries.length > 0,
+      entryCount: entries.length,
+      department: cfg.department || "",
+      formulir: buildFormulirSummary_(cfg, month, entries, formulirMap),
+    };
   });
   return { month: month, status: out };
 }

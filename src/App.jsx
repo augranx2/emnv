@@ -73,6 +73,7 @@ import {
   fetchVerify,
   generateNarrative,
   fetchFormulirBulanan,
+  fetchFormulirStatus,
   approveKepalaBagian as apiApproveKepalaBagian,
   approveManagerQAFormulir as apiApproveManagerQAFormulir,
   approveOpr as apiApproveOpr,
@@ -982,6 +983,23 @@ function DashboardOverview({ month, status = {}, setView, session, onNeedLogin }
 /* =========================================================================
    8. HEADER BAR DENGAN PUSAT NOTIFIKASI REAL-TIME
    ========================================================================= */
+// Gaya tampilan per jenis notifikasi, dipakai bersama oleh popover header dan
+// halaman Pusat Notifikasi supaya konsisten.
+const NOTIF_STYLE = {
+  critical: { wrap: "bg-red-50/40", border: "border-red-100", Icon: AlertOctagon, iconCls: "text-red-600", tag: "bg-red-100 text-red-700" },
+  qa_global: { wrap: "bg-blue-50/40", border: "border-blue-100", Icon: FileText, iconCls: "text-blue-600", tag: "bg-blue-100 text-blue-800" },
+  formulir_ready: { wrap: "bg-emerald-50/40", border: "border-emerald-100", Icon: FileCheck2, iconCls: "text-emerald-600", tag: "bg-emerald-100 text-emerald-800" },
+  formulir_kb: { wrap: "bg-amber-50/40", border: "border-amber-100", Icon: FileCheck2, iconCls: "text-amber-600", tag: "bg-amber-100 text-amber-800" },
+  formulir_wait: { wrap: "bg-slate-50", border: "border-slate-200", Icon: Clock, iconCls: "text-slate-500", tag: "bg-slate-100 text-slate-700" },
+  no_data: { wrap: "bg-slate-50", border: "border-slate-200", Icon: AlertTriangle, iconCls: "text-slate-500", tag: "bg-slate-100 text-slate-700" },
+  default: { wrap: "bg-amber-50/30", border: "border-amber-100", Icon: Clock, iconCls: "text-amber-600", tag: "bg-amber-100 text-amber-800" },
+};
+
+function notifStyle(type) {
+  return NOTIF_STYLE[type] || NOTIF_STYLE.default;
+}
+
+
 function HeaderBar({
   session,
   onLoginClick,
@@ -1067,29 +1085,20 @@ function HeaderBar({
                           <p className="text-[10px] text-slate-400">Tidak ada deviasi batas limit ataupun tugas evaluasi.</p>
                         </div>
                       ) : (
-                        notifications.map((item, idx) => (
+                        notifications.map((item, idx) => {
+                          const st = notifStyle(item.type);
+                          const NIcon = st.Icon;
+                          return (
                           <div
                             key={idx}
                             onClick={() => {
                               onSelectNotification(item);
                               setShowNotifPopover(false);
                             }}
-                            className={`p-3 transition cursor-pointer hover:bg-slate-50 flex items-start gap-2.5 ${
-                              item.type === "critical"
-                                ? "bg-red-50/40"
-                                : item.type === "qa_global"
-                                ? "bg-blue-50/40"
-                                : "bg-amber-50/30"
-                            }`}
+                            className={`p-3 transition cursor-pointer hover:bg-slate-50 flex items-start gap-2.5 ${st.wrap}`}
                           >
                             <div className="shrink-0 mt-0.5">
-                              {item.type === "critical" ? (
-                                <AlertOctagon size={16} className="text-red-600" />
-                              ) : item.type === "qa_global" ? (
-                                <FileText size={16} className="text-blue-600" />
-                              ) : (
-                                <Clock size={16} className="text-amber-600" />
-                              )}
+                              <NIcon size={16} className={st.iconCls} />
                             </div>
                             <div className="flex-1 min-w-0 space-y-0.5">
                               <div className="flex items-center justify-between gap-1">
@@ -1102,22 +1111,15 @@ function HeaderBar({
                                   {item.facilityLabel}
                                 </span>
                                 {item.tag && (
-                                  <span
-                                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
-                                      item.type === "critical"
-                                        ? "bg-red-100 text-red-700"
-                                        : item.type === "qa_global"
-                                        ? "bg-blue-100 text-blue-800"
-                                        : "bg-amber-100 text-amber-800"
-                                    }`}
-                                  >
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${st.tag}`}>
                                     {item.tag}
                                   </span>
                                 )}
                               </div>
                             </div>
                           </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
                   </div>
@@ -1203,41 +1205,24 @@ function NotificationsPage({ notifications = [], onSelectNotification, setView }
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {notifications.map((item, idx) => (
+            {notifications.map((item, idx) => {
+              const st = notifStyle(item.type);
+              const NIcon = st.Icon;
+              return (
               <div
                 key={idx}
                 onClick={() => onSelectNotification(item)}
-                className={`p-4 transition cursor-pointer hover:bg-slate-50 flex items-start justify-between gap-4 rounded-2xl ${
-                  item.type === "critical"
-                    ? "bg-red-50/40 border border-red-100 my-1.5"
-                    : item.type === "qa_global"
-                    ? "bg-blue-50/40 border border-blue-100 my-1.5"
-                    : "bg-amber-50/30 border border-amber-100 my-1.5"
-                }`}
+                className={`p-4 transition cursor-pointer hover:bg-slate-50 flex items-start justify-between gap-4 rounded-2xl my-1.5 border ${st.wrap} ${st.border}`}
               >
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5">
-                    {item.type === "critical" ? (
-                      <AlertOctagon size={20} className="text-red-600" />
-                    ) : item.type === "qa_global" ? (
-                      <FileText size={20} className="text-blue-600" />
-                    ) : (
-                      <Clock size={20} className="text-amber-600" />
-                    )}
+                    <NIcon size={20} className={st.iconCls} />
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-slate-800 text-xs">{item.title}</p>
                       {item.tag && (
-                        <span
-                          className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
-                            item.type === "critical"
-                              ? "bg-red-100 text-red-700"
-                              : item.type === "qa_global"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                        >
+                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${st.tag}`}>
                           {item.tag}
                         </span>
                       )}
@@ -1255,7 +1240,8 @@ function NotificationsPage({ notifications = [], onSelectNotification, setView }
                   </span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -3497,17 +3483,20 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
   const [selectedRoom, setSelectedRoom] = useState(roomName || "");
   const [entries, setEntries] = useState([]);
   const [formulir, setFormulir] = useState(null);
+  const [formulirStatus, setFormulirStatus] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [approveError, setApproveError] = useState("");
 
   const canKepalaBagian = cfg ? hasFacilityAccess(session, "Supervisor", cfg) : false;
   const canManagerQA = hasAccess(session, "Manager", "QA");
 
   const load = useCallback(async () => {
     try {
-      const [master, entriesRes, formulirRes] = await Promise.all([
+      const [master, entriesRes, formulirRes, statusRes] = await Promise.all([
         fetchMaster(facilityKey),
         fetchEntries(facilityKey, bulan),
         fetchFormulirBulanan(facilityKey, bulan, selectedRoom, session?.token),
+        fetchFormulirStatus(facilityKey, bulan, session?.token).catch(() => null),
       ]);
       const roomList = Array.isArray(master) ? master : master?.rooms || [];
       setRooms(roomList);
@@ -3516,10 +3505,17 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
       const list = Array.isArray(entriesRes) ? entriesRes : entriesRes?.entries || [];
       setEntries(list.filter((e) => String(e?.roomName || "").trim() === String(targetRoom).trim()));
       setFormulir(formulirRes);
+      setFormulirStatus(statusRes && !statusRes.error ? statusRes : null);
     } catch {
       // ignore
     }
   }, [facilityKey, bulan, selectedRoom, session?.token]);
+
+  // Manager QA menandatangani formulir untuk SELURUH ruangan sekaligus,
+  // jadi tombolnya baru boleh aktif kalau tidak ada lagi ruangan yang
+  // menunggu ACC Kepala Bagian.
+  const pendingKB = formulirStatus?.pendingKepalaBagian || [];
+  const qaSiapApprove = formulirStatus ? !!formulirStatus.siapApprovalManagerQA : true;
 
   useEffect(() => {
     load();
@@ -3553,6 +3549,23 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
               </option>
             ))}
           </select>
+          {formulirStatus && formulirStatus.totalRooms > 0 && (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold ${
+                qaSiapApprove
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                  : "bg-amber-50 border-amber-200 text-amber-800"
+              }`}
+              title={
+                pendingKB.length > 0
+                  ? `Belum di-ACC: ${pendingKB.join(", ")}`
+                  : "Seluruh ruangan sudah di-ACC Kepala Bagian"
+              }
+            >
+              <FileCheck2 size={13} />
+              ACC Kepala Bagian {formulirStatus.kepalaBagianApproved}/{formulirStatus.totalRooms} ruangan
+            </span>
+          )}
           {hasAccess(session, "Supervisor", "QA") && (
             <button
               onClick={() => setView({ page: "pengkajian", facility: facilityKey, room: selectedRoom })}
@@ -3724,18 +3737,50 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
                 <p className="text-[9px] text-slate-400">{formulir.managerQA.tanggal}</p>
               </>
             ) : canManagerQA ? (
-              <button
-                onClick={async () => {
-                  setBusy(true);
-                  await apiApproveManagerQAFormulir(facilityKey, bulan, session?.token);
-                  await load();
-                  setBusy(false);
-                }}
-                disabled={busy}
-                className="no-print bg-rose-900 px-3 py-1.5 text-white rounded-xl text-xs font-semibold shadow-xs"
-              >
-                Approve (Manager QA)
-              </button>
+              <div className="space-y-1.5">
+                <button
+                  onClick={async () => {
+                    setBusy(true);
+                    setApproveError("");
+                    try {
+                      await apiApproveManagerQAFormulir(facilityKey, bulan, session?.token);
+                      await load();
+                    } catch (err) {
+                      setApproveError(err.message || "Gagal menyetujui formulir.");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  disabled={busy || !qaSiapApprove}
+                  title={
+                    qaSiapApprove
+                      ? "Setujui formulir seluruh ruangan fasilitas ini"
+                      : "Menunggu ACC Kepala Bagian pada seluruh ruangan"
+                  }
+                  className="no-print bg-rose-900 px-3 py-1.5 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Approve (Manager QA)
+                </button>
+                {!qaSiapApprove && (
+                  <p className="no-print text-[10px] leading-snug text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+                    Menunggu ACC Kepala Bagian: <b>{pendingKB.length}</b> dari{" "}
+                    <b>{formulirStatus?.totalRooms ?? 0}</b> ruangan belum disetujui
+                    {pendingKB.length > 0 && (
+                      <>
+                        {" "}
+                        ({pendingKB.slice(0, 3).join(", ")}
+                        {pendingKB.length > 3 ? `, +${pendingKB.length - 3} lainnya` : ""})
+                      </>
+                    )}
+                    .
+                  </p>
+                )}
+                {approveError && (
+                  <p className="no-print text-[10px] leading-snug text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1">
+                    {approveError}
+                  </p>
+                )}
+              </div>
             ) : (
               <p className="italic text-slate-400">Belum di-ACC</p>
             )}
@@ -4192,6 +4237,108 @@ function AppContent() {
             }
         });
 
+        // -------------------------------------------------------------
+        // Notifikasi tingkat FASILITAS (bukan per ruangan).
+        // Satu panggilan statusIndex sudah membawa ringkasan approval
+        // formulir + penanda fasilitas tanpa data untuk semua fasilitas,
+        // sehingga daftar notifikasi tetap ringkas walau ruangannya banyak.
+        // -------------------------------------------------------------
+        const statusRes = await fetchStatusIndex(month).catch(() => null);
+        const statusMap = statusRes?.status || statusRes || {};
+        if (isMounted && statusMap && Object.keys(statusMap).length > 0) {
+          setStatus(statusMap);
+        }
+
+        const periodeLabel = monthLabelID(month);
+
+        relevantFacilities.forEach((fac) => {
+          const st = statusMap[fac.key];
+          if (!st) return;
+
+          const bolehACCFasilitas = hasFacilityAccess(session, "Supervisor", fac);
+
+          // (a) Fasilitas belum punya data sama sekali pada periode ini.
+          if (!st.hasData) {
+            if (isQA || bolehACCFasilitas) {
+              notifList.push({
+                type: "no_data",
+                facilityKey: fac.key,
+                facilityLabel: fac.label,
+                title: "Belum Ada Data Pemantauan",
+                desc: `Tidak ada satu pun hasil pemantauan Suhu/RH/DPG yang tercatat pada periode ${periodeLabel}.`,
+                tag: "Tanpa Data",
+                time: periodeLabel,
+              });
+            }
+            return;
+          }
+
+          const f = st.formulir || {};
+          const total = f.totalRooms || 0;
+          const pendingKB = f.pendingKepalaBagian || [];
+          if (total === 0) return;
+
+          const contohRuangan =
+            pendingKB.slice(0, 3).join(", ") +
+            (pendingKB.length > 3 ? `, +${pendingKB.length - 3} ruangan lainnya` : "");
+
+          if (pendingKB.length > 0) {
+            // (b) Untuk Kepala Bagian / SPV fasilitas — satu notifikasi
+            //     berisi rekap seluruh ruangan yang belum di-ACC.
+            if (bolehACCFasilitas) {
+              notifList.push({
+                type: "formulir_kb",
+                facilityKey: fac.key,
+                facilityLabel: fac.label,
+                targetRoom: pendingKB[0],
+                title: "Formulir Bulanan Menunggu ACC Kepala Bagian",
+                desc: `${pendingKB.length} dari ${total} ruangan belum di-ACC (${contohRuangan}). Formulir QA tertahan sampai seluruh ruangan disetujui.`,
+                tag: "ACC Kepala Bagian",
+                time: periodeLabel,
+              });
+            }
+            // (c) Untuk QA — tahu persis kenapa formulirnya belum bisa ditutup.
+            if (isQA) {
+              notifList.push({
+                type: "formulir_wait",
+                facilityKey: fac.key,
+                facilityLabel: fac.label,
+                targetRoom: pendingKB[0],
+                title: "Formulir Belum Dapat Di-approve QA",
+                desc: `Menunggu ACC Kepala Bagian pada ${pendingKB.length} dari ${total} ruangan (${contohRuangan}).`,
+                tag: "Menunggu Kepala Bagian",
+                time: periodeLabel,
+              });
+            }
+          } else if ((f.managerQAApproved || 0) < total) {
+            // (d) Semua ruangan sudah di-ACC Kepala Bagian → giliran Manager QA.
+            if (isQA) {
+              notifList.push({
+                type: "formulir_ready",
+                facilityKey: fac.key,
+                facilityLabel: fac.label,
+                targetRoom: pendingKB[0] || "",
+                title: "Formulir Bulanan Siap Di-approve Manager QA",
+                desc: `Seluruh ${total} ruangan sudah di-ACC Kepala Bagian dan menunggu tanda tangan Manager QA.`,
+                tag: "Siap ACC QA",
+                time: periodeLabel,
+              });
+            }
+          }
+        });
+
+        // Urutkan: deviasi kritis dulu, lalu tugas approval, baru sisanya.
+        const PRIORITAS = {
+          critical: 0,
+          formulir_ready: 1,
+          formulir_kb: 2,
+          formulir_wait: 3,
+          pending_spv: 4,
+          qa_global: 5,
+          no_data: 6,
+        };
+        notifList.sort((a, b) => (PRIORITAS[a.type] ?? 9) - (PRIORITAS[b.type] ?? 9));
+
         if (isMounted) {
           setNotifications(notifList);
         }
@@ -4232,6 +4379,14 @@ function AppContent() {
   const handleSelectNotification = (notif) => {
     if (notif.type === "qa_global") {
       setView({ page: "pengkajian", facility: notif.facilityKey, room: "" });
+    } else if (notif.type && notif.type.startsWith("formulir")) {
+      // Langsung buka Formulir Bulanan, kalau bisa pada ruangan yang tertunda.
+      setView({
+        page: "formulir",
+        facility: notif.facilityKey,
+        room: notif.targetRoom || "",
+        bulan: month,
+      });
     } else if (notif.facilityKey) {
       setView({ page: "facility", facility: notif.facilityKey, targetDate: notif.targetDate });
     }

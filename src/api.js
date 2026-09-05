@@ -60,6 +60,12 @@ export function fetchFormulirBulanan(facility, bulan, roomName, token) {
   return apiGet({ action: "formulirBulanan", facility, bulan, roomName, token });
 }
 
+// Ringkasan approval formulir untuk SATU fasilitas + bulan (berapa ruangan
+// sudah/belum di-ACC Kepala Bagian & Manager QA).
+export function fetchFormulirStatus(facility, bulan, token) {
+  return apiGet({ action: "formulirStatus", facility, bulan, token });
+}
+
 export function approveKepalaBagian(facility, bulan, roomName, token) {
   return apiPost({ action: "approveKepalaBagian", facility, bulan, roomName, token });
 }
