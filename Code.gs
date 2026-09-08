@@ -65,6 +65,8 @@ function doGet(e) {
       case "dayStatus": result = getDayStatusForViewer_(e.parameter.facility, e.parameter.tanggal, e.parameter.token); break;
       case "openInputDates": result = getOpenInputDates_(e.parameter.facility, e.parameter.token); break;
       case "formulirBulanan": result = getFormulirBulananForViewer_(e.parameter.facility, e.parameter.bulan, e.parameter.roomName, e.parameter.token); break;
+      case "alatAudit": result = getAlatAudit_(e.parameter.token); break;
+      case "penggantianAlat": result = listPenggantianAlat_(e.parameter.facility, e.parameter.bulan, e.parameter.token); break;
       case "formulirStatus": result = getFormulirStatus_(e.parameter.facility, e.parameter.bulan, e.parameter.token); break;
       case "verify":
         if (e.parameter.type === "pengkajian") {
@@ -114,6 +116,11 @@ function doPost(e) {
       case "approveKepalaBagian":
         result = withAuth_(body.token, function (session) {
           return approveKepalaBagianAuthed_(session, body.facility, body.bulan, body.roomName);
+        });
+        break;
+      case "putuskanPenggantianAlat":
+        result = withAuth_(body.token, function (session) {
+          return putuskanPenggantianAlatAuthed_(session, body);
         });
         break;
       case "approveKepalaBagianAll":
@@ -513,14 +520,125 @@ function getMaster_(facilityKey) {
       required[p] = isParamRequired_(lim, p);
       limits[p] = lim;
     });
-    rooms.push({ code: String(code || "").trim(), name: String(name || "").trim(), persyaratanKey: persyaratanKey, required: required, limits: limits });
+    // Kolom D (indeks 3) = ID Thermohygrometer, dipisah koma bila satu
+    // ruangan memiliki lebih dari satu alat. Setiap ID menjadi satu TITIK
+    // pemantauan tersendiri, sehingga formulirnya juga terpisah — sesuai
+    // temuan BPOM soal ketertelusuran penempatan alat.
+    const alatIds = parseAlatIds_(row[3]);
+    const roomName = String(name || "").trim();
+    const roomCode = String(code || "").trim();
+    const titikCount = Math.max(alatIds.length, 1);
+
+    for (let t = 1; t <= titikCount; t++) {
+      const alatId = alatIds[t - 1] || "";
+      // Ruangan beralat tunggal memakai nama apa adanya, supaya seluruh
+      // data historis tetap cocok. Ruangan multi-titik diberi nama unit
+      // yang unik per alat.
+      const unitName = titikCount === 1 ? roomName : roomName + " — " + (alatId || "Titik " + t);
+      rooms.push({
+        code: titikCount === 1 ? roomCode : roomCode + "." + t,
+        name: unitName,
+        roomName: roomName,
+        roomCode: roomCode,
+        titik: t,
+        titikCount: titikCount,
+        alatId: alatId,
+        persyaratanKey: persyaratanKey,
+        required: required,
+        limits: limits,
+      });
+    }
   }
   return { facility: facilityKey, rooms: rooms };
+}
+
+// Memecah isi sel ID alat. Menerima pemisah koma, titik koma, garis miring,
+// atau baris baru; spasi berlebih dirapikan dan duplikat dalam satu sel
+// dibuang.
+function parseAlatIds_(raw) {
+  const teks = String(raw === null || raw === undefined ? "" : raw).trim();
+  if (!teks) return [];
+  const out = [];
+  teks.split(/[,;\/\n]+/).forEach(function (bagian) {
+    const id = bagian.replace(/\s+/g, " ").trim();
+    if (id && out.indexOf(id) === -1) out.push(id);
+  });
+  return out;
+}
+
+// Pemeriksaan kelengkapan master alat untuk SELURUH fasilitas:
+// (1) ruangan berisi ID alat tapi belum punya PersyaratanKey,
+// (2) ruangan berpersyaratan tapi kolom ID alat masih kosong,
+// (3) satu ID alat tercatat di lebih dari satu ruangan.
+function getAlatAudit_(token) {
+  const session = token ? validateSession_(token) : null;
+  if (!session) return { error: "Sesi tidak valid atau sudah habis, silakan login ulang." };
+
+  const hasil = {};
+  const pemilikId = {};
+  Object.keys(FACILITIES).forEach(function (key) {
+    const cfg = FACILITIES[key];
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(cfg.masterSheet);
+    if (!sheet) return;
+    const values = sheet.getDataRange().getValues();
+    const tanpaPersyaratan = [];
+    const tanpaAlat = [];
+    let totalAlat = 0;
+    let lastKey = "";
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const nama = String(row[1] || "").trim();
+      if (!row[0] && !nama) continue;
+      let persyaratanKey = row[2];
+      if (persyaratanKey) lastKey = String(persyaratanKey).trim();
+      else persyaratanKey = lastKey;
+      const alatIds = parseAlatIds_(row[3]);
+      totalAlat += alatIds.length;
+
+      if (alatIds.length > 0 && !persyaratanKey) tanpaPersyaratan.push(nama);
+      if (persyaratanKey && alatIds.length === 0) tanpaAlat.push(nama);
+
+      alatIds.forEach(function (id) {
+        const kunci = id.toUpperCase();
+        if (!pemilikId[kunci]) pemilikId[kunci] = [];
+        pemilikId[kunci].push(cfg.label + " / " + nama);
+      });
+    }
+    hasil[key] = {
+      facility: key,
+      label: cfg.label,
+      totalAlat: totalAlat,
+      tanpaPersyaratan: tanpaPersyaratan,
+      tanpaAlat: tanpaAlat,
+    };
+  });
+
+  const duplikat = [];
+  Object.keys(pemilikId).forEach(function (id) {
+    if (pemilikId[id].length > 1) duplikat.push({ alatId: id, lokasi: pemilikId[id] });
+  });
+
+  return { facilities: hasil, duplikat: duplikat };
 }
 
 // ---------------------------------------------------------------------------
 // MONTHLY ENTRIES
 // ---------------------------------------------------------------------------
+// Lebar baris tab *_Data.
+// Kolom A-J = struktur lama (bulan, tanggal, jam, ruangan, persyaratan,
+// suhu, rh, dpg, opr, spv). Kolom K-R ditambahkan untuk ketertelusuran
+// thermohygrometer (temuan BPOM): titik, alat yang dipakai, alat paten,
+// alasan penggantian, status ACC SPV, dan catatan penolakan.
+const DATA_COLS = 18;
+const COL_TITIK = 10;
+const COL_ALAT = 11;
+const COL_ALAT_DEFAULT = 12;
+const COL_ALASAN_GANTI = 13;
+const COL_STATUS_GANTI = 14;
+const COL_SPV_GANTI = 15;
+const COL_TGL_GANTI = 16;
+const COL_ALASAN_TOLAK = 17;
+
 function getEntries_(facilityKey, month) {
   const cfg = FACILITIES[facilityKey];
   if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
@@ -549,6 +667,14 @@ function getEntries_(facilityKey, month) {
       persyaratanKey: persyaratanKey,
       suhu: suhu, rh: rh, dpg: dpg,
       opr: row[8] || "", spv: row[9] || "",
+      titik: row[COL_TITIK] || 1,
+      alatId: String(row[COL_ALAT] || "").trim(),
+      alatDefault: String(row[COL_ALAT_DEFAULT] || "").trim(),
+      alasanGantiAlat: String(row[COL_ALASAN_GANTI] || "").trim(),
+      statusGantiAlat: String(row[COL_STATUS_GANTI] || "").trim(),
+      spvGantiAlat: String(row[COL_SPV_GANTI] || "").trim(),
+      tanggalGantiAlat: row[COL_TGL_GANTI] ? formatDate_(row[COL_TGL_GANTI]) : "",
+      alasanTolakAlat: String(row[COL_ALASAN_TOLAK] || "").trim(),
       level: {
         suhu: levelForTwoSided_(suhu, getLimitFor_(limitMap, persyaratanKey, "suhu"), "suhu"),
         rh: levelForTwoSided_(rh, getLimitFor_(limitMap, persyaratanKey, "rh"), "rh"),
@@ -578,14 +704,27 @@ function saveEntries_(facilityKey, month, entries) {
       e.rh === null || e.rh === undefined ? "" : e.rh,
       e.dpg === null || e.dpg === undefined ? "" : e.dpg,
       e.opr || "", e.spv || "",
+      e.titik || 1,
+      e.alatId || "",
+      e.alatDefault || "",
+      e.alasanGantiAlat || "",
+      e.statusGantiAlat || "",
+      e.spvGantiAlat || "",
+      e.tanggalGantiAlat || "",
+      e.alasanTolakAlat || "",
     ];
   });
-  const finalRows = kept.concat(newRows);
+  // Baris lama bisa lebih pendek dari DATA_COLS; disamakan panjangnya dulu.
+  const finalRows = kept.concat(newRows).map(function (r) {
+    const row = r.slice(0, DATA_COLS);
+    while (row.length < DATA_COLS) row.push("");
+    return row;
+  });
   // Bulan (A), Tanggal (B), dan Jam (C) disimpan sebagai teks supaya tidak
   // berubah tipe saat dibaca ulang.
   sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 3).setNumberFormat("@");
-  sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 10).clearContent();
-  if (finalRows.length > 0) sheet.getRange(2, 1, finalRows.length, 10).setValues(finalRows);
+  sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), DATA_COLS).clearContent();
+  if (finalRows.length > 0) sheet.getRange(2, 1, finalRows.length, DATA_COLS).setValues(finalRows);
   return { ok: true, saved: newRows.length };
 }
 
@@ -603,7 +742,7 @@ function stampFieldOnDataRows_(cfg, month, tanggal, roomName, colIndex, value) {
   if (!sheet) return 0;
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return 0;
-  const values = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+  const values = sheet.getRange(2, 1, lastRow - 1, DATA_COLS).getValues();
   let changed = 0;
   for (let i = 0; i < values.length; i++) {
     const matchesDate = formatMonth_(values[i][0]) === month && formatDate_(values[i][1]) === tanggal;
@@ -613,7 +752,7 @@ function stampFieldOnDataRows_(cfg, month, tanggal, roomName, colIndex, value) {
       changed++;
     }
   }
-  if (changed > 0) sheet.getRange(2, 1, values.length, 10).setValues(values);
+  if (changed > 0) sheet.getRange(2, 1, values.length, DATA_COLS).setValues(values);
   return changed;
 }
 
@@ -711,6 +850,81 @@ function upsertApprovalHarianRow_(cfg, tanggal, patch) {
   // Kolom A (Bulan) & B (Tanggal) disimpan sebagai teks.
   found.sheet.getRange(rowIndex, 1, 1, 2).setNumberFormat("@");
   found.sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+}
+
+// ----- Penggantian alat: daftar & keputusan SPV --------------------------
+// Baris data TETAP SAH dan tetap dihitung ke level ruangan, apa pun
+// keputusan SPV. Yang berubah hanya status ketertelusurannya, dan bila
+// ditolak, catatan penolakan ikut tercetak di formulir.
+function listPenggantianAlat_(facilityKey, bulan, token) {
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
+  const session = token ? validateSession_(token) : null;
+  if (!session) return { error: "Sesi tidak valid atau sudah habis, silakan login ulang." };
+  const entries = getEntries_(facilityKey, bulan).entries || [];
+  const daftar = entries
+    .filter(function (e) { return !!e.statusGantiAlat; })
+    .map(function (e) {
+      return {
+        tanggal: e.tanggal, jam: e.jam, roomName: e.roomName, titik: e.titik,
+        alatId: e.alatId, alatDefault: e.alatDefault,
+        alasanGantiAlat: e.alasanGantiAlat, statusGantiAlat: e.statusGantiAlat,
+        spvGantiAlat: e.spvGantiAlat, tanggalGantiAlat: e.tanggalGantiAlat,
+        alasanTolakAlat: e.alasanTolakAlat,
+      };
+    });
+  daftar.sort(function (a, b) { return String(b.tanggal).localeCompare(String(a.tanggal)); });
+  return { facility: facilityKey, bulan: bulan, daftar: daftar };
+}
+
+function putuskanPenggantianAlatAuthed_(session, body) {
+  const facilityKey = body.facility;
+  const cfg = FACILITIES[facilityKey];
+  if (!cfg) return { error: "Fasilitas tidak dikenal: " + facilityKey };
+  if (!requireRoleForFacility_(session, "Supervisor", cfg)) {
+    return { error: "Hanya SPV/Manager departemen terkait yang boleh memutuskan penggantian alat." };
+  }
+  const keputusan = String(body.keputusan || "").toLowerCase();
+  if (keputusan !== "approved" && keputusan !== "rejected") {
+    return { error: "Keputusan tidak dikenal." };
+  }
+  if (keputusan === "rejected" && !String(body.alasanTolak || "").trim()) {
+    return { error: "Alasan penolakan wajib diisi — akan ikut tercetak di formulir." };
+  }
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(cfg.dataSheet);
+  if (!sheet) return { error: "Tab data tidak ditemukan: " + cfg.dataSheet };
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { error: "Data tidak ditemukan." };
+
+  const values = sheet.getRange(2, 1, lastRow - 1, DATA_COLS).getValues();
+  const nowStr = formatDate_(new Date());
+  let changed = 0;
+  for (let i = 0; i < values.length; i++) {
+    const row = values[i];
+    if (formatMonth_(row[0]) !== body.bulan) continue;
+    if (formatDate_(row[1]) !== body.tanggal) continue;
+    if (body.jam && formatTime_(row[2]) !== body.jam) continue;
+    if (String(row[3]).trim() !== String(body.roomName).trim()) continue;
+    if (!row[COL_STATUS_GANTI]) continue;
+    row[COL_STATUS_GANTI] = keputusan;
+    row[COL_SPV_GANTI] = session.nama;
+    row[COL_TGL_GANTI] = nowStr;
+    row[COL_ALASAN_TOLAK] = keputusan === "rejected" ? String(body.alasanTolak).trim() : "";
+    changed++;
+  }
+  if (changed === 0) return { error: "Tidak ada baris penggantian alat yang cocok." };
+  sheet.getRange(2, 1, values.length, DATA_COLS).setValues(values);
+
+  writeAuditLog_({
+    username: session.username, nama: session.nama, role: session.role, departemen: session.departemen,
+    aksi: keputusan === "approved" ? "Setujui Penggantian Alat" : "Tolak Penggantian Alat",
+    fasilitas: cfg.label, bulan: body.bulan,
+    detail: body.roomName + " | " + body.tanggal + (body.jam ? " " + body.jam : "") +
+      " | alat: " + (body.alatId || "-") +
+      (keputusan === "rejected" ? " | alasan tolak: " + String(body.alasanTolak).trim() : ""),
+  });
+  return listPenggantianAlat_(facilityKey, body.bulan, body.token);
 }
 
 function approveDayAuthed_(session, facilityKey, tanggal) {

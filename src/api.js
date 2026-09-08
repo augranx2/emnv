@@ -62,6 +62,21 @@ export function fetchFormulirBulanan(facility, bulan, roomName, token) {
 
 // Ringkasan approval formulir untuk SATU fasilitas + bulan (berapa ruangan
 // sudah/belum di-ACC Kepala Bagian & Manager QA).
+// Pemeriksaan kelengkapan kolom ID Thermohygrometer di seluruh master.
+export function fetchAlatAudit(token) {
+  return apiGet({ action: "alatAudit", token });
+}
+
+// Daftar penggantian alat pada satu fasilitas + bulan.
+export function fetchPenggantianAlat(facility, bulan, token) {
+  return apiGet({ action: "penggantianAlat", facility, bulan, token });
+}
+
+// Keputusan SPV atas penggantian alat: "approved" atau "rejected".
+export function putuskanPenggantianAlat(payload) {
+  return apiPost({ action: "putuskanPenggantianAlat", ...payload });
+}
+
 export function fetchFormulirStatus(facility, bulan, token) {
   return apiGet({ action: "formulirStatus", facility, bulan, token });
 }

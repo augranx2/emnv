@@ -75,6 +75,8 @@ import {
   generateNarrative,
   fetchFormulirBulanan,
   fetchFormulirStatus,
+  fetchAlatAudit,
+  putuskanPenggantianAlat as apiPutuskanPenggantianAlat,
   approveKepalaBagian as apiApproveKepalaBagian,
   approveKepalaBagianAll as apiApproveKepalaBagianAll,
   approveManagerQAFormulir as apiApproveManagerQAFormulir,
@@ -993,6 +995,8 @@ const NOTIF_STYLE = {
   formulir_ready: { wrap: "bg-emerald-50/40", border: "border-emerald-100", Icon: FileCheck2, iconCls: "text-emerald-600", tag: "bg-emerald-100 text-emerald-800" },
   formulir_kb: { wrap: "bg-amber-50/40", border: "border-amber-100", Icon: FileCheck2, iconCls: "text-amber-600", tag: "bg-amber-100 text-amber-800" },
   formulir_wait: { wrap: "bg-slate-50", border: "border-slate-200", Icon: Clock, iconCls: "text-slate-500", tag: "bg-slate-100 text-slate-700" },
+  alat_pending: { wrap: "bg-amber-50/40", border: "border-amber-100", Icon: Thermometer, iconCls: "text-amber-600", tag: "bg-amber-100 text-amber-800" },
+  alat_master: { wrap: "bg-slate-50", border: "border-slate-200", Icon: Thermometer, iconCls: "text-slate-500", tag: "bg-slate-100 text-slate-700" },
   no_data: { wrap: "bg-slate-50", border: "border-slate-200", Icon: AlertTriangle, iconCls: "text-slate-500", tag: "bg-slate-100 text-slate-700" },
   default: { wrap: "bg-amber-50/30", border: "border-amber-100", Icon: Clock, iconCls: "text-amber-600", tag: "bg-amber-100 text-amber-800" },
 };
@@ -1523,6 +1527,11 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
 
   const [activeRoomNames, setActiveRoomNames] = useState([]);
   const [gridValues, setGridValues] = useState({});
+  // Dialog penggantian thermohygrometer: { roomName, alatId, alasan }
+  const [alatDialog, setAlatDialog] = useState(null);
+  // Dialog penolakan oleh SPV (alasan penolakan wajib diisi).
+  const [tolakDialog, setTolakDialog] = useState(null);
+  const [alatBusy, setAlatBusy] = useState(false);
 
   const [pendahuluan, setPendahuluan] = useState("");
   const [kesimpulanUmum, setKesimpulanUmum] = useState("");
@@ -1675,9 +1684,18 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     const initialGrid = {};
     rooms.forEach((r) => {
       if (!r?.name) return;
+      const alatKosong = {
+        alatId: r.alatId || "",
+        alatTersimpan: r.alatId || "",
+        alasanGantiAlat: "",
+        statusGantiAlat: "",
+        spvGantiAlat: "",
+        tanggalGantiAlat: "",
+        alasanTolakAlat: "",
+      };
       initialGrid[r.name] = {
-        "08:00": { suhu: "", rh: "", dpg: "", opr: "", spv: "" },
-        "13:00": { suhu: "", rh: "", dpg: "", opr: "", spv: "" },
+        "08:00": { suhu: "", rh: "", dpg: "", opr: "", spv: "", ...alatKosong },
+        "13:00": { suhu: "", rh: "", dpg: "", opr: "", spv: "", ...alatKosong },
       };
       SESI.forEach((jam) => {
         PARAM_DEFS.forEach((p) => {
@@ -1695,12 +1713,81 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           dpg: e.dpg ?? (rObj?.required?.dpg ? "" : "-"),
           opr: e.opr || "",
           spv: e.spv || "",
+          // Alat yang benar-benar dipakai saat pengukuran itu.
+          alatId: e.alatId || rObj?.alatId || "",
+          alatTersimpan: e.alatId || "",
+          alasanGantiAlat: e.alasanGantiAlat || "",
+          statusGantiAlat: e.statusGantiAlat || "",
+          spvGantiAlat: e.spvGantiAlat || "",
+          tanggalGantiAlat: e.tanggalGantiAlat || "",
+          alasanTolakAlat: e.alasanTolakAlat || "",
         };
       }
     });
 
     setGridValues(initialGrid);
   }, [selectedDate, monthEntries, rooms]);
+
+  // Seluruh ID alat yang terdaftar di fasilitas ini — jadi pilihan saat
+  // operator memakai alat pinjaman dari ruangan lain.
+  const daftarAlatFasilitas = useMemo(() => {
+    const out = [];
+    (rooms || []).forEach((r) => {
+      if (r?.alatId && !out.some((a) => a.alatId === r.alatId)) {
+        out.push({ alatId: r.alatId, roomName: r.roomName || r.name });
+      }
+    });
+    return out.sort((a, b) => a.alatId.localeCompare(b.alatId));
+  }, [rooms]);
+
+  // Penggantian alat berlaku untuk kedua sesi pada tanggal tersebut.
+  function simpanPenggantianAlat(roomName, alatId, alasan) {
+    setGridValues((prev) => {
+      const unit = prev[roomName] || {};
+      const next = { ...unit };
+      SESI.forEach((jam) => {
+        next[jam] = {
+          ...(unit[jam] || {}),
+          alatId: String(alatId || "").trim(),
+          alasanGantiAlat: String(alasan || "").trim(),
+        };
+      });
+      return { ...prev, [roomName]: next };
+    });
+    setAlatDialog(null);
+  }
+
+  // Seluruh penggantian alat pada bulan berjalan (semua status).
+  const penggantianBulanIni = useMemo(() => {
+    return (monthEntries || [])
+      .filter((e) => !!e?.statusGantiAlat)
+      .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
+  }, [monthEntries]);
+
+  async function putuskanAlat(g, keputusan, alasanTolak) {
+    setAlatBusy(true);
+    setError("");
+    try {
+      await apiPutuskanPenggantianAlat({
+        facility: facilityKey,
+        bulan: month,
+        tanggal: g.tanggal,
+        jam: g.jam,
+        roomName: g.roomName,
+        alatId: g.alatId,
+        keputusan,
+        alasanTolak: alasanTolak || "",
+        token: session?.token,
+      });
+      setTolakDialog(null);
+      await loadData();
+      showToast(keputusan === "approved" ? "Penggantian alat disetujui." : "Penggantian alat ditolak.");
+    } catch (err) {
+      setError(err.message || "Gagal menyimpan keputusan penggantian alat.");
+    } finally {
+      setAlatBusy(false);
+    }
+  }
 
   function handleAddRoom(roomName) {
     if (!roomName || activeRoomNames.includes(roomName)) return;
@@ -1737,6 +1824,34 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           const rVal = !rObj?.required?.rh ? v.rh || "-" : v.rh;
           const dVal = !rObj?.required?.dpg ? v.dpg || "-" : v.dpg;
 
+          // --- Ketertelusuran thermohygrometer ---------------------------
+          // Alat paten ruangan berasal dari master; kalau operator memakai
+          // alat lain, baris tetap sah tapi berstatus menunggu ACC SPV.
+          const alatPaten = rObj?.alatId || "";
+          const alatDipakai = String(v.alatId || alatPaten || "").trim();
+          const berbeda = !!alatPaten && !!alatDipakai && alatDipakai !== alatPaten;
+          const alatSebelumnya = String(v.alatTersimpan ?? alatDipakai);
+
+          let statusGanti = "";
+          let alasanGanti = "";
+          let spvGanti = "";
+          let tanggalGanti = "";
+          let alasanTolak = "";
+          if (berbeda) {
+            alasanGanti = String(v.alasanGantiAlat || "").trim();
+            const keputusanLama = String(v.statusGantiAlat || "");
+            // Keputusan SPV hanya dipertahankan kalau alatnya memang sama
+            // dengan yang dulu diputuskan; kalau diganti lagi, kembali pending.
+            if (keputusanLama && alatSebelumnya === alatDipakai) {
+              statusGanti = keputusanLama;
+              spvGanti = v.spvGantiAlat || "";
+              tanggalGanti = v.tanggalGantiAlat || "";
+              alasanTolak = v.alasanTolakAlat || "";
+            } else {
+              statusGanti = "pending";
+            }
+          }
+
           todayRows.push({
             id: `${rName}|${selectedDate}|${jam}`,
             tanggal: selectedDate,
@@ -1748,6 +1863,14 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
             dpg: dVal === "" ? null : dVal,
             opr: v.opr || "",
             spv: v.spv || "",
+            titik: rObj?.titik || 1,
+            alatId: alatDipakai,
+            alatDefault: alatPaten,
+            alasanGantiAlat: alasanGanti,
+            statusGantiAlat: statusGanti,
+            spvGantiAlat: spvGanti,
+            tanggalGantiAlat: tanggalGanti,
+            alasanTolakAlat: alasanTolak,
           });
         }
       });
@@ -1755,7 +1878,35 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
     return todayRows;
   }
 
+  // Penggantian alat WAJIB disertai alasan — ini inti temuan BPOM.
+  function validasiAlat() {
+    const kurang = [];
+    activeRoomNames.forEach((rName) => {
+      const rObj = (rooms || []).find((r) => r?.name === rName);
+      const alatPaten = rObj?.alatId || "";
+      SESI.forEach((jam) => {
+        const v = gridValues[rName]?.[jam] || {};
+        const anyFilled = PARAM_DEFS.some((p) => v[p.key] && v[p.key] !== "-");
+        if (!anyFilled) return;
+        const alatDipakai = String(v.alatId || alatPaten || "").trim();
+        if (alatPaten && alatDipakai && alatDipakai !== alatPaten && !String(v.alasanGantiAlat || "").trim()) {
+          kurang.push(`${rName} (${jam})`);
+        }
+      });
+    });
+    if (kurang.length > 0) {
+      return `Alasan penggantian alat wajib diisi pada: ${kurang.join(", ")}.`;
+    }
+    return "";
+  }
+
   async function handleSaveDataOnly() {
+    const pesanAlat = validasiAlat();
+    if (pesanAlat) {
+      setError(pesanAlat);
+      showToast(pesanAlat);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -1772,6 +1923,12 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
   }
 
   async function handleApproveOprBatch() {
+    const pesanAlat = validasiAlat();
+    if (pesanAlat) {
+      setError(pesanAlat);
+      showToast(pesanAlat);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -2207,6 +2364,7 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
               <thead>
                 <tr className="bg-slate-50 text-slate-600 border-b">
                   <th className="px-3 py-2 text-left min-w-[170px] print:w-40">RUANGAN</th>
+                  <th className="px-2 py-2 text-center w-32">NO. ALAT</th>
                   <th className="px-2 py-2 text-center w-28">PERSYARATAN</th>
                   <th className="px-2 py-2 text-center w-14">JAM</th>
                   <th className="px-2 py-2 text-center w-20">SUHU (°C)</th>
@@ -2254,6 +2412,55 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
                                   {labelSuffix}
                                 </span>
                               )}
+                            </td>
+                            <td rowSpan={2} className="px-2 py-1.5 text-center align-middle border-r border-slate-100">
+                              {(() => {
+                                const vAlat = gridValues[rName]?.["08:00"] || {};
+                                const alatPaten = rObj.alatId || "";
+                                const alatDipakai = String(vAlat.alatId || alatPaten || "").trim();
+                                const berbeda = !!alatPaten && !!alatDipakai && alatDipakai !== alatPaten;
+                                const statusGanti = String(vAlat.statusGantiAlat || "");
+                                return (
+                                  <div className="space-y-0.5">
+                                    <div
+                                      className={`inline-block font-bold px-2 py-0.5 rounded-lg text-[10px] border ${
+                                        berbeda
+                                          ? "bg-amber-50 text-amber-800 border-amber-300"
+                                          : "bg-slate-100 text-slate-700 border-slate-200"
+                                      }`}
+                                    >
+                                      {alatDipakai || "—"}
+                                    </div>
+                                    {berbeda && (
+                                      <p className="text-[9px] text-amber-700 leading-tight">
+                                        Paten: {alatPaten}
+                                        <br />
+                                        {statusGanti === "approved"
+                                          ? `Disetujui ${vAlat.spvGantiAlat || "SPV"}`
+                                          : statusGanti === "rejected"
+                                          ? "Ditolak SPV"
+                                          : "Menunggu ACC SPV"}
+                                      </p>
+                                    )}
+                                    {canInput && !isLocked && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setAlatDialog({
+                                            roomName: rName,
+                                            alatPaten,
+                                            alatId: alatDipakai,
+                                            alasan: vAlat.alasanGantiAlat || "",
+                                          })
+                                        }
+                                        className="block mx-auto text-[9px] font-semibold text-rose-800 hover:underline"
+                                      >
+                                        Ganti alat
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td rowSpan={2} className="px-2 py-1.5 text-center align-middle border-r border-slate-100">
                               <span className="inline-block bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-lg text-[10px] border border-slate-200">
@@ -2389,6 +2596,226 @@ function FacilityIntegratedPage({ session, facilityKey, month, setMonth, setView
           </div>
         )}
       </div>
+
+      {/* PENGGANTIAN ALAT BULAN INI — daftar + keputusan SPV */}
+      {penggantianBulanIni.length > 0 && (
+        <div className="bg-white rounded-3xl border border-amber-200 p-4 shadow-xs space-y-3 print-card avoid-break">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-amber-600" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Penggantian Thermohygrometer — {monthLabelID(month)}
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 border-b text-left">
+                  <th className="px-3 py-1.5">TANGGAL</th>
+                  <th className="px-3 py-1.5">RUANGAN / TITIK</th>
+                  <th className="px-3 py-1.5">ALAT DIPAKAI</th>
+                  <th className="px-3 py-1.5">ALASAN</th>
+                  <th className="px-3 py-1.5">STATUS</th>
+                  <th className="px-3 py-1.5 no-print">AKSI</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {penggantianBulanIni.map((g) => (
+                  <tr key={`${g.roomName}|${g.tanggal}|${g.jam}`} className="align-top">
+                    <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                      {g.tanggal} <span className="text-slate-400">{g.jam}</span>
+                    </td>
+                    <td className="px-3 py-1.5 font-semibold text-slate-800">{g.roomName}</td>
+                    <td className="px-3 py-1.5">
+                      <span className="font-bold text-amber-800">{g.alatId || "—"}</span>
+                      <span className="block text-[10px] text-slate-400">paten: {g.alatDefault || "—"}</span>
+                    </td>
+                    <td className="px-3 py-1.5 text-slate-600 max-w-[220px]">{g.alasanGantiAlat || "—"}</td>
+                    <td className="px-3 py-1.5">
+                      {g.statusGantiAlat === "approved" ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          Disetujui {g.spvGantiAlat}
+                        </span>
+                      ) : g.statusGantiAlat === "rejected" ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-800 border border-red-200">
+                          Ditolak {g.spvGantiAlat}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                          Menunggu ACC SPV
+                        </span>
+                      )}
+                      {g.statusGantiAlat === "rejected" && g.alasanTolakAlat && (
+                        <span className="block text-[10px] text-red-700 mt-0.5">Alasan: {g.alasanTolakAlat}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 no-print">
+                      {canApproveSPV && g.statusGantiAlat === "pending" && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => putuskanAlat(g, "approved")}
+                            disabled={alatBusy}
+                            className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 text-[10px] font-semibold disabled:opacity-50"
+                          >
+                            Setujui
+                          </button>
+                          <button
+                            onClick={() => setTolakDialog({ ...g, alasanTolak: "" })}
+                            disabled={alatBusy}
+                            className="rounded-lg border border-red-200 text-red-700 hover:bg-red-50 px-2 py-1 text-[10px] font-semibold disabled:opacity-50"
+                          >
+                            Tolak
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-slate-400">
+            Data pengukuran tetap sah dan tetap dihitung. Penolakan tidak menghapus data — catatannya ikut
+            tercetak di formulir bulanan.
+          </p>
+        </div>
+      )}
+
+      {/* DIALOG PENOLAKAN PENGGANTIAN ALAT */}
+      {tolakDialog && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+              <h3 className="text-sm font-bold text-slate-800">Tolak Penggantian Alat</h3>
+              <p className="text-[11px] text-slate-500">
+                {tolakDialog.roomName} · {tolakDialog.tanggal} · alat {tolakDialog.alatId}
+              </p>
+            </div>
+            <div className="p-5 space-y-2">
+              <label className="text-[11px] font-semibold text-slate-600">
+                Alasan penolakan <span className="text-red-600">*</span>
+              </label>
+              <textarea
+                rows={3}
+                value={tolakDialog.alasanTolak}
+                onChange={(e) => setTolakDialog((prev) => ({ ...prev, alasanTolak: e.target.value }))}
+                placeholder="Contoh: alat tersebut belum terkalibrasi / bukan alat ruangan ini"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-rose-700"
+              />
+              <p className="text-[10px] text-slate-500">
+                Catatan ini akan tercetak di formulir bulanan bersama nama dan tanggal Anda.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-100">
+              <button
+                onClick={() => setTolakDialog(null)}
+                className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => putuskanAlat(tolakDialog, "rejected", tolakDialog.alasanTolak)}
+                disabled={alatBusy || !String(tolakDialog.alasanTolak || "").trim()}
+                className="rounded-xl bg-red-700 hover:bg-red-800 px-3.5 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+              >
+                Tolak Penggantian
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIALOG PENGGANTIAN THERMOHYGROMETER */}
+      {alatDialog && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+              <h3 className="text-sm font-bold text-slate-800">Ganti Thermohygrometer</h3>
+              <p className="text-[11px] text-slate-500">
+                {alatDialog.roomName} · {fullDateID(selectedDate)}
+              </p>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <div className="rounded-2xl bg-slate-50 border border-slate-200 px-3 py-2">
+                <p className="text-[10px] text-slate-500">Alat paten ruangan ini</p>
+                <p className="text-xs font-bold text-slate-800">{alatDialog.alatPaten || "— belum terdaftar —"}</p>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600">Alat yang dipakai hari ini</label>
+                <select
+                  value={
+                    daftarAlatFasilitas.some((a) => a.alatId === alatDialog.alatId) ? alatDialog.alatId : "__lain__"
+                  }
+                  onChange={(e) =>
+                    setAlatDialog((prev) => ({
+                      ...prev,
+                      alatId: e.target.value === "__lain__" ? "" : e.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-rose-700"
+                >
+                  {daftarAlatFasilitas.map((a) => (
+                    <option key={a.alatId} value={a.alatId}>
+                      {a.alatId} — {a.roomName}
+                    </option>
+                  ))}
+                  <option value="__lain__">Alat lain (ketik manual)…</option>
+                </select>
+                {!daftarAlatFasilitas.some((a) => a.alatId === alatDialog.alatId) && (
+                  <input
+                    value={alatDialog.alatId}
+                    onChange={(e) => setAlatDialog((prev) => ({ ...prev, alatId: e.target.value }))}
+                    placeholder="Ketik nomor aset alat, mis. TH-045"
+                    className="mt-2 w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-rose-700"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600">
+                  Alasan penggantian <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={alatDialog.alasan}
+                  onChange={(e) => setAlatDialog((prev) => ({ ...prev, alasan: e.target.value }))}
+                  placeholder="Contoh: alat paten sedang kalibrasi, dipinjamkan dari ruang X"
+                  className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-rose-700"
+                />
+                <p className="mt-1 text-[10px] text-amber-700">
+                  Data tetap tersimpan dan tetap sah, namun ditandai menunggu ACC SPV.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-100">
+              <button
+                onClick={() => setAlatDialog(null)}
+                className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => simpanPenggantianAlat(alatDialog.roomName, alatDialog.alatPaten, "")}
+                className="rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Kembalikan ke alat paten
+              </button>
+              <button
+                onClick={() => simpanPenggantianAlat(alatDialog.roomName, alatDialog.alatId, alatDialog.alasan)}
+                disabled={
+                  !String(alatDialog.alatId || "").trim() ||
+                  (alatDialog.alatId !== alatDialog.alatPaten && !String(alatDialog.alasan || "").trim())
+                }
+                className="rounded-xl bg-rose-900 hover:bg-rose-950 px-3.5 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SECTION 2: CARD PERSYARATAN & LIMIT */}
       {Object.keys(activeDistinctLimits).length > 0 && (
@@ -3567,6 +3994,22 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
   });
   const roomObj = (rooms || []).find((r) => r?.name === selectedRoom) || rooms[0];
 
+  // Nomor alat yang benar-benar tercatat pada titik ini sepanjang bulan.
+  const alatDipakaiBulanIni = useMemo(() => {
+    const out = [];
+    (entries || []).forEach((e) => {
+      const id = String(e?.alatId || "").trim();
+      if (id && !out.includes(id)) out.push(id);
+    });
+    return out;
+  }, [entries]);
+
+  const penggantianRuangan = useMemo(() => {
+    return (entries || [])
+      .filter((e) => !!e?.statusGantiAlat)
+      .sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)));
+  }, [entries]);
+
   return (
     <div className="max-w-5xl mx-auto space-y-4 print:max-w-none print:p-0">
       <div className="no-print flex flex-wrap items-center justify-between gap-2 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
@@ -3651,11 +4094,41 @@ function FormulirBulananPrint({ session, facilityKey, roomName, bulan, setView }
               <span className="font-semibold text-slate-600">Gedung</span> : {cfg?.label}
             </p>
             <p>
-              <span className="font-semibold text-slate-600">Nama Ruang / No. Ruang</span> : {roomObj?.name} (
-              {roomObj?.code})
+              <span className="font-semibold text-slate-600">Nama Ruang / No. Ruang</span> : {roomObj?.roomName || roomObj?.name} (
+              {roomObj?.roomCode || roomObj?.code})
+            </p>
+            {/* Ketertelusuran alat: nomor thermohygrometer yang benar-benar
+                dipakai sepanjang bulan pada titik ini. */}
+            <p>
+              <span className="font-semibold text-slate-600">No. Thermohygrometer</span> :{" "}
+              {alatDipakaiBulanIni.length > 0 ? alatDipakaiBulanIni.join(", ") : roomObj?.alatId || "—"}
+              {roomObj?.titikCount > 1 ? ` (Titik ${roomObj?.titik} dari ${roomObj?.titikCount})` : ""}
             </p>
           </div>
         </div>
+
+        {/* Catatan penggantian alat — wajib tercetak agar mapping alat
+            tertelusur, termasuk bila penggantiannya ditolak SPV. */}
+        {penggantianRuangan.length > 0 && (
+          <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50/60 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-amber-800">
+              Catatan Penggantian Thermohygrometer
+            </p>
+            <ul className="mt-1 space-y-0.5 text-[10px] text-slate-700 leading-snug">
+              {penggantianRuangan.map((g) => (
+                <li key={`${g.tanggal}|${g.jam}`}>
+                  <b>{g.tanggal}</b> ({g.jam}) — alat <b>{g.alatId}</b> menggantikan {g.alatDefault || "alat paten"}.
+                  Alasan: {g.alasanGantiAlat || "—"}.{" "}
+                  {g.statusGantiAlat === "approved"
+                    ? `Disetujui ${g.spvGantiAlat || "SPV"}${g.tanggalGantiAlat ? " pada " + g.tanggalGantiAlat : ""}.`
+                    : g.statusGantiAlat === "rejected"
+                    ? `DITOLAK ${g.spvGantiAlat || "SPV"}${g.tanggalGantiAlat ? " pada " + g.tanggalGantiAlat : ""} — ${g.alasanTolakAlat || "tanpa keterangan"}. Data pengukuran tetap sah.`
+                    : "Menunggu ACC SPV."}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full border-collapse text-[9.5px]">
@@ -4389,6 +4862,10 @@ function AppContent() {
           }
         };
 
+        // Entri per fasilitas disimpan supaya bisa dipakai lagi untuk
+        // notifikasi penggantian alat tanpa memanggil server dua kali.
+        const entriesByFacility = {};
+
         await runInBatches(relevantFacilities, 4, async (fac) => {
             try {
               const [entriesRes, reportRes] = await Promise.all([
@@ -4397,6 +4874,7 @@ function AppContent() {
               ]);
 
               const entryList = Array.isArray(entriesRes) ? entriesRes : entriesRes?.entries || [];
+              entriesByFacility[fac.key] = entryList;
 
               // Alert Deviasi Kritis
               entryList.forEach((e) => {
@@ -4456,6 +4934,33 @@ function AppContent() {
             } catch {
               // ignore
             }
+        });
+
+        // Penggantian alat yang menunggu ACC SPV — dihitung per fasilitas,
+        // bukan per baris, supaya daftarnya tidak membanjir.
+        relevantFacilities.forEach((fac) => {
+          const list = entriesByFacility[fac.key] || [];
+          const pendingAlat = list.filter((e) => e?.statusGantiAlat === "pending");
+          if (pendingAlat.length === 0) return;
+          const bolehACC = hasFacilityAccess(session, "Supervisor", fac);
+          if (!bolehACC && !isQA) return;
+          const contoh = pendingAlat
+            .slice(0, 3)
+            .map((e) => `${e.roomName} ${e.tanggal}`)
+            .join("; ");
+          notifList.push({
+            type: "alat_pending",
+            facilityKey: fac.key,
+            facilityLabel: fac.label,
+            targetDate: pendingAlat[0]?.tanggal,
+            bulan: month,
+            title: bolehACC ? "Penggantian Alat Menunggu ACC Anda" : "Penggantian Alat Belum Di-ACC SPV",
+            desc: `${pendingAlat.length} pencatatan memakai thermohygrometer di luar alat paten (${contoh}${
+              pendingAlat.length > 3 ? ", dst." : ""
+            }). Data tetap sah, menunggu keputusan SPV.`,
+            tag: "Ganti Alat",
+            time: monthLabelID(month),
+          });
         });
 
         // -------------------------------------------------------------
@@ -4567,15 +5072,64 @@ function AppContent() {
           }
         });
 
+        // Kelengkapan master ID thermohygrometer — hanya untuk QA, karena
+        // merekalah yang merawat konsistensi master antar departemen.
+        if (isQA) {
+          const audit = await fetchAlatAudit(session?.token).catch(() => null);
+          if (audit && !audit.error) {
+            Object.values(audit.facilities || {}).forEach((f) => {
+              const tanpaAlat = f.tanpaAlat || [];
+              const tanpaSyarat = f.tanpaPersyaratan || [];
+              if (tanpaAlat.length === 0 && tanpaSyarat.length === 0) return;
+              const bagian = [];
+              if (tanpaAlat.length > 0) {
+                bagian.push(
+                  `${tanpaAlat.length} ruangan berpersyaratan belum diisi ID alat (${tanpaAlat
+                    .slice(0, 3)
+                    .join(", ")}${tanpaAlat.length > 3 ? ", dst." : ""})`
+                );
+              }
+              if (tanpaSyarat.length > 0) {
+                bagian.push(
+                  `${tanpaSyarat.length} ruangan berisi ID alat tetapi belum punya PersyaratanKey (${tanpaSyarat
+                    .slice(0, 3)
+                    .join(", ")}${tanpaSyarat.length > 3 ? ", dst." : ""})`
+                );
+              }
+              notifList.push({
+                type: "alat_master",
+                facilityKey: f.facility,
+                facilityLabel: f.label,
+                title: "Master ID Thermohygrometer Belum Lengkap",
+                desc: `${bagian.join(". ")}.`,
+                tag: "Master Alat",
+                time: "Master",
+              });
+            });
+
+            (audit.duplikat || []).forEach((d) => {
+              notifList.push({
+                type: "alat_master",
+                title: "ID Thermohygrometer Terdaftar Ganda",
+                desc: `${d.alatId} tercatat di ${d.lokasi.length} lokasi: ${d.lokasi.join(" | ")}. Satu alat hanya boleh menempati satu titik.`,
+                tag: "Duplikat ID",
+                time: "Master",
+              });
+            });
+          }
+        }
+
         // Urutkan: deviasi kritis dulu, lalu tugas approval, baru sisanya.
         const PRIORITAS = {
           critical: 0,
+          alat_pending: 1,
           formulir_ready: 1,
           formulir_kb: 2,
           formulir_wait: 3,
           pending_spv: 4,
           qa_global: 5,
           no_data: 6,
+          alat_master: 7,
         };
         notifList.sort((a, b) => (PRIORITAS[a.type] ?? 9) - (PRIORITAS[b.type] ?? 9));
 
