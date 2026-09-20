@@ -1,3 +1,4 @@
+import { ssoAktif, ssoCall, keGantiPasswordPortal } from "./sso.js";
 const API_URL = window.EM_NON_VIABLE_CONFIG?.API_URL || "";
 
 if (!API_URL) {
@@ -5,6 +6,7 @@ if (!API_URL) {
 }
 
 async function apiGet(params) {
+  if (ssoAktif()) return ssoCall("GET", params);
   const qs = new URLSearchParams(params).toString();
   const res = await fetch(`${API_URL}?${qs}`);
   if (!res.ok) throw new Error(`Gagal memuat data (HTTP ${res.status})`);
@@ -14,6 +16,7 @@ async function apiGet(params) {
 }
 
 async function apiPost(body) {
+  if (ssoAktif()) return ssoCall("POST", body);
   // PENTING: jangan set header "Content-Type: application/json" (lihat
   // catatan yang sama di EM Viable) — supaya tidak kena CORS preflight yang
   // tidak dijawab Apps Script.
@@ -165,6 +168,11 @@ export function whoami(token) {
 }
 
 export function changePassword(token, oldPassword, newPassword) {
+  // Saat login lewat portal aktif, password dikelola di Portal REMS.
+  if (ssoAktif()) {
+    keGantiPasswordPortal();
+    return new Promise(() => {});
+  }
   return apiPost({ action: "changePassword", token, oldPassword, newPassword });
 }
 

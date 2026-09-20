@@ -1,3 +1,4 @@
+import { ssoAktif, keGantiPasswordPortal } from "./sso.js";
 import React, { useState, useEffect, useCallback, useMemo, useRef, Component } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -1329,6 +1330,11 @@ function ChangePasswordModal({ session, onClose }) {
     }
     if (newPassword.length < 6) {
       setError("Password baru minimal 6 karakter.");
+      return;
+    }
+    // Saat login lewat portal aktif, password dikelola di Portal REMS.
+    if (ssoAktif()) {
+      keGantiPasswordPortal();
       return;
     }
     setSubmitting(true);

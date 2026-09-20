@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { ssoState, ssoAktif, keLoginPortal, keKeluarPortal } from "./sso.js";
 import { login as apiLogin, logout as apiLogout, whoami as apiWhoami } from "./api";
 
 const STORAGE_KEY = "em_non_viable_session";
@@ -21,10 +22,13 @@ function writeStored(session) {
 }
 
 export function useAuth() {
-  const [session, setSession] = useState(null);
-  const [checking, setChecking] = useState(true);
+  // Saat login lewat portal aktif, sesi langsung diisi dari portal.
+  const sso = ssoState();
+  const [session, setSession] = useState(sso.aktif && sso.user ? { token: "sso", ...sso.user } : null);
+  const [checking, setChecking] = useState(!sso.aktif);
 
   useEffect(() => {
+    if (ssoAktif()) return undefined;
     let cancelled = false;
     async function restore() {
       const stored = readStored();
@@ -48,6 +52,10 @@ export function useAuth() {
   }, []);
 
   const doLogin = useCallback(async (username, password) => {
+    if (ssoAktif()) {
+      keLoginPortal();
+      return new Promise(() => {});
+    }
     const res = await apiLogin(username, password);
     const next = { token: res.token, username: res.username, nama: res.nama, role: res.role, departemen: res.departemen };
     setSession(next);
@@ -56,6 +64,10 @@ export function useAuth() {
   }, []);
 
   const doLogout = useCallback(async () => {
+    if (ssoAktif()) {
+      keKeluarPortal();
+      return;
+    }
     if (session?.token) apiLogout(session.token);
     setSession(null);
     writeStored(null);
